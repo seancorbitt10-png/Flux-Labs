@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fafafa;
+  --foreground: #0a0a0a;
+  --canvas: #f4f4f5;
+  --muted: #71717a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--foreground);
+  font-family: var(--font-body), ui-sans-serif, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+}
+
+.bg-atmosphere {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(0, 0, 0, 0.04), transparent 50%),
+    linear-gradient(180deg, #f7f7f8 0%, #efeff1 100%);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 480ms ease-out both;
+}
+
+.animate-fade-up-delay {
+  animation: fade-up 560ms ease-out 120ms both;
+}
