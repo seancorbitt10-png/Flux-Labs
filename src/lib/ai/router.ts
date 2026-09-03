@@ -33,6 +33,23 @@ export function routeAITask(
     };
   }
 
+  // Homework / solve intent before generic "what is" explanation matches
+  if (/(homework|solve|answer this|do this problem|calculate|work through)/.test(text)) {
+    return {
+      taskType: "homework_guidance",
+      modelKey: "flux-standard",
+      reason: "homework_keywords",
+    };
+  }
+
+  if (/(tutor|help me learn|walk me through|step by step)/.test(text)) {
+    return {
+      taskType: "tutoring",
+      modelKey: "flux-standard",
+      reason: "tutoring_keywords",
+    };
+  }
+
   if (/(summarize|summary|document|pdf|notes)/.test(text)) {
     return {
       taskType: "document_analysis",
@@ -54,22 +71,6 @@ export function routeAITask(
       taskType: "concept_explanation",
       modelKey: "flux-fast",
       reason: "explanation_keywords",
-    };
-  }
-
-  if (/(homework|solve|answer this|do this problem|calculate)/.test(text)) {
-    return {
-      taskType: "homework_guidance",
-      modelKey: "flux-standard",
-      reason: "homework_keywords",
-    };
-  }
-
-  if (/(tutor|help me learn|walk me through|step by step)/.test(text)) {
-    return {
-      taskType: "tutoring",
-      modelKey: "flux-standard",
-      reason: "tutoring_keywords",
     };
   }
 

@@ -8,6 +8,11 @@ describe("AI task router", () => {
     expect(route.modelKey).toBe("flux-standard");
   });
 
+  it("prefers solve intent over generic what-is phrasing", () => {
+    const route = routeAITask("Solve this for me: what is 2 + 2 + 2?");
+    expect(route.taskType).toBe("homework_guidance");
+  });
+
   it("routes explanation language to concept_explanation with cheap model", () => {
     const route = routeAITask("What is a derivative?");
     expect(route.taskType).toBe("concept_explanation");

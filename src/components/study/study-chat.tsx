@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   sendStudyMessage,
@@ -8,28 +8,38 @@ import {
 } from "@/lib/ai/actions";
 
 export function StudyChat() {
+  const [message, setMessage] = useState("");
   const [state, action, pending] = useActionState<
     StudyActionResult | null,
     FormData
   >(sendStudyMessage, null);
 
+  useEffect(() => {
+    if (state?.ok) {
+      setMessage("");
+    }
+  }, [state]);
+
   return (
     <div className="space-y-4">
       <form action={action} className="space-y-3">
-        <label className="block space-y-1.5">
+        <label className="block space-y-1.5" htmlFor="study-message">
           <span className="text-sm text-foreground/70">
             What are you working on?
           </span>
           <textarea
+            id="study-message"
             name="message"
             rows={4}
             required
             maxLength={4000}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask for guidance — Flux will teach and guide rather than dump answers."
             className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
           />
         </label>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || message.trim().length === 0}>
           {pending ? "Thinking…" : "Ask Flux"}
         </Button>
       </form>
