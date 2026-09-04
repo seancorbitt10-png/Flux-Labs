@@ -1,6 +1,6 @@
-// Flux Labs — Phase 1 foundation schema
-// Intentionally minimal. Designed for expansion in later phases.
-// See docs/ARCHITECTURE.md and docs/STUDENT_MODEL.md.
+// Flux Labs — Phase 1 + Phase 2 foundation schema
+// Phase 2 Student Model + Knowledge Foundation.
+// See docs/PHASE2_ARCHITECTURE.md (approved) and docs/STUDENT_MODEL.md.
 
 generator client {
   provider = "prisma-client-js"
@@ -25,14 +25,24 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  studentProfile StudentProfile?
-  entitlements   Entitlement[]
-  usageRecords   UsageRecord[]
-  trials         Trial[]
-  auditLogs      AuditLog[]
-  aiInteractions AIInteraction[]
+  accounts             Account[]
+  sessions             Session[]
+  studentProfile       StudentProfile?
+  entitlements         Entitlement[]
+  usageRecords         UsageRecord[]
+  trials               Trial[]
+  auditLogs            AuditLog[]
+  aiInteractions       AIInteraction[]
+
+  // Phase 2 student-owned
+  studentAttributes    StudentAttribute[]
+  studentGoals         StudentGoal[]
+  onboardingSessions   OnboardingSession[]
+  studentObservations  StudentObservation[]
+  learningEvidence     LearningEvidence[]
+  studentConceptStates StudentConceptState[]
+  studentMisconceptions StudentMisconception[]
+  userConcepts         Concept[] @relation("UserCreatedConcepts")
 
   @@map("users")
 }
@@ -79,7 +89,7 @@ model VerificationToken {
 }
 
 // ---------------------------------------------------------------------------
-// Student profile foundation (expanded in Phase 2)
+// Student profile foundation (Phase 2: onboardingVersion / onboardingSkippedAt)
 // ---------------------------------------------------------------------------
 
 model StudentProfile {
@@ -91,8 +101,10 @@ model StudentProfile {
   academicLevel String?
   timezone      String? @default("UTC")
   onboardingCompletedAt DateTime?
+  onboardingVersion     String?
+  onboardingSkippedAt   DateTime?
 
-  // Explicit preferences only in Phase 1 — evidence/inference comes later
+  // Explicit preferences — also mirrored into StudentAttribute for provenance
   preferredAssistanceStyle String?
   goalsSummary             String? @db.Text
 
@@ -103,9 +115,324 @@ model StudentProfile {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2 — provenance / student model enums
+// ---------------------------------------------------------------------------
+
+enum ProvenanceKind {
+  EXPLICIT
+  IMPORTED
+  OBSERVED
+  INFERRED
+  HYPOTHESIS
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ABANDONED
+}
+
+enum OnboardingSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  DISMISSED
+}
+
+enum ConceptSource {
+  SYSTEM
+  USER
+}
+
+enum ConceptRelationType {
+  PREREQUISITE
+  RELATED
+}
+
+enum MasteryLevel {
+  UNKNOWN
+  INTRODUCED
+  DEVELOPING
+  PROFICIENT
+  MASTERED
+}
+
+enum EvidenceKind {
+  SELF_REPORT
+  PRACTICE_SUCCESS
+  PRACTICE_FAILURE
+  TUTOR_SIGNAL
+  QUIZ_ITEM
+  REVIEW
+}
+
+enum EvidencePolarity {
+  SUPPORTS_HIGHER
+  SUPPORTS_LOWER
+  NEUTRAL
+}
+
+enum MisconceptionStatus {
+  ACTIVE
+  RESOLVED
+  DISMISSED
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — StudentAttribute (registry-controlled; one active per user+key)
+// ---------------------------------------------------------------------------
+
+model StudentAttribute {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  key         String
+  valueJson   Json
+  provenance  ProvenanceKind
+  confidence  Float
+  source      String
+  supersededAt   DateTime?
+  supersededById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, key])
+  @@index([userId, supersededAt])
+  // Partial unique: one active (supersededAt IS NULL) per (userId, key)
+  // Enforced via SQL migration — Prisma cannot express the WHERE predicate.
+  @@map("student_attributes")
+}
+
+model StudentGoal {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String? @db.Text
+  category    String?
+  status      GoalStatus @default(ACTIVE)
+  priority    Int?
+  provenance  ProvenanceKind
+  confidence  Float
+  source      String
+  targetDate  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("student_goals")
+}
+
+model OnboardingSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  version     String
+  status      OnboardingSessionStatus @default(IN_PROGRESS)
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  answers OnboardingAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("onboarding_sessions")
+}
+
+model OnboardingAnswer {
+  id        String @id @default(cuid())
+  sessionId String
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  questionId String
+  answerJson Json?
+  skipped    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, questionId])
+  @@map("onboarding_answers")
+}
+
+model StudentObservation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  category   String
+  type       String
+  summary    String
+  provenance ProvenanceKind @default(OBSERVED)
+  confidence Float
+  source     String
+  // Auxiliary non-relational only — never DB ID arrays
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+
+  learningEvidence LearningEvidence[]
+
+  @@index([userId, createdAt])
+  @@index([userId, category, createdAt])
+  @@map("student_observations")
+}
+
+model LearningEvidence {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conceptId     String?
+  concept       Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  observationId String?
+  observation   StudentObservation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+
+  kind     EvidenceKind
+  polarity EvidencePolarity
+  weight   Float @default(1)
+  source   String
+  summary  String
+  // Auxiliary non-relational only — never DB ID arrays / FK substitutes
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, conceptId, createdAt])
+  @@map("learning_evidence")
+}
+
+model StudentConceptState {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conceptId String
+  concept   Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  mastery        MasteryLevel @default(UNKNOWN)
+  confidence     Float
+  provenance     ProvenanceKind
+  source         String
+  lastEvidenceAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, conceptId])
+  @@index([userId, mastery])
+  @@map("student_concept_states")
+}
+
+model StudentMisconception {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conceptId String?
+  concept   Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+
+  statement  String
+  status     MisconceptionStatus @default(ACTIVE)
+  provenance ProvenanceKind
+  confidence Float
+  source     String
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, conceptId])
+  @@map("student_misconceptions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Knowledge foundation (global catalog; not user-owned)
+// ---------------------------------------------------------------------------
+
+model Subject {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  description String?
+
+  topics Topic[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subjects")
+}
+
+model Topic {
+  id          String  @id @default(cuid())
+  subjectId   String
+  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  slug        String
+  name        String
+  description String?
+
+  concepts Concept[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectId, slug])
+  @@index([subjectId])
+  @@map("topics")
+}
+
+model Concept {
+  id          String        @id @default(cuid())
+  topicId     String
+  topic       Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  slug        String
+  name        String
+  description String?
+  source      ConceptSource @default(SYSTEM)
+  createdByUserId String?
+  createdByUser   User?     @relation("UserCreatedConcepts", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  fromRelations ConceptRelation[] @relation("ConceptRelationFrom")
+  toRelations   ConceptRelation[] @relation("ConceptRelationTo")
+  conceptStates StudentConceptState[]
+  misconceptions StudentMisconception[]
+  learningEvidence LearningEvidence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([topicId, slug])
+  @@index([topicId])
+  @@index([createdByUserId])
+  @@map("concepts")
+}
+
+model ConceptRelation {
+  id            String              @id @default(cuid())
+  fromConceptId String
+  fromConcept   Concept             @relation("ConceptRelationFrom", fields: [fromConceptId], references: [id], onDelete: Cascade)
+  toConceptId   String
+  toConcept     Concept             @relation("ConceptRelationTo", fields: [toConceptId], references: [id], onDelete: Cascade)
+  type          ConceptRelationType
+
+  createdAt DateTime @default(now())
+
+  @@unique([fromConceptId, toConceptId, type])
+  @@index([fromConceptId])
+  @@index([toConceptId])
+  @@map("concept_relations")
+}
+
+// ---------------------------------------------------------------------------
 // Entitlements, trial, usage (server-side enforcement)
-// Plan limits live in code config (lib/entitlements/plans.ts) so they can
-// change without rewriting application logic. DB stores user state.
 // ---------------------------------------------------------------------------
 
 enum PlanTier {
@@ -130,7 +457,6 @@ model Entitlement {
   status     EntitlementStatus @default(ACTIVE)
   startsAt   DateTime          @default(now())
   endsAt     DateTime?
-  // External billing provider IDs — null until Phase 9
   externalSubscriptionId String?
   metadata               Json?
 
@@ -152,11 +478,10 @@ model Trial {
   convertedAt DateTime?
   expiredAt   DateTime?
 
-  // Capability counters — limits come from plan config
   aiSessionsUsed           Int @default(0)
   documentAnalysesUsed     Int @default(0)
   advancedTutoringUsed     Int @default(0)
-  estimatedCostMicros      Int @default(0) // USD micros for cost tracking
+  estimatedCostMicros      Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -179,14 +504,13 @@ model UsageRecord {
   capability      UsageCapability
   feature         String
   aiTaskType      String?
-  modelKey        String? // Internal model key, not user-facing
+  modelKey        String?
   inputTokens     Int?
   outputTokens    Int?
   estimatedCostMicros Int @default(0)
   latencyMs       Int?
   success         Boolean @default(true)
   errorCode       String?
-  // Do not store full student content here — operational telemetry only
   metadata        Json?
 
   createdAt DateTime @default(now())
@@ -197,10 +521,6 @@ model UsageRecord {
   @@map("usage_records")
 }
 
-// ---------------------------------------------------------------------------
-// AI interaction audit (minimal Phase 1 — content retention policies later)
-// ---------------------------------------------------------------------------
-
 model AIInteraction {
   id     String @id @default(cuid())
   userId String
@@ -209,7 +529,6 @@ model AIInteraction {
   taskType       String
   assistanceMode String?
   modelKey       String?
-  // Hash + length only (sha256:…:len=N) — never raw educational content
   requestSummary String?
   success        Boolean @default(true)
 
@@ -219,10 +538,6 @@ model AIInteraction {
   @@map("ai_interactions")
 }
 
-// ---------------------------------------------------------------------------
-// Audit log
-// ---------------------------------------------------------------------------
-
 model AuditLog {
   id     String  @id @default(cuid())
   userId String?
@@ -231,7 +546,7 @@ model AuditLog {
   action     String
   resource   String?
   resourceId String?
-  ipHash     String? // hashed, not raw IP
+  ipHash     String?
   metadata   Json?
   createdAt  DateTime @default(now())
 

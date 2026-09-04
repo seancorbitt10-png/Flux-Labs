@@ -33,21 +33,20 @@ Do **not** use visual/auditory/kinesthetic “learning styles.”
 
 Created empty-ish on registration; filled in Phase 2 onboarding.
 
-## Phase 2 (design — not implemented)
+## Phase 2 (foundation slice #1 — persistence/domain implemented)
 
-See **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** for the full design.
+Canonical design: **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)**.
 
-Summary:
+**Implemented (server/domain foundation, not full Phase 2 product):**
 
-- Keep `StudentProfile` as the stable 1:1 account-facing profile
-- `StudentAttribute` is a **typed, registry-controlled** key/value system (not an arbitrary profile store); one active value per user+key
-- Add `StudentGoal`, append-only `StudentObservation` + `LearningEvidence`
-- Add shared catalog `Subject` → `Topic` → `Concept` (+ minimal relations)
-- Add `StudentConceptState` + `StudentMisconception` (no relational IDs in metadata JSON)
-- Mastery contract: no `response → model → MASTERED`; evidence ≠ automatic mastery
-- Server-validated onboarding catalog (≤30 Q); privacy notice ≠ legal consent; no consent question in onboarding
-- Budgeted `assembleAIContext`; student context is **untrusted data** under system/policy precedence
-- Defined ownership/deletion semantics for user-owned educational data (required + tested in Phase 2 implementation — not a TODO); catalog retained; operational retention separate
+- Prisma models + migration for student-owned tables and knowledge catalog
+- Partial unique index `student_attribute_one_active_per_key` (`UNIQUE(userId, key) WHERE supersededAt IS NULL`)
+- Server-controlled attribute registry (`src/lib/student/attribute-registry.ts`) + atomic supersede
+- Onboarding question catalog + session/answer service (`src/lib/onboarding/`)
+- Goals, observations, evidence, concept state, misconceptions, educational-data deletion services
+- Ownership checks via authenticated actor (`assertResourceOwner`); catalog retained on educational wipe
+
+**Still deferred:** onboarding UI, `assembleAIContext` wiring, knowledge seed UI, mastery algorithms, MisconceptionEvidence join, keyword/semantic concept resolution.
 
 ## Later (Phase 3+)
 
