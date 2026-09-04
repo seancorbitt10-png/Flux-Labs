@@ -47,7 +47,7 @@ Summary:
 - Mastery contract: no `response → model → MASTERED`; evidence ≠ automatic mastery
 - Server-validated onboarding catalog (≤30 Q); privacy notice ≠ legal consent; no consent question in onboarding
 - Budgeted `assembleAIContext`; student context is **untrusted data** under system/policy precedence
-- Defined ownership/deletion semantics for user-owned vs catalog vs operational records
+- Defined ownership/deletion semantics for user-owned educational data (required + tested in Phase 2 implementation — not a TODO); catalog retained; operational retention separate
 
 ## Later (Phase 3+)
 

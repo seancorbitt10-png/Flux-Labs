@@ -2,8 +2,8 @@
 FLUX LABS — PHASE 2 DESIGN REVIEW EXPORT (COMBINED)
 NOTE: These are Phase 2 ARCHITECTURE DESIGN documents, NOT status reports.
 Status report is separate: STATUS_REPORT.txt
-Exported: 2026-09-04T18:42:50Z
-Revision: final architecture-review correction pass (documentation only)
+Exported: 2026-09-04T18:48:03Z
+Revision: final surgical Phase 2 architecture cleanup (documentation only)
 ================================================================================
 
 
@@ -130,9 +130,11 @@ Weak inferences must not overwrite high-confidence explicit facts without clear 
 
 **StudentAttribute is a typed, registry-controlled key/value system, not an arbitrary user-defined profile store.**
 
+`StudentAttribute.key` is **server-controlled**. Clients never invent keys or write attribute rows directly.
+
 `StudentAttribute` must **not** become an unrestricted profile blob or free-form JSON bag.
 
-Flux maintains a **server-side attribute registry** (code config, versioned with onboarding/product config). Attribute keys are **allowlisted** by that configuration.
+Flux maintains a **concrete server-side attribute registry** (versioned code config). Attribute keys are **allowlisted** by that configuration. Expanding the set of keys requires a registry change — never client-supplied key strings.
 
 **Clients cannot:**
 
@@ -144,40 +146,49 @@ Flux maintains a **server-side attribute registry** (code config, versioned with
 
 **The server alone** determines keys, value validation, provenance, confidence, and source from the authenticated flow and registry rules.
 
-For **each** approved registry key, the server defines:
+For **each** supported registry key, the server defines:
 
 | Registry field | Meaning |
 |----------------|---------|
-| value type / schema | scalar, enum, string, number, boolean, or structured JSON only if declared |
-| validation / max length | enforced server-side |
+| value type / schema | scalar, enum, string, number, boolean, or structured JSON **only if declared** |
+| validation / size constraints | max length, max items, allowed enums — enforced server-side |
 | multi-value? | yes/no |
-| permitted writers | e.g. onboarding, settings, system (observation), AI inference (usually none in Phase 2) |
-| context eligibility | whether `assembleAIContext` may include it |
+| permitted writers | onboarding, settings, system (observation), AI inference (usually **none** in Phase 2) |
+| AI-context eligibility | whether `assembleAIContext` may include it |
 
-**JSON rule:** `valueJson` may hold structured JSON **only** where the registered attribute explicitly defines a structured JSON value schema. Arbitrary free-form JSON is rejected even though the column type is Json.
+**JSON storage rule:** `valueJson` may remain the storage representation for structured attributes, but **only** where the registry explicitly permits structured JSON and defines its schema. Arbitrary free-form JSON is rejected even though the column type is Json.
 
-#### Example registry (concise — not exhaustive)
+#### Phase 2 starter attribute registry (implementation-oriented)
 
-| Key | Value type | Writer(s) | Provenance (server-set) | Context allowed |
-|-----|------------|-----------|-------------------------|-----------------|
-| `academic.level` | enum string | onboarding, settings | EXPLICIT | yes |
-| `academic.subjects` | string[] (max N, max len each) | onboarding, settings | EXPLICIT | yes |
+Small starter set — do **not** invent dozens of keys. Add keys only by updating this registry.
+
+| Key | Value type / constraints | Permitted writer(s) | Server-set provenance | AI context |
+|-----|--------------------------|---------------------|-----------------------|------------|
+| `academic.level` | enum string (fixed set) | onboarding, settings | EXPLICIT | yes |
+| `academic.subjects` | string[] (max items + max len each) | onboarding, settings | EXPLICIT | yes |
 | `interest.primary` | string (max len) | onboarding, settings | EXPLICIT | yes |
 | `interest.secondary` | string (max len) | onboarding, settings | EXPLICIT | optional |
-| `pref.explanation_length` | enum (`concise`\|`detailed`) | onboarding, settings | EXPLICIT | yes |
+| `pref.explanation_length` | enum (`concise` \| `detailed`) | onboarding, settings | EXPLICIT | yes |
 | `pref.guided_participation` | boolean | onboarding, settings | EXPLICIT | yes |
-| `pref.assistance_style` | enum | onboarding, settings | EXPLICIT | yes |
+| `pref.assistance_style` | enum (fixed set) | onboarding, settings | EXPLICIT | yes |
 | `habit.typical_weekly_time` | enum band | onboarding, settings | EXPLICIT | yes |
 | `challenge.primary` | string (max len) | onboarding, settings | EXPLICIT | yes |
-| `approach.worked_example` | boolean / low-confidence flag | settings, system (later) | EXPLICIT or OBSERVED | optional; never “learning style” |
+| `approach.worked_example` | boolean | settings; system later | EXPLICIT or OBSERVED | optional; never “learning style” |
 
-Exact final key names are finalized at implementation; wildcards such as open-ended `approach.*` are **not** a license for client-defined keys — each key must be registered.
+Every key above is registered with type, validation, writers, and context eligibility. Unregistered keys are rejected.
 
 ### One active attribute per user + key (invariant)
 
-**Invariant:** For every `(userId, key)`, at most one `StudentAttribute` may have `supersededAt IS NULL`.
+**Invariant (required):** For every `(userId, key)`, at most one `StudentAttribute` may have `supersededAt IS NULL`.
 
-Preferred database enforcement (implementation later — **not now**):
+Preferred database implementation (later — **do not create now**):
+
+```
+UNIQUE(userId, key)
+WHERE supersededAt IS NULL
+```
+
+as a PostgreSQL **partial unique index**, for example:
 
 ```sql
 CREATE UNIQUE INDEX student_attribute_one_active_per_key
@@ -185,20 +196,20 @@ CREATE UNIQUE INDEX student_attribute_one_active_per_key
   WHERE "supersededAt" IS NULL;
 ```
 
-If Prisma cannot express this partial unique index in `schema.prisma`, implementation **must** add it via a SQL migration. Prefer **both** DB constraint and transactional service-layer supersede.
+If Prisma cannot express this directly in `schema.prisma`, implementation **must** add it via a SQL migration. Prefer **both** the DB constraint and a transactional service-layer supersede.
 
-Application write path (atomic):
+Application write path (atomic / transactional):
 
 ```
 BEGIN
-  mark current row: supersededAt = now(), supersededById = <newId>
-  insert new current row (supersededAt NULL) with server-assigned provenance
+  supersede previous current attribute (set supersededAt, optional supersededById)
+  create replacement current attribute (supersededAt NULL; server-assigned provenance)
 COMMIT
 ```
 
-Do **not** allow concurrent writes to create multiple current values.
+Do **not** allow concurrent writes to create multiple current values for the same `(userId, key)`.
 
-This invariant applies in: model definition (§8), settings/onboarding data flows (§9), and tests (§12).
+This invariant is required in: model definition (§8), settings/onboarding write paths (§9), and ATTRIBUTE SECURITY tests (§12).
 
 ### Decision: keep `StudentProfile`
 
@@ -352,15 +363,17 @@ All model tables: `createdAt`; mutable current-state: `updatedAt`; evidence: eve
 
 ### 4.1 Privacy notice ≠ legal consent — remove consent from onboarding questions
 
-**Do not** include a “consent note” or legal-consent question in the onboarding question catalog.
+**Do not** include a “Consent note”, consent quiz item, or legal-consent question in the onboarding question catalog.
 
-Distinguish three concerns:
+Onboarding is **not** the legal consent mechanism.
 
-| Concern | Role in product | Phase 2 treatment |
-|---------|-----------------|-------------------|
-| Onboarding personalization | Helps Flux understand the student | Versioned question catalog + Attribute/Goal writes |
-| Product privacy / data-use notice | Explains data practices in normal product language | **Separate product flow / copy** (settings, signup footer, or interstitial) — **not** an onboarding quiz item |
-| Legally required consent / authorization | Age gates, parental consent, school DPA, etc. | **Separate compliance flow after legal review** — not established by completing onboarding |
+Distinguish:
+
+| Concern | Phase 2 treatment |
+|---------|-------------------|
+| Academic onboarding | Versioned personalization questions only |
+| Privacy / data-use notice or acknowledgment | Separate product flow/copy — **not** an onboarding quiz question |
+| Legal consent / authorization | Separate compliance flow after legal review; **not** established by completing onboarding |
 
 Rules:
 
@@ -523,7 +536,7 @@ Student (User)
 - `kind`: `SELF_REPORT | PRACTICE_SUCCESS | PRACTICE_FAILURE | TUTOR_SIGNAL | QUIZ_ITEM | REVIEW`
 - `polarity`: supports higher mastery / supports lower / neutral
 - `weight` small numeric
-- `source` + metadata (no full chat transcripts by default)
+- `source` + optional auxiliary non-relational metadata only (no full chat transcripts; **no DB ID arrays**)
 
 ### Misconceptions
 
@@ -533,12 +546,13 @@ Student (User)
 - `statement` (short normalized text)
 - `status`: `ACTIVE | RESOLVED | DISMISSED`
 - `confidence`, `provenance`
+- **Fields do not include** `evidenceIds`, evidence-ID arrays, or metadata links to evidence rows
 
 **No database relationships inside JSON metadata.**
 
-- Database IDs must **not** be stored in arbitrary metadata JSON as the primary relationship mechanism
 - Phase 2 does **not** require a misconception→evidence relationship
-- If needed later, create a proper relational join table such as `MisconceptionEvidence` (`misconceptionId`, `evidenceId`)
+- Database IDs must **not** be stored in arbitrary metadata JSON as the primary relationship mechanism
+- If the relationship is needed later, create a proper relational join table such as `MisconceptionEvidence` (`misconceptionId`, `evidenceId`)
 - Keep `StudentMisconception` and `LearningEvidence` as separate entities in Phase 2
 - Metadata (where present on evidence/observation rows) is only for genuinely auxiliary **non-relational** data — never ID arrays or foreign-key substitutes
 
@@ -714,12 +728,13 @@ After response (Phase 2 optional hook / Phase 4 real):
 **Purpose:** Typed, registry-controlled key/value facts — **not** an arbitrary profile store  
 **Fields:** `id`, `userId`, `key` (registry-allowlisted only), `valueJson` (schema-validated per key), `provenance`, `confidence`, `source`, `supersededAt?`, `supersededById?`, `createdAt`, `updatedAt`  
 **Indexes / invariants:**  
-- **Required:** PostgreSQL partial unique index `UNIQUE(userId, key) WHERE supersededAt IS NULL` (SQL migration if Prisma cannot express it)  
+- **Required invariant:** for every `(userId, key)`, at most one row with `supersededAt IS NULL`  
+- **Required DB enforcement:** `UNIQUE(userId, key) WHERE supersededAt IS NULL` (PostgreSQL partial unique index; SQL migration if Prisma cannot express it)  
 - Supporting: `(userId, key)`, `(userId, supersededAt)` for history  
 **Ownership:** user  
-**Security:** owner-only; clients cannot invent keys or set provenance/confidence/source; no direct arbitrary writes  
+**Security:** owner-only; `key` server-controlled; clients cannot invent keys or set provenance/confidence/source; no direct arbitrary writes  
 **State:** at most one active row per `(userId, key)`; history via superseded rows  
-**Writes:** server mapping only (onboarding / settings / system); atomic supersede
+**Writes:** server mapping only (onboarding / settings / system); supersede + create replacement **atomically/transactionally**
 
 #### `StudentGoal`
 
@@ -789,7 +804,7 @@ After response (Phase 2 optional hook / Phase 4 real):
 **Indexes:** `(userId, status)`, `(userId, conceptId)`  
 **Ownership:** user  
 **State:** current (+ resolved history via status)  
-**Note:** no misconception↔evidence relationship in Phase 2; future join table if needed (`MisconceptionEvidence`) — never ID arrays in metadata
+**Note:** Phase 2 has **no** misconception→evidence relationship and **no** evidence IDs in metadata; future join table if needed (`MisconceptionEvidence`) only
 
 ### Explicitly deferred models (Phase 3+)
 
@@ -878,8 +893,8 @@ Final retention periods and legal exceptions require privacy/legal review. Do **
 Technical requirements:
 
 - Deletion must respect ownership and authorization
-- Phase 2 implementation includes **cascade / ownership / deletion tests** for all new user-owned records
-- Privacy **export** may remain appropriately scoped; **deletion semantics must not be ambiguous**
+- Phase 2 implementation **must** establish and **test** ownership/deletion semantics for user-owned educational data (§9 table; §12 DELETION)
+- Privacy **export** may remain appropriately scoped; **deletion/ownership behavior must not be a TODO**
 
 ```
 Account delete / data delete request
@@ -949,7 +964,7 @@ Safe order after design approval:
 | **2.5** | StudentConceptState + misconception services (self-report only) | Owner-scoped; mastery contract enforced |
 | **2.6** | `assembleAIContext` + orchestration integration | Budgeted, allowlisted, untrusted-data handling |
 | **2.7** | Observation/evidence helpers | Append-only; no silent EXPLICIT overwrite; TUTOR_SIGNAL rules |
-| **2.8** | Deletion/export implementation as scoped | User-owned delete; catalog retained; operational policy documented |
+| **2.8** | Ownership/deletion semantics + tests for user-owned educational data (export optional/scoped) | User-owned rows deleted/cascaded per §9; catalog retained; operational retention policy documented; deletion tests required |
 | **2.9** | Integration / security / regression tests + CI | Attribute, onboarding, provenance, mastery, context, deletion, Phase 1 green |
 
 Each layer merges only when its criterion is met. **Do not implement any of these in this documentation task.**
@@ -1212,7 +1227,7 @@ Summary:
 - Mastery contract: no `response → model → MASTERED`; evidence ≠ automatic mastery
 - Server-validated onboarding catalog (≤30 Q); privacy notice ≠ legal consent; no consent question in onboarding
 - Budgeted `assembleAIContext`; student context is **untrusted data** under system/policy precedence
-- Defined ownership/deletion semantics for user-owned vs catalog vs operational records
+- Defined ownership/deletion semantics for user-owned educational data (required + tested in Phase 2 implementation — not a TODO); catalog retained; operational retention separate
 
 ## Later (Phase 3+)
 
@@ -1270,7 +1285,20 @@ Includes: controlled StudentAttribute registry; one-active-key invariant; proven
 
 Do not begin schema migrations or UI until explicitly approved.
 
-## Assumptions
+When implementation is approved, Phase 2 **must** establish and test **ownership/deletion semantics** for user-owned educational data — this is a requirement, not a TODO/stub:
+
+**User-owned (delete / cascade with ownership):**
+`StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.
+
+**Shared/global catalog (retain):**
+`Subject`, `Topic`, SYSTEM `Concept`, SYSTEM `ConceptRelation`.
+
+**Operational (separate policy):**
+`UsageRecord`, `AIInteraction`, `AuditLog` — final retention/anonymization subject to product/legal policy review; do not claim all operational records must be deleted.
+
+See `docs/PHASE2_ARCHITECTURE.md` §9 / §11 layer 2.8 / §12 DELETION.
+
+### Assumptions
 
 - Phase 2 extends Phase 1 relational foundation; does not replace auth/entitlements/orchestration.
 - Concepts are global catalog entities; classes join later (Phase 3).

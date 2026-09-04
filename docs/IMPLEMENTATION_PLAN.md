@@ -44,7 +44,20 @@ Includes: controlled StudentAttribute registry; one-active-key invariant; proven
 
 Do not begin schema migrations or UI until explicitly approved.
 
-## Assumptions
+When implementation is approved, Phase 2 **must** establish and test **ownership/deletion semantics** for user-owned educational data — this is a requirement, not a TODO/stub:
+
+**User-owned (delete / cascade with ownership):**
+`StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.
+
+**Shared/global catalog (retain):**
+`Subject`, `Topic`, SYSTEM `Concept`, SYSTEM `ConceptRelation`.
+
+**Operational (separate policy):**
+`UsageRecord`, `AIInteraction`, `AuditLog` — final retention/anonymization subject to product/legal policy review; do not claim all operational records must be deleted.
+
+See `docs/PHASE2_ARCHITECTURE.md` §9 / §11 layer 2.8 / §12 DELETION.
+
+### Assumptions
 
 - Phase 2 extends Phase 1 relational foundation; does not replace auth/entitlements/orchestration.
 - Concepts are global catalog entities; classes join later (Phase 3).
