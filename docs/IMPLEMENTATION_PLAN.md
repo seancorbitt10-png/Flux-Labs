@@ -6,9 +6,9 @@ Develop incrementally. Do not build the entire product in one pass.
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| 0 | Inspect repository | Done |
-| 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **In progress** |
-| 2 | Student model + onboarding | Next |
+| 0 | Inspect repository | **Done** |
+| 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** (merged to `main` @ `e1dc1d0`) |
+| 2 | Student model + onboarding + knowledge foundation | **Design finalized for review** (correction pass) — implementation not started |
 | 3 | Classes / tasks / calendar | Planned |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
@@ -18,41 +18,49 @@ Develop incrementally. Do not build the entire product in one pass.
 | 9 | Billing / controlled 7-day trial activation | Planned |
 | 10 | Production hardening | Planned |
 
-## Phase 1 scope (this delivery)
+## Phase 1 (complete)
 
-### Included
+Shipped and merged via PR #1:
 
 - Next.js application shell with responsive navigation
 - Auth.js credentials registration/login/logout
 - PostgreSQL schema: users, profile, entitlements, trial, usage, AI interaction summary, audit log
-- Trial entitlement provisioning on signup
+- Trial entitlement provisioning + atomic reservation
 - AI orchestration path with stub provider, router, academic policy
-- Study page wired to orchestration + usage logging
-- Sanitized errors, Zod validation, middleware auth gate
-- Documentation set + Vitest foundation
+- Study page wired end-to-end
+- Security hardening, CI, docs, tests (22 passing at merge)
 
-### Explicitly not included
+## Phase 2
 
-- Real LLM provider calls
-- Onboarding questionnaire
-- Class/task/calendar CRUD
-- File uploads
-- Payment provider
-- LMS connectors
+### Design
 
-## Recommended next phase
+Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** (final architecture-review correction pass; still documentation only).
 
-**Phase 2 — Student model + onboarding**
+Includes: controlled StudentAttribute registry; one-active-key invariant; provenance/confidence semantics; conservative mastery contract; onboarding question registry (≤30 Q; no consent question); Knowledge Foundation; untrusted AI context assembly (no premature keyword intelligence); deletion/ownership semantics; testing requirements; non-goals; Definition of Done.
 
-- 20–30 question onboarding (non-psychometric)
-- Structured preferences, goals, academic context fields
-- Explicit vs observed vs inferred provenance fields
-- Onboarding → `StudentProfile` persistence
-- Feed onboarding context into AI orchestration
+### Implementation
 
-## Assumptions
+**Not started.** Awaiting **final** design approval / implementation prompt.
 
-- Credentials auth is acceptable for Phase 1; OAuth providers can be added without redesign.
-- Stub AI is honest in-product (Study shows guided stub responses) — not a fake “smart” demo.
-- Trial limits in `plans.ts` are experimental and configurable.
-- PostgreSQL is the system of record from day one (no SQLite production path).
+Do not begin schema migrations or UI until explicitly approved.
+
+When implementation is approved, Phase 2 **must define and test ownership/cascade behavior for user-owned educational data** — this is a requirement, not a TODO/stub:
+
+**User-owned (delete / cascade with ownership):**
+`StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.
+
+**Shared/global catalog (retain):**
+`Subject`, `Topic`, SYSTEM `Concept`, SYSTEM `ConceptRelation`.
+
+**Operational (separate policy):**
+`UsageRecord`, `AIInteraction`, `AuditLog` — final retention/anonymization subject to product/legal policy review; do not claim all operational records must be deleted.
+
+See `docs/PHASE2_ARCHITECTURE.md` §9 / §11 layer 2.8 / §12 DELETION.
+
+### Assumptions
+
+- Phase 2 extends Phase 1 relational foundation; does not replace auth/entitlements/orchestration.
+- Concepts are global catalog entities; classes join later (Phase 3).
+- No learning-style typology; evidence + provenance only; confidence is a reliability score, not probability.
+- Student context is untrusted data in prompts; policy outranks context.
+- Stub AI remains acceptable through Phase 2; real providers are Phase 4.

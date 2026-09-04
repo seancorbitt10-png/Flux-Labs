@@ -7,7 +7,7 @@ Flux Labs is an education product and may eventually serve minors.
 - Data minimization
 - Purpose limitation (academic assistance)
 - User isolation
-- Deletion / export paths (expand before launch)
+- Ownership/deletion for user-owned educational data is a **Phase 2 implementation requirement with tests** (see `docs/PHASE2_ARCHITECTURE.md` §9) — not a documentation TODO
 - Clear separation of operational telemetry vs educational content
 
 ## Data collected in Phase 1

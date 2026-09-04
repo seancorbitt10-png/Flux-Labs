@@ -9,13 +9,15 @@ User request
  → Entitlement / usage policy
  → Task routing
  → Academic assistance policy
- → Context assembly (profile today; classes/resources later)
+ → Context assembly (profile today; Phase 2+ Student Model / Knowledge — budgeted)
  → Model selection (internal keys)
  → Provider call
  → Structured response
  → Usage + interaction logging
- → (later) Student model update
+ → (Phase 2+) optional student evidence / observation hooks (feature-flagged)
 ```
+
+See `docs/PHASE2_ARCHITECTURE.md` for the designed context-selection layer (not implemented yet).
 
 Entrypoint: `src/lib/ai/orchestration.ts`
 
@@ -46,5 +48,10 @@ Phase 4: real providers (OpenAI/Anthropic/etc.) behind the same interface, with 
 ## Security notes for AI
 
 - Retrieved document text (future) is untrusted data, not instructions.
+- Onboarding text, goals, attributes, observations, evidence, misconceptions, and imported student info are **DATA**, not instructions.
+- Conceptual priority: SYSTEM/SAFETY/POLICY → AI policy → trusted app state (authz/entitlements) → **untrusted student context** → current user request.
+- `assembleAIContext` (Phase 2 design) must allowlist fields, apply budgets, use structured serialization, preserve provenance, and not dump the DB or raw chat into prompts.
+- Phase 2 must not rely on low-quality keyword matching for concept selection.
 - AI output cannot bypass entitlement or authz checks.
+- `TUTOR_SIGNAL` / model-derived evidence must not become EXPLICIT truth or bypass update/mastery rules.
 - Usage telemetry avoids storing full student content.
