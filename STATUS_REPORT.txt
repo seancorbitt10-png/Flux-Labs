@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 21:14 UTC
+Updated: 2026-09-04 21:19 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -15,16 +15,17 @@ engineering non-negotiables).
 
 Phase 2 IMPLEMENTATION #1 is on PR #3.
 
-Second High-finding remediation implemented; independent re-review
-required before merge.
+Independent RE-REVIEW of remediation a0bc665: CLEAR FOR MERGE
 
-- Original five HIGH findings: PASS
-- H-NEW-1 / H-NEW-2: remediated on a0bc665 (await re-review)
 - Critical: 0
+- High: 0
+- Original five HIGH findings: PASS
+- H-NEW-1 / H-NEW-2: PASS
+- Medium: 5 (non-blocking)
+- Low: 3 / Info: 2
 
-Do NOT merge PR #3 until independent re-review clears Highs.
-
-Phase 2 overall remains incomplete.
+PR #3 remains DRAFT. Human may merge when ready.
+Phase 2 overall remains incomplete (Implementation #2+ not started).
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -55,11 +56,11 @@ https://github.com/seancorbitt10-png/Flux-Labs/pull/1
 PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — AWAITING RE-REVIEW
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — CLEAR FOR MERGE
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
 Base: main @ e1dc1d0
-Remediation: a0bc665
-Status: Second High remediation done; independent re-review required
+Remediation reviewed: a0bc665
+Independent re-review: CLEAR FOR MERGE (Critical=0, High=0)
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -70,42 +71,33 @@ Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
           Design                          COMPLETE — HUMAN-APPROVED
           Architecture contracts          DOCUMENTED
-          Implementation #1               IMPLEMENTED
-                                          Original Highs remediated (PASS)
-                                          H-NEW-1/2 remediated (a0bc665)
-                                          Awaiting independent re-review
+          Implementation #1               IMPLEMENTED + RE-REVIEW CLEAR
+                                          Awaiting human merge decision
           Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-ORIGINAL FIVE HIGHS (prior re-review)
+INDEPENDENT RE-REVIEW (a0bc665)
 --------------------------------------------------------------------------------
 
-1. System EXPLICIT via attribute registry     PASS
-2. Observation/misconception authority        PASS
-3. Knowledge catalog create authz             PASS
-4. USER concept attribution binding           PASS
-5. Account delete USER concept orphans        PASS
+H-NEW-1  ConceptState system EXPLICIT/MASTERED     PASS
+         System/AI ConceptState writes rejected;
+         only onboarding|settings; server EXPLICIT/confidence.
 
---------------------------------------------------------------------------------
-H-NEW-1 / H-NEW-2 REMEDIATION (a0bc665)
---------------------------------------------------------------------------------
+H-NEW-2  Goals system→EXPLICIT                     PASS
+         System goal creation rejected; student paths only;
+         spoofed provenance/confidence rejected.
 
-H-NEW-1  concept-state.ts
-         System/AI ConceptState writes rejected entirely in Phase 2.
-         Only source onboarding|settings; provenance/confidence server-
-         assigned EXPLICIT; caller cannot spoof provenance/confidence.
-         No mastery algorithm invented.
+Original five Highs                            ALL PASS
+  H1 Attribute authority
+  H2 Observation/misconception authority
+  H3 Catalog authorization
+  H4 USER concept attribution
+  H5 Deletion semantics
 
-H-NEW-2  goals.ts
-         System goal creation rejected (deferred).
-         Only source onboarding|settings → server EXPLICIT.
-         Caller cannot spoof provenance/confidence/source=system.
-
-Adjacent audit: attributes/observations/misconceptions protections intact.
-  Evidence free-form source/weight left as Medium (not same HIGH class).
-
-Schema/migration: unchanged. Partial unique index intact.
+Schema/migration unchanged by a0bc665.
+Partial unique index intact.
+USER concept FK Cascade intact.
 
 --------------------------------------------------------------------------------
 QUALITY GATES (at a0bc665)
@@ -118,19 +110,24 @@ npm run build                pass
 npx prisma migrate status    up to date
 
 --------------------------------------------------------------------------------
-REMAINING MEDIUM / LOW (non-blocking unless re-review escalates)
+REMAINING MEDIUM / LOW (non-blocking)
 --------------------------------------------------------------------------------
 
 Medium:
 - LearningEvidence free-form source/weight
 - CatalogWriteActor {type:"system"} honor-system
-- Profile mass-assignment surface
-- Incomplete IDOR coverage for some entities
-- Incidental trials_userId_idx drop in foundation migration
+- Profile mass-assignment of lifecycle fields
+- Domain trusts caller-claimed onboarding|settings channel
+- Incomplete IDOR test coverage for evidence/profile
 
-Low/Info:
-- Onboarding code catalog subset vs ONBOARDING_SPEC question count
+Low:
+- Incidental trials_userId_idx drop in foundation migration
+- Onboarding code catalog subset vs ONBOARDING_SPEC
 - No Phase 2 HTTP routes yet (domain-layer only)
+
+Info:
+- Student EXPLICIT path may set MASTERED (self-report); mastery algo deferred
+- System-generated goal persistence deferred/rejected
 
 --------------------------------------------------------------------------------
 ARCHITECTURE CONTRACTS (PRESENT)
@@ -157,12 +154,9 @@ INTENTIONALLY DEFERRED
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of remediation a0bc665 (H-NEW-1/2 + adjacent)
-2. Merge only if Critical=0 and High=0
-3. Do not claim Phase 2 complete
-
-Do NOT merge PR #3 until re-review clears Highs.
-Do NOT claim Phase 2 complete.
+1. Human merge decision for PR #3 (re-review CLEAR FOR MERGE)
+2. Do not claim Phase 2 complete after merge — Implementation #2+ remains
+3. Medium items may be tracked as follow-ups; not merge blockers
 
 ================================================================================
 END OF STATUS REPORT
