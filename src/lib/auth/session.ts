@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
-import { UnauthorizedError, ForbiddenError } from "@/lib/errors";
+import { UnauthorizedError } from "@/lib/errors";
+
+export { assertResourceOwner } from "@/lib/auth/ownership";
 
 export async function requireSession() {
   const session = await auth();
@@ -12,14 +14,4 @@ export async function requireSession() {
 export async function requireUserId(): Promise<string> {
   const session = await requireSession();
   return session.user.id;
-}
-
-/** Defense-in-depth ownership check against IDOR */
-export function assertResourceOwner(
-  resourceUserId: string,
-  requesterId: string,
-): void {
-  if (resourceUserId !== requesterId) {
-    throw new ForbiddenError();
-  }
 }
