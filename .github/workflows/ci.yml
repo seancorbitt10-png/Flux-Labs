@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "cursor/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux_dev_password
+          POSTGRES_DB: flux_labs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux_labs"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://flux:flux_dev_password@localhost:5432/flux_labs?schema=public
+      AUTH_SECRET: ci-test-secret-not-for-production-use
+      AUTH_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

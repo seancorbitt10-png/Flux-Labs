@@ -1,0 +1,241 @@
+// Flux Labs — Phase 1 foundation schema
+// Intentionally minimal. Designed for expansion in later phases.
+// See docs/ARCHITECTURE.md and docs/STUDENT_MODEL.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js / NextAuth models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  studentProfile StudentProfile?
+  entitlements   Entitlement[]
+  usageRecords   UsageRecord[]
+  trials         Trial[]
+  auditLogs      AuditLog[]
+  aiInteractions AIInteraction[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Student profile foundation (expanded in Phase 2)
+// ---------------------------------------------------------------------------
+
+model StudentProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName   String?
+  academicLevel String?
+  timezone      String? @default("UTC")
+  onboardingCompletedAt DateTime?
+
+  // Explicit preferences only in Phase 1 — evidence/inference comes later
+  preferredAssistanceStyle String?
+  goalsSummary             String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("student_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Entitlements, trial, usage (server-side enforcement)
+// Plan limits live in code config (lib/entitlements/plans.ts) so they can
+// change without rewriting application logic. DB stores user state.
+// ---------------------------------------------------------------------------
+
+enum PlanTier {
+  FREE_TRIAL
+  PLUS
+  PRO
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+model Entitlement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan       PlanTier          @default(FREE_TRIAL)
+  status     EntitlementStatus @default(ACTIVE)
+  startsAt   DateTime          @default(now())
+  endsAt     DateTime?
+  // External billing provider IDs — null until Phase 9
+  externalSubscriptionId String?
+  metadata               Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  // Partial unique: at most one ACTIVE entitlement per user (see migration SQL)
+  @@map("entitlements")
+}
+
+model Trial {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startedAt   DateTime  @default(now())
+  endsAt      DateTime
+  convertedAt DateTime?
+  expiredAt   DateTime?
+
+  // Capability counters — limits come from plan config
+  aiSessionsUsed           Int @default(0)
+  documentAnalysesUsed     Int @default(0)
+  advancedTutoringUsed     Int @default(0)
+  estimatedCostMicros      Int @default(0) // USD micros for cost tracking
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trials")
+}
+
+enum UsageCapability {
+  AI_SESSION
+  DOCUMENT_ANALYSIS
+  ADVANCED_TUTORING
+  GENERAL
+}
+
+model UsageRecord {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  capability      UsageCapability
+  feature         String
+  aiTaskType      String?
+  modelKey        String? // Internal model key, not user-facing
+  inputTokens     Int?
+  outputTokens    Int?
+  estimatedCostMicros Int @default(0)
+  latencyMs       Int?
+  success         Boolean @default(true)
+  errorCode       String?
+  // Do not store full student content here — operational telemetry only
+  metadata        Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, capability, createdAt])
+  @@index([feature, createdAt])
+  @@map("usage_records")
+}
+
+// ---------------------------------------------------------------------------
+// AI interaction audit (minimal Phase 1 — content retention policies later)
+// ---------------------------------------------------------------------------
+
+model AIInteraction {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  taskType       String
+  assistanceMode String?
+  modelKey       String?
+  // Hash + length only (sha256:…:len=N) — never raw educational content
+  requestSummary String?
+  success        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("ai_interactions")
+}
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action     String
+  resource   String?
+  resourceId String?
+  ipHash     String? // hashed, not raw IP
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
