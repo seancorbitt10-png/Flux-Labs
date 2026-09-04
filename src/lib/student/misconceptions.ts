@@ -1,6 +1,5 @@
 import type {
   MisconceptionStatus,
-  ProvenanceKind,
   StudentMisconception,
 } from "@prisma/client";
 import { assertResourceOwner } from "@/lib/auth/ownership";
@@ -10,34 +9,62 @@ import {
   clampConfidence,
   defaultConfidenceFor,
 } from "@/lib/provenance/policy";
+import { rejectClientAuthorityFields } from "./attribute-registry";
 
 const STATEMENT_MAX = 500;
+
+/**
+ * Server-controlled misconception channels.
+ * Provenance/confidence/source are assigned by the server from the channel.
+ */
+export const MISCONCEPTION_CHANNELS = {
+  system: { source: "system", provenance: "OBSERVED" as const },
+  tutor: { source: "tutor", provenance: "OBSERVED" as const },
+  /** Student self-report via settings — EXPLICIT is server-assigned, not caller-chosen. */
+  settings: { source: "settings", provenance: "EXPLICIT" as const },
+} as const;
+
+export type MisconceptionChannel = keyof typeof MISCONCEPTION_CHANNELS;
 
 export type CreateMisconceptionInput = {
   actorUserId: string;
   userId: string;
   statement: string;
-  source: string;
+  channel: MisconceptionChannel;
   conceptId?: string | null;
-  provenance?: ProvenanceKind;
-  confidence?: number;
 };
 
 /**
  * Student misconceptions — no evidence ID arrays, no JSON FK substitutes.
  * MisconceptionEvidence join is deferred.
+ * Authority metadata is server-controlled via channel.
  */
 export async function createStudentMisconception(
   input: CreateMisconceptionInput,
 ): Promise<StudentMisconception> {
   assertResourceOwner(input.userId, input.actorUserId);
 
+  const bag = input as Record<string, unknown>;
+  if (
+    "provenance" in bag ||
+    "confidence" in bag ||
+    "source" in bag
+  ) {
+    rejectClientAuthorityFields({
+      provenance: bag.provenance,
+      confidence: bag.confidence,
+      source: bag.source,
+    });
+  }
+
+  const channel = MISCONCEPTION_CHANNELS[input.channel];
+  if (!channel) {
+    throw new ValidationError("Unknown misconception channel.");
+  }
+
   const statement = input.statement?.trim();
   if (!statement || statement.length > STATEMENT_MAX) {
     throw new ValidationError("Invalid misconception statement.");
-  }
-  if (!input.source?.trim() || input.source.length > 80) {
-    throw new ValidationError("Invalid misconception source.");
   }
 
   if (input.conceptId) {
@@ -49,7 +76,7 @@ export async function createStudentMisconception(
     }
   }
 
-  const provenance = input.provenance ?? "OBSERVED";
+  const provenance = channel.provenance;
 
   return prisma.studentMisconception.create({
     data: {
@@ -58,10 +85,8 @@ export async function createStudentMisconception(
       statement,
       status: "ACTIVE",
       provenance,
-      confidence: clampConfidence(
-        input.confidence ?? defaultConfidenceFor(provenance),
-      ),
-      source: input.source.trim(),
+      confidence: clampConfidence(defaultConfidenceFor(provenance)),
+      source: channel.source,
     },
   });
 }
@@ -73,6 +98,19 @@ export async function updateMisconceptionStatus(args: {
   status: MisconceptionStatus;
 }): Promise<StudentMisconception> {
   assertResourceOwner(args.userId, args.actorUserId);
+
+  const bag = args as Record<string, unknown>;
+  if (
+    "provenance" in bag ||
+    "confidence" in bag ||
+    "source" in bag
+  ) {
+    rejectClientAuthorityFields({
+      provenance: bag.provenance,
+      confidence: bag.confidence,
+      source: bag.source,
+    });
+  }
 
   const row = await prisma.studentMisconception.findUnique({
     where: { id: args.misconceptionId },

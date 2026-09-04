@@ -17,7 +17,7 @@ export type AttributeRegistryEntry = {
   /** Zod schema for the stored JSON value (after coercion). */
   schema: z.ZodType;
   writers: readonly AttributeWriter[];
-  /** Server-assigned provenance for this writer path when not overridden by system rules. */
+  /** Server-assigned provenance for student-authoritative writers (onboarding/settings). Not used by system writers. */
   defaultProvenance: ProvenanceKind;
   aiContextEligible: boolean | "optional";
   description: string;

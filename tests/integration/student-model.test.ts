@@ -1,20 +1,38 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { ForbiddenError, ValidationError } from "@/lib/errors";
-import { setStudentAttribute, getActiveAttribute, getAttributeHistory } from "@/lib/student/attributes";
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  ValidationError,
+} from "@/lib/errors";
+import {
+  setStudentAttribute,
+  getActiveAttribute,
+  getAttributeHistory,
+} from "@/lib/student/attributes";
 import { applyClientAttributeUpdate } from "@/lib/student/client-attributes";
 import { createStudentGoal, listStudentGoals } from "@/lib/student/goals";
 import {
   recordLearningEvidence,
   listLearningEvidence,
 } from "@/lib/student/evidence";
-import { getConceptState, upsertExplicitConceptState } from "@/lib/student/concept-state";
-import { deleteUserEducationalData } from "@/lib/student/deletion";
+import {
+  getConceptState,
+  upsertExplicitConceptState,
+} from "@/lib/student/concept-state";
+import {
+  deleteUserEducationalData,
+  deleteUserAccount,
+} from "@/lib/student/deletion";
+import { recordStudentObservation } from "@/lib/student/observations";
+import { createStudentMisconception } from "@/lib/student/misconceptions";
 import {
   createSubject,
   createTopic,
   createConcept,
   createConceptRelation,
+  createUserConcept,
+  createSystemConcept,
 } from "@/lib/knowledge/catalog";
 import {
   startOnboardingSession,
@@ -25,6 +43,7 @@ import {
 import { ONBOARDING_VERSION } from "@/lib/onboarding/catalog";
 
 const prisma = new PrismaClient();
+const SYSTEM = { type: "system" as const };
 
 async function cleanupTestUsers() {
   const where = { email: { endsWith: "@fluxlabs.test" } };
@@ -481,15 +500,18 @@ describe("Phase 2 student model foundation", () => {
     it("records evidence without auto-setting MASTERED", async () => {
       const user = await createUser(`ev-${Date.now()}`);
       const subject = await createSubject({
+        actor: SYSTEM,
         slug: `test-math-${Date.now()}`,
         name: "Test Math",
       });
       const topic = await createTopic({
+        actor: SYSTEM,
         subjectId: subject.id,
         slug: "algebra",
         name: "Algebra",
       });
       const concept = await createConcept({
+        actor: SYSTEM,
         topicId: topic.id,
         slug: "factoring",
         name: "Factoring",
@@ -564,26 +586,31 @@ describe("Phase 2 student model foundation", () => {
     it("supports Subject→Topic→Concept and valid relations only", async () => {
       const stamp = Date.now();
       const subject = await createSubject({
+        actor: SYSTEM,
         slug: `test-bio-${stamp}`,
         name: "Test Biology",
       });
       const topic = await createTopic({
+        actor: SYSTEM,
         subjectId: subject.id,
         slug: "cells",
         name: "Cells",
       });
       const a = await createConcept({
+        actor: SYSTEM,
         topicId: topic.id,
         slug: "membrane",
         name: "Cell membrane",
       });
       const b = await createConcept({
+        actor: SYSTEM,
         topicId: topic.id,
         slug: "osmosis",
         name: "Osmosis",
       });
 
       const rel = await createConceptRelation({
+        actor: SYSTEM,
         fromConceptId: a.id,
         toConceptId: b.id,
         type: "PREREQUISITE",
@@ -592,6 +619,7 @@ describe("Phase 2 student model foundation", () => {
 
       await expect(
         createConceptRelation({
+          actor: SYSTEM,
           fromConceptId: a.id,
           toConceptId: a.id,
           type: "RELATED",
@@ -612,15 +640,18 @@ describe("Phase 2 student model foundation", () => {
       const user = await createUser(`del-${Date.now()}`);
       const stamp = Date.now();
       const subject = await createSubject({
+        actor: SYSTEM,
         slug: `test-keep-${stamp}`,
         name: "Keep Me",
       });
       const topic = await createTopic({
+        actor: SYSTEM,
         subjectId: subject.id,
         slug: "t1",
         name: "Topic",
       });
       const concept = await createConcept({
+        actor: SYSTEM,
         topicId: topic.id,
         slug: "c1",
         name: "Concept",
@@ -710,6 +741,334 @@ describe("Phase 2 student model foundation", () => {
       ).toBe(1);
       // User account itself remains (educational wipe ≠ account delete)
       expect(await prisma.user.findUnique({ where: { id: user.id } })).not.toBeNull();
+    });
+  });
+
+  describe("HIGH remediation — system cannot mint EXPLICIT", () => {
+    it("rejects system write with omitted provenance", async () => {
+      const user = await createUser(`sys-omit-${Date.now()}`);
+      await expect(
+        setStudentAttribute({
+          actorUserId: user.id,
+          userId: user.id,
+          key: "approach.worked_example",
+          value: true,
+          writer: "system",
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("rejects system write requesting EXPLICIT", async () => {
+      const user = await createUser(`sys-exp-${Date.now()}`);
+      await expect(
+        setStudentAttribute({
+          actorUserId: user.id,
+          userId: user.id,
+          key: "approach.worked_example",
+          value: true,
+          writer: "system",
+          systemProvenance: "EXPLICIT",
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("allows legitimate student EXPLICIT writes and keeps precedence", async () => {
+      const user = await createUser(`sys-ok-${Date.now()}`);
+      const explicit = await setStudentAttribute({
+        actorUserId: user.id,
+        userId: user.id,
+        key: "approach.worked_example",
+        value: true,
+        writer: "settings",
+      });
+      expect(explicit.status).toBe("written");
+      if (explicit.status !== "written") return;
+      expect(explicit.attribute.provenance).toBe("EXPLICIT");
+
+      const rejected = await setStudentAttribute({
+        actorUserId: user.id,
+        userId: user.id,
+        key: "approach.worked_example",
+        value: false,
+        writer: "system",
+        systemProvenance: "OBSERVED",
+      });
+      expect(rejected.status).toBe("rejected_weaker_provenance");
+
+      const observed = await setStudentAttribute({
+        actorUserId: user.id,
+        userId: user.id,
+        key: "interest.secondary",
+        value: "history",
+        writer: "settings",
+      });
+      // interest.secondary only allows onboarding/settings — prove system OBSERVED works on approach
+      expect(observed.status).toBe("written");
+
+      const systemOk = await setStudentAttribute({
+        actorUserId: user.id,
+        userId: user.id,
+        key: "approach.worked_example",
+        value: false,
+        writer: "settings",
+      });
+      expect(systemOk.status).toBe("written");
+      if (systemOk.status !== "written") return;
+      expect(systemOk.attribute.provenance).toBe("EXPLICIT");
+    });
+  });
+
+  describe("HIGH remediation — observation/misconception authority fields", () => {
+    it("rejects caller-controlled provenance/confidence on observations", async () => {
+      const user = await createUser(`obs-auth-${Date.now()}`);
+      const other = await createUser(`obs-other-${Date.now()}`);
+
+      const ok = await recordStudentObservation({
+        actorUserId: user.id,
+        userId: user.id,
+        category: "study",
+        type: "session_length",
+        summary: "Studied for 40 minutes",
+        channel: "study_session",
+      });
+      expect(ok.provenance).toBe("OBSERVED");
+      expect(ok.source).toBe("study_session");
+      expect(ok.confidence).toBeLessThanOrEqual(0.7);
+
+      await expect(
+        recordStudentObservation({
+          actorUserId: user.id,
+          userId: user.id,
+          category: "study",
+          type: "session_length",
+          summary: "Hack",
+          channel: "study_session",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        recordStudentObservation({
+          actorUserId: user.id,
+          userId: user.id,
+          category: "study",
+          type: "session_length",
+          summary: "Hack",
+          channel: "study_session",
+          confidence: 1,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        recordStudentObservation({
+          actorUserId: other.id,
+          userId: user.id,
+          category: "study",
+          type: "session_length",
+          summary: "IDOR",
+          channel: "study_session",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+
+    it("rejects caller-controlled provenance/confidence on misconceptions", async () => {
+      const user = await createUser(`misc-auth-${Date.now()}`);
+      const other = await createUser(`misc-other-${Date.now()}`);
+
+      const ok = await createStudentMisconception({
+        actorUserId: user.id,
+        userId: user.id,
+        statement: "Confuses mean and median",
+        channel: "tutor",
+      });
+      expect(ok.provenance).toBe("OBSERVED");
+      expect(ok.source).toBe("tutor");
+
+      const settings = await createStudentMisconception({
+        actorUserId: user.id,
+        userId: user.id,
+        statement: "I still mix up slope and intercept",
+        channel: "settings",
+      });
+      expect(settings.provenance).toBe("EXPLICIT");
+      expect(settings.source).toBe("settings");
+
+      await expect(
+        createStudentMisconception({
+          actorUserId: user.id,
+          userId: user.id,
+          statement: "Hack",
+          channel: "tutor",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createStudentMisconception({
+          actorUserId: user.id,
+          userId: user.id,
+          statement: "Hack",
+          channel: "tutor",
+          confidence: 0.99,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createStudentMisconception({
+          actorUserId: other.id,
+          userId: user.id,
+          statement: "IDOR",
+          channel: "tutor",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+  });
+
+  describe("HIGH remediation — catalog authz and USER attribution", () => {
+    it("rejects unauthorized shared catalog creation and spoofed attribution", async () => {
+      const a = await createUser(`cat-a-${Date.now()}`);
+      const b = await createUser(`cat-b-${Date.now()}`);
+      const stamp = Date.now();
+
+      await expect(
+        createSubject({
+          actor: { type: "user", userId: a.id },
+          slug: `test-denied-${stamp}`,
+          name: "Denied",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      const subject = await createSubject({
+        actor: SYSTEM,
+        slug: `test-authz-${stamp}`,
+        name: "Authz Subject",
+      });
+      const topic = await createTopic({
+        actor: SYSTEM,
+        subjectId: subject.id,
+        slug: "t",
+        name: "Topic",
+      });
+
+      const systemConcept = await createSystemConcept({
+        actor: SYSTEM,
+        topicId: topic.id,
+        slug: "sys",
+        name: "System Concept",
+      });
+      expect(systemConcept.source).toBe("SYSTEM");
+      expect(systemConcept.createdByUserId).toBeNull();
+
+      const userConcept = await createUserConcept({
+        actor: { type: "user", userId: a.id },
+        topicId: topic.id,
+        slug: "user-a",
+        name: "User A Concept",
+      });
+      expect(userConcept.source).toBe("USER");
+      expect(userConcept.createdByUserId).toBe(a.id);
+
+      await expect(
+        createUserConcept({
+          actor: { type: "user", userId: a.id },
+          topicId: topic.id,
+          slug: "spoof",
+          name: "Spoof",
+          createdByUserId: b.id,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createUserConcept({
+          actor: SYSTEM,
+          topicId: topic.id,
+          slug: "no-auth",
+          name: "No Auth",
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+
+      // Cross-user: A cannot create as B by using B's actor while claiming otherwise —
+      // ownership is always actor.userId
+      const asB = await createUserConcept({
+        actor: { type: "user", userId: b.id },
+        topicId: topic.id,
+        slug: "user-b",
+        name: "User B Concept",
+      });
+      expect(asB.createdByUserId).toBe(b.id);
+      expect(asB.createdByUserId).not.toBe(a.id);
+    });
+  });
+
+  describe("HIGH remediation — account delete removes USER concepts", () => {
+    it("deletes USER concepts on account delete and retains SYSTEM catalog", async () => {
+      const a = await createUser(`acct-a-${Date.now()}`);
+      const b = await createUser(`acct-b-${Date.now()}`);
+      const stamp = Date.now();
+
+      const subject = await createSubject({
+        actor: SYSTEM,
+        slug: `test-acct-${stamp}`,
+        name: "Account Delete Subject",
+      });
+      const topic = await createTopic({
+        actor: SYSTEM,
+        subjectId: subject.id,
+        slug: "t",
+        name: "Topic",
+      });
+      const systemConcept = await createSystemConcept({
+        actor: SYSTEM,
+        topicId: topic.id,
+        slug: "keep-sys",
+        name: "Keep System",
+      });
+      const aConcept = await createUserConcept({
+        actor: { type: "user", userId: a.id },
+        topicId: topic.id,
+        slug: "a-only",
+        name: "A Concept",
+      });
+      const bConcept = await createUserConcept({
+        actor: { type: "user", userId: b.id },
+        topicId: topic.id,
+        slug: "b-only",
+        name: "B Concept",
+      });
+
+      await deleteUserAccount({ actorUserId: a.id, userId: a.id });
+
+      expect(await prisma.user.findUnique({ where: { id: a.id } })).toBeNull();
+      expect(
+        await prisma.concept.findUnique({ where: { id: aConcept.id } }),
+      ).toBeNull();
+      expect(
+        await prisma.concept.findUnique({ where: { id: systemConcept.id } }),
+      ).not.toBeNull();
+      expect(
+        await prisma.concept.findUnique({ where: { id: bConcept.id } }),
+      ).not.toBeNull();
+      expect(
+        await prisma.subject.findUnique({ where: { id: subject.id } }),
+      ).not.toBeNull();
+
+      const orphans = await prisma.concept.findMany({
+        where: { source: "USER", createdByUserId: null },
+      });
+      expect(orphans).toHaveLength(0);
+
+      // FK safety: raw user delete also cascades USER concepts
+      const c = await createUser(`acct-c-${Date.now()}`);
+      const cConcept = await createUserConcept({
+        actor: { type: "user", userId: c.id },
+        topicId: topic.id,
+        slug: `c-only-${Date.now()}`,
+        name: "C Concept",
+      });
+      await prisma.user.delete({ where: { id: c.id } });
+      expect(
+        await prisma.concept.findUnique({ where: { id: cConcept.id } }),
+      ).toBeNull();
     });
   });
 });

@@ -36,16 +36,30 @@ export type SetAttributeResult =
 
 function resolveProvenance(
   writer: AttributeWriter,
-  registryDefault: ProvenanceKind,
   systemProvenance?: ProvenanceKind,
 ): ProvenanceKind {
+  // Student-authoritative flows only — EXPLICIT is never minted by system.
   if (writer === "onboarding" || writer === "settings") {
     return "EXPLICIT";
   }
-  if (systemProvenance) {
-    return systemProvenance;
+
+  if (writer !== "system") {
+    throw new ValidationError("Unknown attribute writer.");
   }
-  return registryDefault;
+
+  if (!systemProvenance) {
+    throw new ValidationError(
+      "System attribute writes require a non-EXPLICIT provenance.",
+    );
+  }
+
+  if (systemProvenance === "EXPLICIT") {
+    throw new ValidationError(
+      "System writers cannot mint EXPLICIT provenance.",
+    );
+  }
+
+  return systemProvenance;
 }
 
 function resolveSource(writer: AttributeWriter): string {
@@ -79,17 +93,13 @@ export async function setStudentAttribute(
 
   const entry = assertRegisteredAttributeKey(input.key);
   assertWriterAllowed(entry, input.writer);
-  const valueJson = validateAttributeValue(entry, input.value) as Prisma.InputJsonValue;
 
-  const provenance = resolveProvenance(
-    input.writer,
-    entry.defaultProvenance,
-    input.systemProvenance,
-  );
-  if (input.writer !== "system" && input.systemProvenance) {
-    throw new ValidationError("Only system writers may override provenance.");
+  if (input.writer !== "system" && input.systemProvenance !== undefined) {
+    throw new ValidationError("Only system writers may supply systemProvenance.");
   }
 
+  const valueJson = validateAttributeValue(entry, input.value) as Prisma.InputJsonValue;
+  const provenance = resolveProvenance(input.writer, input.systemProvenance);
   const confidence = clampConfidence(defaultConfidenceFor(provenance));
   const source = resolveSource(input.writer);
 

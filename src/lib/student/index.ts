@@ -43,4 +43,4 @@ export {
   updateMisconceptionStatus,
   listMisconceptions,
 } from "./misconceptions";
-export { deleteUserEducationalData } from "./deletion";
+export { deleteUserEducationalData, deleteUserAccount } from "./deletion";

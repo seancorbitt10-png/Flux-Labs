@@ -398,7 +398,7 @@ model Concept {
   description String?
   source      ConceptSource @default(SYSTEM)
   createdByUserId String?
-  createdByUser   User?     @relation("UserCreatedConcepts", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUser   User?     @relation("UserCreatedConcepts", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   fromRelations ConceptRelation[] @relation("ConceptRelationFrom")
   toRelations   ConceptRelation[] @relation("ConceptRelationTo")
