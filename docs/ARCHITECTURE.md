@@ -70,7 +70,7 @@ tests/               # Unit tests
 3. **Server-side entitlements** — `reserveCapability` atomically reserves usage before AI work; UI never enforces limits alone.
 4. **Provider-agnostic AI** — `AIProvider` interface; stub in Phase 1. Clients never select models or supply routing hints.
 5. **Cost-aware** — usage records store tokens + estimated micros; trial budget soft-cap.
-6. **Structured student data** — `StudentProfile` table now; evidence models later (not a JSON blob).
+6. **Structured student data** — `StudentProfile` table now; Phase 2 design adds registry-bound attributes + evidence (not a JSON blob). See `docs/PHASE2_ARCHITECTURE.md`.
 7. **Privacy-aware telemetry** — AI interaction summaries are hashed length markers, not raw prompts.
 
 ## What Phase 1 deliberately excludes
@@ -89,6 +89,7 @@ tests/               # Unit tests
 
 - Client is untrusted.
 - Uploaded/retrieved document content (future) is untrusted input, never system instruction.
+- Student-model / onboarding / evidence content (Phase 2 design) is **untrusted data** in AI prompts — never system instructions; academic policy and entitlements outrank context. See `docs/PHASE2_ARCHITECTURE.md`.
 - AI output cannot override authz/entitlement rules.
 - Resource access must always verify `userId` ownership (helpers in `lib/auth/session.ts`).
 

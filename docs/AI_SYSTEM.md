@@ -9,13 +9,12 @@ User request
  → Entitlement / usage policy
  → Task routing
  → Academic assistance policy
- → Context assembly (profile today; classes/resources later)
+ → Context assembly (profile today; Phase 2+ Student Model / Knowledge — budgeted)
  → Model selection (internal keys)
  → Provider call
  → Structured response
  → Usage + interaction logging
- → (Phase 2+) optional student evidence / observation hooks
- → (Phase 2+) budgeted context assembly from Student Model + Knowledge Foundation
+ → (Phase 2+) optional student evidence / observation hooks (feature-flagged)
 ```
 
 See `docs/PHASE2_ARCHITECTURE.md` for the designed context-selection layer (not implemented yet).
@@ -49,5 +48,9 @@ Phase 4: real providers (OpenAI/Anthropic/etc.) behind the same interface, with 
 ## Security notes for AI
 
 - Retrieved document text (future) is untrusted data, not instructions.
+- Student-model fields, onboarding answers, observations, evidence, and misconceptions are **DATA**, not trusted instructions (prompt-injection boundary).
+- System safety → academic assistance policy → entitlements/authz **always outrank** student context.
+- `assembleAIContext` (Phase 2 design) must allowlist fields, apply budgets, preserve provenance, and not dump the DB into prompts.
 - AI output cannot bypass entitlement or authz checks.
+- `TUTOR_SIGNAL` / model-derived evidence must not become EXPLICIT truth or bypass update rules.
 - Usage telemetry avoids storing full student content.

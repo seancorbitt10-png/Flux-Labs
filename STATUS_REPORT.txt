@@ -9,8 +9,8 @@ BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 design is complete (documentation only) and open for review on PR #2.
-Phase 2 implementation has not started.
+Phase 2 design has been revised (architecture-review tightening) on PR #2.
+Phase 2 implementation has not started. Awaiting final architecture approval.
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -20,9 +20,6 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             a20aff7
-                          Phase 2 design docs + design export + status report
-
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
 --------------------------------------------------------------------------------
@@ -31,13 +28,11 @@ PULL REQUESTS
 
 PR #1 — MERGED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/1
-Phase 1 foundation: app shell, auth, entitlements, AI orchestration
 
-PR #2 — OPEN (DRAFT)
+PR #2 — OPEN (DRAFT) — documentation only
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-docs: Phase 2 architecture design (Student Model + Onboarding)
-Branch: cursor/phase2-architecture-design-399a → main
-Scope: documentation only (no schema, UI, or app behavior)
+Phase 2 architecture design + architecture-review revisions
+No schema / UI / app behavior
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -46,117 +41,46 @@ PHASE STATUS
 Phase 0   Inspect                         COMPLETE
 Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
-          Design                          COMPLETE (PR #2)
+          Design                          REVISED — AWAITING FINAL REVIEW
           Implementation                  NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-PHASE 1 — ON MAIN
+PHASE 2 DESIGN (PR #2)
 --------------------------------------------------------------------------------
 
-Shipped:
-- App shell + nav (Home, Classes, Tasks, Calendar, Study, Resources,
-  Progress, Settings)
-- Auth.js credentials auth
-- PostgreSQL + Prisma (users, profile, entitlements, trial, usage,
-  AI interactions, audit)
-- Trial provisioning; atomic entitlement reservation
-- AI orchestration with stub provider + academic assistance policy
-- Study path wired end-to-end
-- Security hardening, docs, Vitest, CI
+Primary: docs/PHASE2_ARCHITECTURE.md
+Export:  PHASE2_DESIGN_EXPORT.txt
 
-Quality at merge:
-- Tests: 22/22 passed
-- Typecheck / lint / build: clean
-- CI: SUCCESS
-  https://github.com/seancorbitt10-png/Flux-Labs/actions/runs/33863236490
-
---------------------------------------------------------------------------------
-PHASE 2 — DESIGN ONLY (PR #2)
---------------------------------------------------------------------------------
-
-Primary design:
-- docs/PHASE2_ARCHITECTURE.md
-
-Related docs updated:
-- docs/STUDENT_MODEL.md
-- docs/IMPLEMENTATION_PLAN.md
-- docs/ARCHITECTURE.md
-- docs/AI_SYSTEM.md
-
-Combined export for review:
-- PHASE2_DESIGN_EXPORT.txt
-
-Design covers:
-- Student Model + provenance/evidence
-- Model evolution
-- Onboarding (≤30 questions)
-- Knowledge Foundation (Subject → Topic → Concept)
-- Student ↔ knowledge relationships
-- AI context assembly
-- Proposed Prisma models
-- Data flows, privacy/security
-- Implementation sequence, testing, risks, non-goals, DoD
-
-Not in this PR:
-- No schema / migrations
-- No onboarding UI
-- No knowledge seed
-- No assembleAIContext implementation
-- No app behavior changes
-
-Awaiting: design review / approval, then a separate implementation prompt
-
---------------------------------------------------------------------------------
-KNOWN LIMITATIONS
---------------------------------------------------------------------------------
-
-- Stub AI only (no real LLM providers)
-- Classes / Tasks / Calendar / Resources / Progress are shell pages
-- No billing provider
-- No LMS integrations
-- In-memory rate limits (single-instance)
-
---------------------------------------------------------------------------------
-BLOCKERS
---------------------------------------------------------------------------------
-
-None technical for starting Phase 2 implementation after design approval.
-Gate is human review of PR #2 / docs/PHASE2_ARCHITECTURE.md.
+Review tightening added (docs only):
+- StudentAttribute server-side registry
+- One active attribute per user+key
+- Confidence = reliability score (not probability)
+- Conservative mastery boundary
+- No relational IDs in metadata JSON
+- Privacy notice ≠ legal consent
+- Student context as untrusted data
+- Account deletion semantics
+- Context selection without premature keyword intelligence
+- Onboarding answer validation
+- Updated Definition of Done
 
 --------------------------------------------------------------------------------
 NEXT STEPS
 --------------------------------------------------------------------------------
 
-1. Review and approve Phase 2 design (PR #2)
-2. Issue a Phase 2 implementation prompt
-3. Implement off origin/main in layers:
-   schema → services → onboarding → knowledge seed →
-   assembleAIContext → tests
-
---------------------------------------------------------------------------------
-KEY LINKS
---------------------------------------------------------------------------------
-
-Status report:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
-
-Raw:
-https://raw.githubusercontent.com/seancorbitt10-png/Flux-Labs/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
-
-Phase 2 design:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
-
-Phase 2 design export:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/PHASE2_DESIGN_EXPORT.txt
+1. Final human architecture review of PR #2
+2. Approve or reject design
+3. Only after approval: Phase 2 implementation prompt
 
 --------------------------------------------------------------------------------
 VERDICT
 --------------------------------------------------------------------------------
 
 PHASE 1: COMPLETE
-PHASE 2 DESIGN: COMPLETE — AWAITING REVIEW
+PHASE 2 DESIGN: REVISED — READY FOR FINAL ARCHITECTURE REVIEW
 PHASE 2 IMPLEMENTATION: NOT STARTED
+ARCHITECTURE APPROVAL: NOT CLAIMED
 
 ================================================================================
 END OF STATUS REPORT

@@ -8,7 +8,7 @@ Develop incrementally. Do not build the entire product in one pass.
 |-------|-------|--------|
 | 0 | Inspect repository | **Done** |
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** (merged to `main` @ `e1dc1d0`) |
-| 2 | Student model + onboarding + knowledge foundation | **Design complete** — implementation not started |
+| 2 | Student model + onboarding + knowledge foundation | **Design revised** (architecture review tightening) — implementation not started |
 | 3 | Classes / tasks / calendar | Planned |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
@@ -34,13 +34,13 @@ Shipped and merged via PR #1:
 
 ### Design
 
-Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)**.
+Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** (revised after architecture review; still documentation only).
 
-Includes: Student Model, evolution/provenance, onboarding (≤30 Q), Knowledge Foundation (Subject→Topic→Concept), student↔knowledge, AI context assembly, proposed Prisma models, privacy, implementation layers, non-goals, Definition of Done.
+Includes: Student Model, attribute registry, one-active-key invariant, provenance/confidence semantics, conservative mastery boundary, onboarding (≤30 Q, server validation, privacy notice ≠ consent), Knowledge Foundation (Subject→Topic→Concept), student↔knowledge, untrusted AI context assembly, proposed Prisma models, deletion semantics, privacy, implementation layers, non-goals, Definition of Done.
 
 ### Implementation
 
-**Not started.** Awaiting design review / implementation prompt.
+**Not started.** Awaiting **final** design approval / implementation prompt.
 
 Do not begin schema migrations or UI until explicitly approved.
 
@@ -48,5 +48,6 @@ Do not begin schema migrations or UI until explicitly approved.
 
 - Phase 2 extends Phase 1 relational foundation; does not replace auth/entitlements/orchestration.
 - Concepts are global catalog entities; classes join later (Phase 3).
-- No learning-style typology; evidence + provenance only.
+- No learning-style typology; evidence + provenance only; confidence is a reliability score, not probability.
+- Student context is untrusted data in prompts; policy outranks context.
 - Stub AI remains acceptable through Phase 2; real providers are Phase 4.
