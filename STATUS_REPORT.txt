@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 21:07 UTC
+Updated: 2026-09-04 21:13 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -15,14 +15,14 @@ engineering non-negotiables).
 
 Phase 2 IMPLEMENTATION #1 is on PR #3.
 
-Independent RE-REVIEW verdict: CHANGES REQUIRED
+Second High-finding remediation implemented; independent re-review
+required before merge.
 
-- Original five HIGH findings: all PASS (remediations verified)
-- New HIGH findings: 2 (must fix before merge)
+- Original five HIGH findings: PASS
+- H-NEW-1 / H-NEW-2: remediated on tip a0bc665 (await re-review)
 - Critical: 0
 
-Do NOT merge PR #3 until the two new High findings are fixed and
-re-checked.
+Do NOT merge PR #3 until independent re-review clears Highs.
 
 Phase 2 overall remains incomplete.
 
@@ -34,16 +34,14 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-PR tip:                   3bb58a5
-Reviewed commit:          0d3fc77
-                          (tip after that is STATUS_REPORT-only)
+PR tip:                   a0bc665
 Merge base with main:     e1dc1d0
 
 Notable commits:
   f4f2f79  feat: implement Phase 2 student model foundation
   ddeffc8  fix: harden phase 2 authority and ownership boundaries
   0d3fc77  docs: define phase 2 AI and onboarding contracts
-  3bb58a5  docs: refresh status report after architecture contracts
+  a0bc665  fix: block system-authoritative concept state and goals
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -57,11 +55,11 @@ https://github.com/seancorbitt10-png/Flux-Labs/pull/1
 PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — CHANGES REQUIRED
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — AWAITING RE-REVIEW
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-Head: 3bb58a5
+Head: a0bc665
 Base: main @ e1dc1d0
-Independent re-review: CHANGES REQUIRED (do not merge)
+Status: Second High remediation on tip; independent re-review required
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -74,13 +72,13 @@ Phase 2   Student Model + Onboarding
           Architecture contracts          DOCUMENTED
           Implementation #1               IMPLEMENTED
                                           Original Highs remediated (PASS)
-                                          Re-review: CHANGES REQUIRED
-                                          (2 new High findings)
+                                          H-NEW-1/2 remediated (a0bc665)
+                                          Awaiting independent re-review
           Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-RE-REVIEW — ORIGINAL FIVE HIGHS
+ORIGINAL FIVE HIGHS (prior re-review)
 --------------------------------------------------------------------------------
 
 1. System EXPLICIT via attribute registry     PASS
@@ -90,43 +88,49 @@ RE-REVIEW — ORIGINAL FIVE HIGHS
 5. Account delete USER concept orphans        PASS
 
 --------------------------------------------------------------------------------
-RE-REVIEW — NEW BLOCKING HIGHS
+H-NEW-1 / H-NEW-2 REMEDIATION (a0bc665)
 --------------------------------------------------------------------------------
 
-H-NEW-1  src/lib/student/concept-state.ts
-         upsertExplicitConceptState
-         System path accepts provenance: EXPLICIT, which then allows
-         mastery MASTERED. System/AI can mint authoritative mastery.
-         Fix: reject system→EXPLICIT; never allow system to set MASTERED;
-         server-assign confidence.
+H-NEW-1  concept-state.ts
+         System/AI ConceptState writes rejected entirely in Phase 2.
+         Only source onboarding|settings; provenance/confidence server-
+         assigned EXPLICIT; caller cannot spoof provenance/confidence.
+         No mastery algorithm invented.
 
-H-NEW-2  src/lib/student/goals.ts
-         createStudentGoal
-         Always writes provenance EXPLICIT, including source: "system".
-         System can mint authoritative goals.
-         Fix: EXPLICIT only for onboarding/settings; reject or
-         non-EXPLICIT-forbid system goal creates until student accepts.
+H-NEW-2  goals.ts
+         System goal creation rejected (deferred).
+         Only source onboarding|settings → server EXPLICIT.
+         Caller cannot spoof provenance/confidence/source=system.
 
-Critical: 0
-High (new): 2
-Medium: ~6 (evidence source free-form; concept-state confidence;
-  CatalogWriteActor honor-system; profile mass-assignment;
-  IDOR test gaps; incidental trials index drop)
-Low/Info: onboarding catalog subset vs ONBOARDING_SPEC; naming;
-  no Phase 2 HTTP routes yet
+Adjacent audit: attributes/observations/misconceptions protections intact.
+  Evidence free-form source/weight left as Medium (not same HIGH class).
+
+Schema/migration: unchanged. Partial unique index intact.
 
 --------------------------------------------------------------------------------
-AREA SCORES (RE-REVIEW)
+QUALITY GATES (at a0bc665)
 --------------------------------------------------------------------------------
 
-Database                         PASS
-Authorization / IDOR             PASS
-Provenance                       FAIL (concept-state + goals)
-Deletion semantics               PASS
-Architecture compliance          FAIL (new Highs)
-Scope discipline                 PASS
-Test adequacy (original Highs)   PASS
-Test adequacy (adjacent auth)    Gaps noted
+npm test                     52/52 pass
+npm run typecheck            pass (verified at remediation)
+npm run lint                 pass
+npm run build                pass
+npx prisma migrate status    up to date
+
+--------------------------------------------------------------------------------
+REMAINING MEDIUM / LOW (non-blocking unless re-review escalates)
+--------------------------------------------------------------------------------
+
+Medium:
+- LearningEvidence free-form source/weight
+- CatalogWriteActor {type:"system"} honor-system
+- Profile mass-assignment surface
+- Incomplete IDOR coverage for some entities
+- Incidental trials_userId_idx drop in foundation migration
+
+Low/Info:
+- Onboarding code catalog subset vs ONBOARDING_SPEC question count
+- No Phase 2 HTTP routes yet (domain-layer only)
 
 --------------------------------------------------------------------------------
 ARCHITECTURE CONTRACTS (PRESENT)
@@ -147,18 +151,17 @@ INTENTIONALLY DEFERRED
 - Knowledge seed, mastery algorithms, MisconceptionEvidence
 - RAG / embeddings / semantic concept resolution
 - Billing / deployment / teacher-admin systems
+- System-generated goal persistence semantics
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Fix H-NEW-1 (concept-state system EXPLICIT / MASTERED)
-2. Fix H-NEW-2 (goals system→EXPLICIT)
-3. Add regression tests for both
-4. Re-run quality gates + independent re-review
-5. Merge only if Critical=0 and High=0
+1. Independent re-review of tip a0bc665 (H-NEW-1/2 + adjacent)
+2. Merge only if Critical=0 and High=0
+3. Do not claim Phase 2 complete
 
-Do NOT merge PR #3 until new Highs are resolved.
+Do NOT merge PR #3 until re-review clears Highs.
 Do NOT claim Phase 2 complete.
 
 ================================================================================
