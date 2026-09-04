@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 20:39 UTC
+Updated: 2026-09-04 20:51 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,14 +11,16 @@ BOTTOM LINE
 Phase 1 is complete and merged to main.
 Phase 2 architecture is HUMAN-APPROVED (docs/PHASE2_ARCHITECTURE.md).
 
-Phase 2 IMPLEMENTATION #1 (Student Model + DB foundation) is on PR #3.
-Five HIGH review findings have been remediated on tip ddeffc8.
+Phase 2 IMPLEMENTATION #1 is on PR #3:
+  - Foundation implemented (f4f2f79)
+  - Five HIGH findings remediated (ddeffc8)
+  - Architecture contracts documented (0d3fc77) — docs only
 
-STATUS: High-finding remediation implemented; independent re-review
-required before merge.
+STATUS: Independent re-review of PR #3 implementation still required
+before merge. Contracts do not replace that review.
 
-Do NOT claim PR #3 approved or merge-ready solely because tests pass.
-Phase 2 overall remains incomplete (foundation slice only).
+Do NOT claim PR #3 merge-ready solely because tests pass or docs exist.
+Phase 2 overall remains incomplete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -28,11 +30,14 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-Foundation impl commit:   f4f2f79
-Remediation commit:       ddeffc8
-                          fix: harden phase 2 authority and ownership boundaries
-PR tip:                   ddeffc8
+PR tip:                   0d3fc77
 Merge base with main:     e1dc1d0
+
+Notable commits on branch:
+  f4f2f79  feat: implement Phase 2 student model foundation
+  ddeffc8  fix: harden phase 2 authority and ownership boundaries
+  56546df  docs: refresh status report after high-finding remediation
+  0d3fc77  docs: define phase 2 AI and onboarding contracts
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -46,15 +51,13 @@ Phase 1 foundation
 
 PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-docs: Phase 2 architecture design (Student Model + Onboarding)
+docs: Phase 2 architecture design
 
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 + HIGH REMEDIATION
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 + REMEDIATION + CONTRACTS
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-feat: Phase 2 student model + database foundation
-+ fix: harden phase 2 authority and ownership boundaries
-Head: ddeffc8
+Head: 0d3fc77
 Base: main @ e1dc1d0
-Gate: independent re-review required before merge
+Gate: independent re-review of implementation required before merge
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -66,93 +69,76 @@ Phase 2   Student Model + Onboarding
           Design                          COMPLETE — HUMAN-APPROVED
           Implementation #1               IMPLEMENTED + HIGH REMEDIATED
                                           Awaiting independent re-review
+          Architecture contracts          DOCUMENTED (pre-next-slice)
           Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 — SHIPPED
+ARCHITECTURE CONTRACTS (0d3fc77) — DOCS ONLY
 --------------------------------------------------------------------------------
 
-Database / Prisma
-- Student-owned models + knowledge catalog
-- Partial unique index student_attribute_one_active_per_key
-  UNIQUE(userId, key) WHERE supersededAt IS NULL
-- Migration: 20260904194300_phase2_student_model_foundation
-- Migration: 20260904202900_phase2_user_concept_cascade
-  (Concept.createdByUserId ON DELETE CASCADE)
+docs/AI_CONTEXT_CONTRACT.md
+  Future assembleAIContext rules: categories, provenance labeling,
+  instruction hierarchy, minimization, no side effects / no RAG.
 
-Domain
-- Attribute registry + transactional supersede
-- Onboarding catalog/session backend (no UI, no legal consent)
-- Goals, observations, evidence, concept state, misconceptions
-- Knowledge catalog with CatalogWriteActor authz
-- Educational wipe + deleteUserAccount
-- Provenance precedence (EXPLICIT beats weaker)
+docs/AI_WRITE_CONTRACT.md
+  AI output = proposal; server authority fields; no AI-minted EXPLICIT;
+  evidence ≠ mastery; validated concept IDs only.
 
---------------------------------------------------------------------------------
-HIGH REMEDIATION (ddeffc8) — WHAT CHANGED
---------------------------------------------------------------------------------
+docs/ONBOARDING_SPEC.md
+  ~22–26 question design catalog; essential nine; skip/resume/dismiss;
+  onboarding ≠ legal consent.
 
-1. System cannot mint EXPLICIT
-   - system writes require non-EXPLICIT systemProvenance
-   - omitted / EXPLICIT systemProvenance rejected
-   - onboarding/settings still write EXPLICIT
+docs/ENGINEERING_NON_NEGOTIABLES.md
+  20 guardrails + Phase 2 deferred-feature discipline.
 
-2. Observation / misconception authority fields
-   - allowlisted channels; server assigns provenance/confidence/source
-   - caller-supplied authority fields rejected
-   - ownership checks retained
-
-3. Knowledge catalog create authz
-   - shared catalog mutations require actor type "system"
-   - user actors cannot create Subject/Topic/SYSTEM Concept/Relation
-
-4. USER concept attribution bound to authenticated actor
-   - createUserConcept derives createdByUserId from actor.userId
-   - caller-supplied createdByUserId rejected
-   - unauthenticated / system cannot create USER concepts
-
-5. Account delete does not orphan USER concepts
-   - deleteUserAccount deletes USER concepts then user
-   - FK Cascade safety net on createdByUserId
-   - SYSTEM catalog retained; other users' concepts retained
-
-Prior Medium (6) and Low (3) review items: NOT addressed in remediation
-(out of scope). May be tracked for later slices.
+Open decisions noted in contracts (not silently decided):
+  - Confirmation UX for high-impact AI write-back proposals
+  - Whether some onboarding answers stay answer_only until registry expansion
 
 --------------------------------------------------------------------------------
-QUALITY GATES (verified on ddeffc8)
+IMPLEMENTATION #1 — RUNTIME (ddeffc8)
 --------------------------------------------------------------------------------
 
-npm test                 49/49 passed
-npm run typecheck        PASS
-npm run lint             PASS
-npm run build            PASS
-prisma migrate status    up to date (4 migrations)
-Partial unique index     intact
+Student Model persistence + domain services
+Attribute registry + one-active partial unique index
+Onboarding backend (subset catalog; no UI)
+Knowledge catalog with actor authz
+High remediation: no system EXPLICIT minting; hardened observation/
+  misconception authority; USER concept attribution; account-delete
+  USER concept cascade
+
+Quality at remediation (ddeffc8):
+  npm test                 49/49
+  typecheck / lint / build PASS
+  migrate status           up to date
+  partial unique index     intact
+
+Contracts commit (0d3fc77) did not change application code.
 
 --------------------------------------------------------------------------------
 INTENTIONALLY DEFERRED
 --------------------------------------------------------------------------------
 
 - Onboarding UI
-- assembleAIContext + orchestration wiring
+- assembleAIContext wiring
+- AI proposal pipeline (default off)
 - Knowledge seed content
 - Mastery algorithms / MisconceptionEvidence join
-- Concept resolution / RAG / embeddings
-- Billing / deployment / polished product UI
-- Medium/Low review follow-ups
+- RAG / embeddings / semantic concept resolution
+- Billing / deployment / teacher-admin systems
+- Prior Medium/Low review items (out of High-remediation scope)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of PR #3 High remediations
+1. Independent re-review of PR #3 implementation (including High remediations)
 2. Merge only if re-review clears Critical/High
-3. Next implementation slice options after merge:
-   - Onboarding UI
-   - assembleAIContext
-   - Knowledge seed
+3. After merge, next slices may use the new contracts:
+   - Onboarding UI per ONBOARDING_SPEC
+   - assembleAIContext per AI_CONTEXT_CONTRACT
+   - Optional AI write-back per AI_WRITE_CONTRACT (feature-flagged)
 
 Do NOT merge PR #3 until re-review completes.
 Do NOT claim Phase 2 complete.
