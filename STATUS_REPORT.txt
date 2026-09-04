@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 21:13 UTC
+Updated: 2026-09-04 21:14 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -34,7 +34,8 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-PR tip:                   a0bc665
+PR tip:                   6781faa
+Remediation commit:       a0bc665
 Merge base with main:     e1dc1d0
 
 Notable commits:
@@ -42,6 +43,7 @@ Notable commits:
   ddeffc8  fix: harden phase 2 authority and ownership boundaries
   0d3fc77  docs: define phase 2 AI and onboarding contracts
   a0bc665  fix: block system-authoritative concept state and goals
+  6781faa  docs: refresh status report after second High remediation
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -57,7 +59,7 @@ https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
 PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — AWAITING RE-REVIEW
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-Head: a0bc665
+Head: 6781faa (remediation: a0bc665)
 Base: main @ e1dc1d0
 Status: Second High remediation on tip; independent re-review required
 
