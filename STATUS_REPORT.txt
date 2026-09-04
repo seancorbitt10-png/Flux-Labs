@@ -9,7 +9,7 @@ BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 design is written (documentation only) and open for review on PR #2.
+Phase 2 design is complete (documentation only) and open for review on PR #2.
 Phase 2 implementation has not started.
 
 --------------------------------------------------------------------------------
@@ -20,8 +20,8 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             cb38486
-                          Phase 2 design docs + export + status report
+Working HEAD:             2aa2b3b
+                          Phase 2 design docs + design export + status report
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -31,12 +31,11 @@ PULL REQUESTS
 
 PR #1 — MERGED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/1
-Title: Phase 1 foundation: app shell, auth, entitlements, AI orchestration
-Merged: 2026-09-04
+Phase 1 foundation: app shell, auth, entitlements, AI orchestration
 
 PR #2 — OPEN (DRAFT)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-Title: docs: Phase 2 architecture design (Student Model + Onboarding)
+docs: Phase 2 architecture design (Student Model + Onboarding)
 Branch: cursor/phase2-architecture-design-399a → main
 Scope: documentation only (no schema, UI, or app behavior)
 
@@ -52,26 +51,19 @@ Phase 2   Student Model + Onboarding
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-PHASE 1 — WHAT SHIPPED (ON MAIN)
+PHASE 1 — ON MAIN
 --------------------------------------------------------------------------------
 
-Product surface:
-- App shell + nav: Home, Classes, Tasks, Calendar, Study, Resources,
-  Progress, Settings
-- Auth.js credentials auth (signup / sign-in)
-- PostgreSQL + Prisma data model (users, profile, entitlements, trial,
-  usage, AI interactions, audit)
-- Trial provisioning on signup
+Shipped:
+- App shell + nav (Home, Classes, Tasks, Calendar, Study, Resources,
+  Progress, Settings)
+- Auth.js credentials auth
+- PostgreSQL + Prisma (users, profile, entitlements, trial, usage,
+  AI interactions, audit)
+- Trial provisioning; atomic entitlement reservation
 - AI orchestration with stub provider + academic assistance policy
 - Study path wired end-to-end
-- Docs, Vitest suite, GitHub Actions CI
-
-Security / hardening included before merge:
-- Entitlement reservation (TOCTOU-safe)
-- Transactional signup, unique trial / active entitlement
-- Auth timing / enumeration mitigations, password max length
-- API JSON 401s, rate limits, security headers
-- Hashed AI summaries; usage/budget consistency fixes
+- Security hardening, docs, Vitest, CI
 
 Quality at merge:
 - Tests: 22/22 passed
@@ -83,43 +75,43 @@ Quality at merge:
 PHASE 2 — DESIGN ONLY (PR #2)
 --------------------------------------------------------------------------------
 
-Primary design doc:
-- docs/PHASE2_ARCHITECTURE.md (~740 lines)
+Primary design:
+- docs/PHASE2_ARCHITECTURE.md
 
-Also updated:
+Related docs updated:
 - docs/STUDENT_MODEL.md
 - docs/IMPLEMENTATION_PLAN.md
 - docs/ARCHITECTURE.md
 - docs/AI_SYSTEM.md
 
-Combined export (for review / copy-paste):
-- PHASE2_DESIGN_EXPORT.txt on the design branch
+Combined export for review:
+- PHASE2_DESIGN_EXPORT.txt
 
 Design covers:
-- Student Model + provenance
-- Model evolution rules
+- Student Model + provenance/evidence
+- Model evolution
 - Onboarding (≤30 questions)
 - Knowledge Foundation (Subject → Topic → Concept)
-- Student ↔ knowledge links
+- Student ↔ knowledge relationships
 - AI context assembly
 - Proposed Prisma models
-- Privacy constraints
-- Implementation layers and definition of done
+- Data flows, privacy/security
+- Implementation sequence, testing, risks, non-goals, DoD
 
-Explicitly NOT in this PR:
-- No Prisma schema / migrations
+Not in this PR:
+- No schema / migrations
 - No onboarding UI
-- No knowledge seed data
+- No knowledge seed
 - No assembleAIContext implementation
 - No app behavior changes
 
-Awaiting: design review and approval, then a separate implementation prompt
+Awaiting: design review / approval, then a separate implementation prompt
 
 --------------------------------------------------------------------------------
-KNOWN LIMITATIONS (CURRENT PRODUCT)
+KNOWN LIMITATIONS
 --------------------------------------------------------------------------------
 
-- Stub AI only (no real LLM providers wired)
+- Stub AI only (no real LLM providers)
 - Classes / Tasks / Calendar / Resources / Progress are shell pages
 - No billing provider
 - No LMS integrations
@@ -137,7 +129,7 @@ NEXT STEPS
 --------------------------------------------------------------------------------
 
 1. Review and approve Phase 2 design (PR #2)
-2. Issue a Phase 2 implementation prompt (separate from design)
+2. Issue a Phase 2 implementation prompt
 3. Implement off origin/main in layers:
    schema → services → onboarding → knowledge seed →
    assembleAIContext → tests
@@ -146,13 +138,13 @@ NEXT STEPS
 KEY LINKS
 --------------------------------------------------------------------------------
 
-Status report (this file on design branch):
+Status report:
 https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
 
-Raw status report:
+Raw:
 https://raw.githubusercontent.com/seancorbitt10-png/Flux-Labs/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
 
-Phase 2 design doc:
+Phase 2 design:
 https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
 
 Phase 2 design export:
