@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUserId } from "@/lib/auth/session";
 import { runAIOrchestration } from "@/lib/ai/orchestration";
 import { toClientError } from "@/lib/errors";
+import { assertRateLimit } from "@/lib/security/rate-limit";
 
 const bodySchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -15,6 +16,8 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   try {
     const userId = await requireUserId();
+    assertRateLimit(`ai:${userId}`, { limit: 30, windowMs: 60_000 });
+
     const json = await request.json();
     const parsed = bodySchema.safeParse(json);
     if (!parsed.success) {

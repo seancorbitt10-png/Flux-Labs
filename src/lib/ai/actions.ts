@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireUserId } from "@/lib/auth/session";
 import { runAIOrchestration } from "@/lib/ai/orchestration";
 import { toClientError } from "@/lib/errors";
+import { assertRateLimit } from "@/lib/security/rate-limit";
 
 const messageSchema = z
   .string()
@@ -27,6 +28,8 @@ export async function sendStudyMessage(
 ): Promise<StudyActionResult> {
   try {
     const userId = await requireUserId();
+    assertRateLimit(`ai:${userId}`, { limit: 30, windowMs: 60_000 });
+
     const parsed = messageSchema.safeParse(formData.get("message"));
     if (!parsed.success) {
       return {

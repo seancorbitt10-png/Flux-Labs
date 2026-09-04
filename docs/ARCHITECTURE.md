@@ -67,12 +67,11 @@ tests/               # Unit tests
 
 ## Design principles encoded now
 
-1. **Learning-first** — `lib/ai/policy.ts` chooses assistance mode centrally.
-2. **Server-side entitlements** — `lib/entitlements/*`; UI never enforces limits alone.
-3. **Provider-agnostic AI** — `AIProvider` interface; stub in Phase 1.
-4. **Cost-aware** — usage records store tokens + estimated micros; trial budget soft-cap.
-5. **Structured student data** — `StudentProfile` table now; evidence models later (not a JSON blob).
-6. **Privacy-aware telemetry** — usage logs avoid storing full educational content.
+3. **Server-side entitlements** — `reserveCapability` atomically reserves usage before AI work; UI never enforces limits alone.
+4. **Provider-agnostic AI** — `AIProvider` interface; stub in Phase 1. Clients never select models or supply routing hints.
+5. **Cost-aware** — usage records store tokens + estimated micros; trial budget soft-cap.
+6. **Structured student data** — `StudentProfile` table now; evidence models later (not a JSON blob).
+7. **Privacy-aware telemetry** — AI interaction summaries are hashed length markers, not raw prompts.
 
 ## What Phase 1 deliberately excludes
 

@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** bcrypt only uses the first 72 bytes — cap to avoid silent truncation. */
+const PASSWORD_MAX = 72;
+
 export const registerSchema = z.object({
   name: z
     .string()
@@ -15,7 +18,7 @@ export const registerSchema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
-    .max(128, "Password is too long"),
+    .max(PASSWORD_MAX, "Password is too long"),
 });
 
 export const loginSchema = z.object({
@@ -25,7 +28,10 @@ export const loginSchema = z.object({
     .email("Enter a valid email")
     .max(255)
     .transform((v) => v.toLowerCase()),
-  password: z.string().min(1, "Password is required").max(128),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .max(PASSWORD_MAX, "Password is too long"),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

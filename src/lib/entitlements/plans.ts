@@ -12,7 +12,7 @@ export type CapabilityLimits = {
   aiSessions: number | null; // null = unlimited within budget
   documentAnalyses: number | null;
   advancedTutoring: number | null;
-  /** Soft monthly AI budget in USD micros (1e-6 USD). null = no soft cap. */
+  /** Soft AI budget in USD micros (1e-6 USD). null = no soft cap. */
   aiBudgetMicros: number | null;
 };
 
@@ -62,7 +62,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       aiSessions: 100,
       documentAnalyses: 25,
       advancedTutoring: 20,
-      aiBudgetMicros: 5_000_000, // $5 planning placeholder
+      aiBudgetMicros: 5_000_000,
     },
   },
   PRO: {
@@ -90,7 +90,7 @@ export function getPlanDefinition(tier: PlanTier): PlanDefinition {
 
 export function capabilityToLimitKey(
   capability: UsageCapability,
-): keyof CapabilityLimits | null {
+): keyof Omit<CapabilityLimits, "aiBudgetMicros"> | null {
   switch (capability) {
     case "AI_SESSION":
       return "aiSessions";
@@ -99,8 +99,24 @@ export function capabilityToLimitKey(
     case "ADVANCED_TUTORING":
       return "advancedTutoring";
     case "GENERAL":
-      return null;
+      // Billable AI must never use GENERAL as an unlimited escape hatch.
+      return "aiSessions";
     default:
-      return null;
+      return "aiSessions";
+  }
+}
+
+export function trialCounterField(
+  capability: UsageCapability,
+): "aiSessionsUsed" | "documentAnalysesUsed" | "advancedTutoringUsed" {
+  switch (capability) {
+    case "DOCUMENT_ANALYSIS":
+      return "documentAnalysesUsed";
+    case "ADVANCED_TUTORING":
+      return "advancedTutoringUsed";
+    case "AI_SESSION":
+    case "GENERAL":
+    default:
+      return "aiSessionsUsed";
   }
 }

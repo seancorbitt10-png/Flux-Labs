@@ -72,9 +72,20 @@ export type AssembledContext = {
   resourceExcerpts?: string[];
 };
 
+/** Prisma UsageCapability values used by orchestration (avoids client imports in types). */
+export type UsageCapabilityName =
+  | "AI_SESSION"
+  | "DOCUMENT_ANALYSIS"
+  | "ADVANCED_TUTORING"
+  | "GENERAL";
+
 export type OrchestrationRequest = {
   userId: string;
   userMessage: string;
+  /**
+   * Optional server-only classification hint for tests/internal callers.
+   * Never accept this from the client — orchestration ignores client-supplied routing.
+   */
   taskTypeHint?: AITaskType;
   context?: AssembledContext;
 };

@@ -1,17 +1,19 @@
 import { PageHeader } from "@/components/ui/page-header";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getActiveEntitlement } from "@/lib/entitlements/check";
 import { logoutAction } from "@/lib/auth/actions";
+import { requireUserId } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const session = await auth();
-  const userId = session!.user!.id;
+  const userId = await requireUserId();
   const [user, profile, entitlement] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true },
+    }),
     prisma.studentProfile.findUnique({ where: { userId } }),
     getActiveEntitlement(userId),
   ]);

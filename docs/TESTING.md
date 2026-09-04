@@ -11,11 +11,12 @@
 - AI task routing
 - Plan limit helpers
 - Error sanitization
+- Entitlement reservation (limits, missing trial, expiry, concurrency)
+- Request summary redaction / capability mapping
 
 ## Later
 
 - Auth + user isolation integration tests
-- Entitlement enforcement with DB
 - File access controls
 - Prompt injection cases
 - Critical UI workflows
@@ -28,3 +29,5 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+CI runs these on PRs via `.github/workflows/ci.yml` (Postgres service).

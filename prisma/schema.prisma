@@ -138,12 +138,13 @@ model Entitlement {
   updatedAt DateTime @updatedAt
 
   @@index([userId, status])
+  // Partial unique: at most one ACTIVE entitlement per user (see migration SQL)
   @@map("entitlements")
 }
 
 model Trial {
   id     String @id @default(cuid())
-  userId String
+  userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   startedAt   DateTime  @default(now())
@@ -160,7 +161,6 @@ model Trial {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
   @@map("trials")
 }
 
@@ -209,7 +209,7 @@ model AIInteraction {
   taskType       String
   assistanceMode String?
   modelKey       String?
-  // Store hashes / redacted summaries in Phase 1, not raw educational content
+  // Hash + length only (sha256:…:len=N) — never raw educational content
   requestSummary String?
   success        Boolean @default(true)
 

@@ -17,7 +17,7 @@ describe("plan entitlements config", () => {
   it("maps capabilities to limit keys", () => {
     expect(capabilityToLimitKey("AI_SESSION")).toBe("aiSessions");
     expect(capabilityToLimitKey("DOCUMENT_ANALYSIS")).toBe("documentAnalyses");
-    expect(capabilityToLimitKey("GENERAL")).toBeNull();
+    expect(capabilityToLimitKey("GENERAL")).toBe("aiSessions");
   });
 
   it("exposes user-facing capabilities without requiring model names", () => {

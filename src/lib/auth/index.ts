@@ -15,6 +15,13 @@ declare module "next-auth" {
   }
 }
 
+/**
+ * Precomputed bcrypt hash used when no user exists so compare timing
+ * does not leak account existence.
+ */
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$J8/Fu5UpSP2lKotav6MTwuE6CvSuPln16tQOOtnpfAu4DZluZgGQi";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
@@ -34,13 +41,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email: parsed.data.email },
         });
 
-        if (!user?.passwordHash) return null;
+        const hash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+        const valid = await bcrypt.compare(parsed.data.password, hash);
 
-        const valid = await bcrypt.compare(
-          parsed.data.password,
-          user.passwordHash,
-        );
-        if (!valid) return null;
+        if (!user?.passwordHash || !valid) return null;
 
         return {
           id: user.id,

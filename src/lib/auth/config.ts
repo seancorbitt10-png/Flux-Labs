@@ -3,6 +3,9 @@ import type { NextAuthConfig } from "next-auth";
 /**
  * Edge-compatible auth config (no Prisma / Node crypto).
  * Full providers + adapter are merged in `src/lib/auth/index.ts`.
+ *
+ * Access control is enforced in middleware.ts (single source of truth).
+ * Keep callbacks here limited to JWT/session shaping.
  */
 export const authConfig = {
   pages: {
@@ -10,20 +13,6 @@ export const authConfig = {
   },
   providers: [],
   callbacks: {
-    authorized({ auth, request }) {
-      const { pathname } = request.nextUrl;
-      const isLoggedIn = !!auth?.user;
-
-      const isPublic =
-        pathname === "/" ||
-        pathname === "/login" ||
-        pathname === "/register" ||
-        pathname.startsWith("/api/auth") ||
-        pathname.startsWith("/api/health");
-
-      if (isPublic) return true;
-      return isLoggedIn;
-    },
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
@@ -37,5 +26,7 @@ export const authConfig = {
       return session;
     },
   },
+  // Prefer AUTH_URL in production. trustHost is required for local/proxy
+  // setups; document reverse-proxy host configuration in ENVIRONMENT.md.
   trustHost: true,
 } satisfies NextAuthConfig;

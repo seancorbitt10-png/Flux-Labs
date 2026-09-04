@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { requireUserId } from "@/lib/auth/session";
 import { auth } from "@/lib/auth";
 import { getActiveEntitlement } from "@/lib/entitlements/check";
 import { prisma } from "@/lib/db/prisma";
@@ -7,8 +8,8 @@ import { prisma } from "@/lib/db/prisma";
 export const metadata = { title: "Home" };
 
 export default async function HomePage() {
+  const userId = await requireUserId();
   const session = await auth();
-  const userId = session!.user!.id;
   const [profile, entitlement] = await Promise.all([
     prisma.studentProfile.findUnique({ where: { userId } }),
     getActiveEntitlement(userId),

@@ -4,18 +4,32 @@ import { NextResponse } from "next/server";
 
 const { auth } = NextAuth(authConfig);
 
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
-
-  const isPublic =
+function isPublicPath(pathname: string): boolean {
+  return (
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/health");
+    pathname === "/api/health"
+  );
+}
 
-  if (!isLoggedIn && !isPublic) {
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  const isLoggedIn = !!req.auth;
+  const isApi = pathname.startsWith("/api/");
+
+  if (!isLoggedIn && !isPublicPath(pathname)) {
+    if (isApi) {
+      return NextResponse.json(
+        {
+          error: "UNAUTHORIZED",
+          message: "Please sign in to continue.",
+        },
+        { status: 401 },
+      );
+    }
+
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("callbackUrl", pathname);
