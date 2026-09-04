@@ -2,19 +2,17 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04
+Updated: 2026-09-04 20:04 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 design documentation is on PR #2 tip and matches local + remote.
-A branch-state diagnostic confirmed tip does NOT contain the old phrases
-reported from independent inspection (those exist only on early commit
-eafa15e).
-Phase 2 implementation has not started.
-Architecture approval is not claimed.
+Phase 2 architecture is HUMAN-APPROVED (canonical: docs/PHASE2_ARCHITECTURE.md).
+Phase 2 IMPLEMENTATION #1 (Student Model + database foundation) is DONE
+on branch cursor/phase2-student-model-foundation-399a / PR #3.
+Phase 2 overall is NOT complete — this is foundation slice #1 only.
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -23,10 +21,12 @@ REPOSITORY
 origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
-Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             41eb876
-Remote tip (same):        41eb876
+Working branch:           cursor/phase2-student-model-foundation-399a
+Working HEAD:             f4f2f79
+Remote tip (same):        f4f2f79
 Local/remote match:       YES
+
+Commit message:           feat: implement Phase 2 student model foundation
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -36,12 +36,18 @@ PULL REQUESTS
 
 PR #1 — MERGED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/1
+Phase 1 foundation
 
-PR #2 — OPEN (DRAFT)
+PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 docs: Phase 2 architecture design (Student Model + Onboarding)
-Head OID: 41eb876054ca5ae8b5e3f9c7922bc385a65e3fee
-Scope: documentation only
+Scope: documentation only — source of truth for Phase 2 design
+
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1
+https://github.com/seancorbitt10-png/Flux-Labs/pull/3
+feat: Phase 2 student model + database foundation
+Head: f4f2f79
+Base: main
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -50,84 +56,94 @@ PHASE STATUS
 Phase 0   Inspect                         COMPLETE
 Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
-          Design                          ON TIP — AWAITING HUMAN REVIEW
-          Implementation                  NOT STARTED
+          Design                          COMPLETE — HUMAN-APPROVED
+          Implementation #1               COMPLETE (foundation slice)
+            - Student model persistence
+            - Attribute registry + one-active invariant
+            - Onboarding backend (no UI)
+            - Knowledge catalog foundation
+            - Ownership / deletion semantics
+            - Automated tests
+          Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-BRANCH-STATE DIAGNOSTIC (READ-ONLY)
+IMPLEMENTATION #1 — WHAT SHIPPED
 --------------------------------------------------------------------------------
 
-Claimed cleanup commit 10f756b: EXISTS locally and is ancestor of tip.
+Database / Prisma
+- Extended StudentProfile (onboardingVersion, onboardingSkippedAt)
+- StudentAttribute, StudentGoal, OnboardingSession, OnboardingAnswer
+- StudentObservation, LearningEvidence, StudentConceptState,
+  StudentMisconception
+- Subject → Topic → Concept + ConceptRelation
+- Migration: 20260904194300_phase2_student_model_foundation
+- Partial unique index:
+  student_attribute_one_active_per_key
+  UNIQUE(userId, key) WHERE supersededAt IS NULL
 
-git show 10f756b:docs/PHASE2_ARCHITECTURE.md and
-origin/cursor/phase2-architecture-design-399a:docs/PHASE2_ARCHITECTURE.md
-and GitHub Contents API all agree:
+Domain services (server-side)
+- src/lib/student/*          registry, attributes, goals, profile,
+                             observations, evidence, concept-state,
+                             misconceptions, deletion, client-attributes
+- src/lib/onboarding/*       catalog + session/answer/complete/dismiss
+- src/lib/knowledge/*        Subject/Topic/Concept/Relation helpers
+- src/lib/provenance/*       confidence defaults + overwrite precedence
+- src/lib/auth/ownership.ts  assertResourceOwner (IDOR guard)
 
-ABSENT on tip / 10f756b:
-- "Consent note: Flux personalizes..."
-- "evidence ids optional via metadata"
-- "Keyword/topic match from user message..."
-- sole StudentAttribute "Indexes: (userId, key), (userId, supersededAt)"
-
-PRESENT on tip / 10f756b:
-- Active uniqueness invariant + UNIQUE(userId, key) WHERE supersededAt IS NULL
-- partial unique / Prisma @@unique limitation / SQL migration later
-- No consent question in essential onboarding list
-- Misconception: no evidenceIds in metadata
-- Keyword/topic matching marked FUTURE / POST-PHASE-2
-
-Those four OLD strings coexist only on early design commit eafa15e.
-Root cause of discrepancy: inspection of stale/old snapshot, not tip.
-
-Canonical tip file:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/41eb876054ca5ae8b5e3f9c7922bc385a65e3fee/docs/PHASE2_ARCHITECTURE.md
-
-Raw tip:
-https://raw.githubusercontent.com/seancorbitt10-png/Flux-Labs/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
-
---------------------------------------------------------------------------------
-PHASE 2 DESIGN (TIP)
---------------------------------------------------------------------------------
-
-Primary: docs/PHASE2_ARCHITECTURE.md
-Export:  PHASE2_DESIGN_EXPORT.txt
-
-Not in this PR: schema, migrations, UI, APIs, assembleAIContext, seeds,
-or Phase 1 behavior changes.
+Key invariants enforced
+- Attribute keys / provenance / confidence / source are server-controlled
+- At most one active StudentAttribute per (userId, key)
+- Weak OBSERVED/INFERRED cannot overwrite EXPLICIT
+- Evidence does NOT auto-set MASTERED
+- No evidence IDs in misconception metadata
+- Onboarding question IDs server-controlled; no legal-consent questions
+- User-owned educational data deletable; SYSTEM catalog retained;
+  operational rows (Usage/AI/Audit) separate retention policy
 
 --------------------------------------------------------------------------------
-NEXT STEPS
+QUALITY GATES (verified on f4f2f79)
 --------------------------------------------------------------------------------
 
-1. Human architecture review of PR #2 tip (41eb876)
-2. Approve or reject
-3. Only after human approval: Phase 2 implementation prompt
+npm test                 42/42 passed
+npm run typecheck        PASS
+npm run lint             PASS
+npm run build            PASS
+prisma migrate status    Database schema is up to date
 
 --------------------------------------------------------------------------------
-KEY LINKS
+INTENTIONALLY DEFERRED (later Phase 2 slices)
 --------------------------------------------------------------------------------
 
-Status:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
-
-Design tip:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
-
-Export:
-https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/PHASE2_DESIGN_EXPORT.txt
-
-PR #2:
-https://github.com/seancorbitt10-png/Flux-Labs/pull/2
+- Onboarding UI
+- assembleAIContext + orchestration wiring
+- Knowledge seed script / starter catalog content
+- Mastery algorithms
+- MisconceptionEvidence join table
+- Keyword / semantic concept resolution, RAG, embeddings
+- Billing / Stripe / deployment / polished product UI
 
 --------------------------------------------------------------------------------
-VERDICT
+CANONICAL DOCS
 --------------------------------------------------------------------------------
 
-PHASE 1: COMPLETE
-PHASE 2 DESIGN: ON TIP (LOCAL=REMOTE=41eb876) — AWAITING HUMAN REVIEW
-PHASE 2 IMPLEMENTATION: NOT STARTED
-ARCHITECTURE APPROVAL: NOT CLAIMED
+docs/PHASE2_ARCHITECTURE.md   Approved Phase 2 design (do not reinterpret)
+docs/STUDENT_MODEL.md          Updated with foundation implementation facts
+docs/ARCHITECTURE.md           System overview
+docs/AI_SYSTEM.md              AI orchestration notes
+docs/IMPLEMENTATION_PLAN.md    Phased plan
+
+--------------------------------------------------------------------------------
+NEXT SUGGESTED WORK
+--------------------------------------------------------------------------------
+
+1. Review / merge PR #3 (foundation) when ready
+2. Next implementation slice options:
+   - Onboarding UI (multi-step, skip, resume, dismiss)
+   - assembleAIContext + wire into orchestration
+   - Idempotent knowledge seed
+
+Do NOT claim Phase 2 complete until remaining slices + §15 DoD are met.
 
 ================================================================================
 END OF STATUS REPORT
