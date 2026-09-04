@@ -9,146 +9,85 @@ BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 design docs are on PR #2 after final cleanup + micro-correction.
+Phase 2 documentation consistency cleanup completed and independently
+verified against the ACTUAL file contents on this branch.
 Phase 2 implementation has not started.
-Architecture approval is not claimed — awaiting final human review.
+Architecture approval is not claimed.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
 origin/main:              e1dc1d0
-                          Merge PR #1 — Phase 1 foundation
-
 Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             0ac167f
-                          Clarify StudentAttribute active uniqueness invariant
-
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
---------------------------------------------------------------------------------
-PULL REQUESTS
---------------------------------------------------------------------------------
-
-PR #1 — MERGED
-https://github.com/seancorbitt10-png/Flux-Labs/pull/1
-Phase 1 foundation
-
-PR #2 — OPEN (DRAFT)
-https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-docs: Phase 2 architecture design (Student Model + Onboarding)
-Branch: cursor/phase2-architecture-design-399a → main
-Scope: documentation only (no schema, UI, or app behavior)
+PR #1 MERGED: https://github.com/seancorbitt10-png/Flux-Labs/pull/1
+PR #2 OPEN (DRAFT, docs only): https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
 --------------------------------------------------------------------------------
 PHASE STATUS
 --------------------------------------------------------------------------------
 
-Phase 0   Inspect                         COMPLETE
-Phase 1   Foundation                      COMPLETE (on main)
-Phase 2   Student Model + Onboarding
-          Design                          READY FOR FINAL HUMAN REVIEW
-          Implementation                  NOT STARTED
-Phase 3–10                                NOT STARTED
+Phase 1 Foundation                    COMPLETE (on main)
+Phase 2 Design                        CONSISTENCY CLEANUP VERIFIED IN ACTUAL FILES
+                                      AWAITING HUMAN ARCHITECTURE APPROVAL
+Phase 2 Implementation                NOT STARTED
 
 --------------------------------------------------------------------------------
-PHASE 1 — ON MAIN
+ACTUAL-FILE VERIFICATION (NOT COMMIT-MESSAGE CLAIMS)
 --------------------------------------------------------------------------------
 
-Shipped: app shell, Auth.js, Postgres/Prisma, trial entitlements,
-AI orchestration (stub), Study path, security hardening, docs, CI.
-
-Quality at merge: 22/22 tests; typecheck/lint/build clean; CI SUCCESS
-https://github.com/seancorbitt10-png/Flux-Labs/actions/runs/33863236490
-
---------------------------------------------------------------------------------
-PHASE 2 — DESIGN ONLY (PR #2)
---------------------------------------------------------------------------------
-
-Primary: docs/PHASE2_ARCHITECTURE.md
-Export:  PHASE2_DESIGN_EXPORT.txt
-
-Core architecture preserved:
-- StudentProfile / Attribute / Goal / Observation /
-  LearningEvidence / ConceptState / Misconception
-- Knowledge: Subject → Topic → Concept
-- Current state + evidence history
-
-Design requirements locked in docs:
-1. Concrete Phase 2 StudentAttribute starter registry (server-controlled)
-2. One-active-attribute invariant:
+Verified present in docs/PHASE2_ARCHITECTURE.md:
+1. StudentAttribute typed registry + starter table + server-controlled keys
+2. Active uniqueness invariant in StudentAttribute MODEL section:
    UNIQUE(userId, key) WHERE supersededAt IS NULL
-   (partial unique index via SQL migration in implementation;
-   ordinary Prisma @@unique cannot express the predicate)
-3. No misconception evidence IDs in metadata JSON
-4. Consent removed from onboarding; onboarding ≠ legal consent
-5. Ownership/deletion is a Phase 2 implementation requirement + tests
-6. Untrusted student context; no premature keyword intelligence
-7. Conservative mastery contract; confidence = reliability score
+   (partial unique index; Prisma @@unique cannot express; SQL migration later)
+3. No misconception evidence IDs in metadata; MisconceptionEvidence later
+4. No consent question in essential onboarding list; onboarding ≠ legal consent
+5. Ownership/cascade deletion is an implementation requirement (not TODO/stub)
+6. Keyword/topic concept matching explicitly FUTURE/POST-PHASE-2 — not Phase 2
 
-Latest micro-correction (0ac167f):
-- Proposed Prisma StudentAttribute section explicitly documents
-  the active uniqueness invariant, partial unique index, Prisma
-  limitation, and atomic supersede/create writes
+Also verified:
+- docs/IMPLEMENTATION_PLAN.md ownership/cascade requirement
+- docs/PRIVACY.md no longer says “expand before launch” for deletion
+- Stale untracked phase2_design_export_combined.txt (old contradictions)
+  was deleted; it was NOT the canonical export
 
-Not in this PR:
+Canonical export: PHASE2_DESIGN_EXPORT.txt (regenerated from actual docs)
+
+--------------------------------------------------------------------------------
+NOT STARTED / NOT CHANGED
+--------------------------------------------------------------------------------
+
 - No schema / migrations
-- No onboarding UI or APIs
-- No assembleAIContext implementation
-- No knowledge seed
-- No app behavior changes
-
---------------------------------------------------------------------------------
-KNOWN LIMITATIONS
---------------------------------------------------------------------------------
-
-- Stub AI only
-- Classes / Tasks / Calendar / Resources / Progress are shells
-- No billing / LMS integrations
-- In-memory rate limits (single-instance)
-
---------------------------------------------------------------------------------
-BLOCKERS
---------------------------------------------------------------------------------
-
-None technical for starting Phase 2 implementation after final design approval.
-Gate is human final architecture review of PR #2.
+- No application / UI / API code
+- No Phase 1 behavior changes
+- No Phase 2 implementation
 
 --------------------------------------------------------------------------------
 NEXT STEPS
 --------------------------------------------------------------------------------
 
-1. Final human architecture review of PR #2
-2. Approve or reject the design
-3. Only after approval: issue Phase 2 implementation prompt
+1. Human architecture review / approval of PR #2
+2. Only after human approval: Phase 2 implementation prompt
 
 --------------------------------------------------------------------------------
 KEY LINKS
 --------------------------------------------------------------------------------
 
-Status report:
 https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
-
-Raw:
-https://raw.githubusercontent.com/seancorbitt10-png/Flux-Labs/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
-
-Phase 2 design:
 https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
-
-Phase 2 design export:
 https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/PHASE2_DESIGN_EXPORT.txt
-
-PR #2:
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
 --------------------------------------------------------------------------------
 VERDICT
 --------------------------------------------------------------------------------
 
-PHASE 1: COMPLETE
-PHASE 2 DESIGN: READY FOR FINAL HUMAN REVIEW
+DOCUMENTATION CLEANUP: COMPLETED AND VERIFIED AGAINST ACTUAL FILES
 PHASE 2 IMPLEMENTATION: NOT STARTED
-ARCHITECTURE APPROVAL: NOT CLAIMED
+ARCHITECTURE APPROVAL: NOT CLAIMED (HUMAN DECISION)
 
 ================================================================================
 END OF STATUS REPORT

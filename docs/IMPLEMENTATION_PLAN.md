@@ -44,7 +44,7 @@ Includes: controlled StudentAttribute registry; one-active-key invariant; proven
 
 Do not begin schema migrations or UI until explicitly approved.
 
-When implementation is approved, Phase 2 **must** establish and test **ownership/deletion semantics** for user-owned educational data — this is a requirement, not a TODO/stub:
+When implementation is approved, Phase 2 **must define and test ownership/cascade behavior for user-owned educational data** — this is a requirement, not a TODO/stub:
 
 **User-owned (delete / cascade with ownership):**
 `StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.

@@ -2,8 +2,8 @@
 FLUX LABS — PHASE 2 DESIGN REVIEW EXPORT (COMBINED)
 NOTE: These are Phase 2 ARCHITECTURE DESIGN documents, NOT status reports.
 Status report is separate: STATUS_REPORT.txt
-Exported: 2026-09-04T18:56:07Z
-Revision: clarify StudentAttribute active uniqueness invariant (docs only)
+Exported: 2026-09-04T19:14:36Z
+Revision: final Phase 2 architecture consistency cleanup — verified against actual files
 ================================================================================
 
 
@@ -638,19 +638,20 @@ assembleAIContext(input: {
 Phase 2 priority order:
 
 1. Explicitly supplied and **server-validated** focus (`conceptIds`, later class/task IDs)
-2. Class/task context when available in later phases
-3. Reliable concept matches **only when** such a resolver exists (not required in Phase 2)
+2. Class/task context when available in later phases (**Phase 3+**)
+3. **FUTURE / POST-PHASE-2 only:** reliable concept matches **if/when** a real resolver exists — **not implemented in Phase 2**
 4. Active misconceptions for **confirmed** relevant concepts
 5. High-confidence relevant preferences (registry + context-eligible)
 6. Active goals
 7. Recent relevant evidence/observations
 8. Stop at budget
 
-**If no reliable concept resolver exists in Phase 2, Flux must not substitute a low-quality keyword matcher merely to satisfy the architecture.**
+**Phase 2 does not implement keyword/topic matching or “concept candidates from user message.”**  
+If no reliable concept resolver exists, Flux must **not** substitute a low-quality keyword matcher merely to satisfy the architecture.
 
-Do **not** add embeddings, vector search, RAG, or another AI call for concept resolution in Phase 2.
+Phase 2 relies on **explicit, server-validated concept references** where available — not pretended intelligent concept resolution.
 
-Focus sources preferred: explicit `conceptIds`, explicit user-selected focus, later class/task context.
+Do **not** add embeddings, vector search, RAG, keyword concept matching, or another AI call for concept resolution in Phase 2.
 
 ### Student context is untrusted data (prompt-injection boundary)
 
@@ -914,8 +915,11 @@ Final retention periods and legal exceptions require privacy/legal review. Do **
 Technical requirements:
 
 - Deletion must respect ownership and authorization
-- Phase 2 implementation **must** establish and **test** ownership/deletion semantics for user-owned educational data (§9 table; §12 DELETION)
-- Privacy **export** may remain appropriately scoped; **deletion/ownership behavior must not be a TODO**
+- **Phase 2 implementation must define and test ownership/cascade behavior for user-owned educational data.**
+- Phase 2 implementation **must** establish and **test** ownership/deletion semantics for the user-owned tables in §9 (see also §12 DELETION)
+- Privacy **export** may remain appropriately scoped; **deletion/ownership behavior must not be a TODO or stub**
+- Shared catalog (`Subject` / `Topic` / SYSTEM `Concept` / SYSTEM `ConceptRelation`) is retained
+- Operational records (`UsageRecord` / `AIInteraction` / `AuditLog`) follow separate retention/anonymization policy after product/legal review — not claimed as mandatory delete
 
 ```
 Account delete / data delete request
@@ -1306,7 +1310,7 @@ Includes: controlled StudentAttribute registry; one-active-key invariant; proven
 
 Do not begin schema migrations or UI until explicitly approved.
 
-When implementation is approved, Phase 2 **must** establish and test **ownership/deletion semantics** for user-owned educational data — this is a requirement, not a TODO/stub:
+When implementation is approved, Phase 2 **must define and test ownership/cascade behavior for user-owned educational data** — this is a requirement, not a TODO/stub:
 
 **User-owned (delete / cascade with ownership):**
 `StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.
@@ -1493,3 +1497,38 @@ Phase 4: real providers (OpenAI/Anthropic/etc.) behind the same interface, with 
 - AI output cannot bypass entitlement or authz checks.
 - `TUTOR_SIGNAL` / model-derived evidence must not become EXPLICIT truth or bypass update/mastery rules.
 - Usage telemetry avoids storing full student content.
+
+################################################################################
+# FILE: docs/PRIVACY.md
+################################################################################
+
+# Privacy
+
+Flux Labs is an education product and may eventually serve minors.
+
+## Design intent
+
+- Data minimization
+- Purpose limitation (academic assistance)
+- User isolation
+- Ownership/deletion for user-owned educational data is a **Phase 2 implementation requirement with tests** (see `docs/PHASE2_ARCHITECTURE.md` §9) — not a documentation TODO
+- Clear separation of operational telemetry vs educational content
+
+## Data collected in Phase 1
+
+| Data | Why | Where |
+|------|-----|-------|
+| Email, name, password hash | Account | `users` |
+| Display name, prefs stubs | Personalization foundation | `student_profiles` |
+| Entitlement / trial counters | Access control & cost | `entitlements`, `trials` |
+| Usage metrics (tokens, cost, feature) | Economics & limits | `usage_records` |
+| AI request summary (truncated) | Debugging / quality | `ai_interactions` |
+| Audit events | Security | `audit_logs` |
+
+## Access
+
+Only the owning authenticated user (and future authorized school/parent roles under explicit agreements).
+
+## Legal
+
+**Code does not equal compliance.** COPPA, FERPA, GDPR, and state student-privacy obligations require professional legal review before production launch serving minors/schools.

@@ -625,19 +625,20 @@ assembleAIContext(input: {
 Phase 2 priority order:
 
 1. Explicitly supplied and **server-validated** focus (`conceptIds`, later class/task IDs)
-2. Class/task context when available in later phases
-3. Reliable concept matches **only when** such a resolver exists (not required in Phase 2)
+2. Class/task context when available in later phases (**Phase 3+**)
+3. **FUTURE / POST-PHASE-2 only:** reliable concept matches **if/when** a real resolver exists — **not implemented in Phase 2**
 4. Active misconceptions for **confirmed** relevant concepts
 5. High-confidence relevant preferences (registry + context-eligible)
 6. Active goals
 7. Recent relevant evidence/observations
 8. Stop at budget
 
-**If no reliable concept resolver exists in Phase 2, Flux must not substitute a low-quality keyword matcher merely to satisfy the architecture.**
+**Phase 2 does not implement keyword/topic matching or “concept candidates from user message.”**  
+If no reliable concept resolver exists, Flux must **not** substitute a low-quality keyword matcher merely to satisfy the architecture.
 
-Do **not** add embeddings, vector search, RAG, or another AI call for concept resolution in Phase 2.
+Phase 2 relies on **explicit, server-validated concept references** where available — not pretended intelligent concept resolution.
 
-Focus sources preferred: explicit `conceptIds`, explicit user-selected focus, later class/task context.
+Do **not** add embeddings, vector search, RAG, keyword concept matching, or another AI call for concept resolution in Phase 2.
 
 ### Student context is untrusted data (prompt-injection boundary)
 
@@ -901,8 +902,11 @@ Final retention periods and legal exceptions require privacy/legal review. Do **
 Technical requirements:
 
 - Deletion must respect ownership and authorization
-- Phase 2 implementation **must** establish and **test** ownership/deletion semantics for user-owned educational data (§9 table; §12 DELETION)
-- Privacy **export** may remain appropriately scoped; **deletion/ownership behavior must not be a TODO**
+- **Phase 2 implementation must define and test ownership/cascade behavior for user-owned educational data.**
+- Phase 2 implementation **must** establish and **test** ownership/deletion semantics for the user-owned tables in §9 (see also §12 DELETION)
+- Privacy **export** may remain appropriately scoped; **deletion/ownership behavior must not be a TODO or stub**
+- Shared catalog (`Subject` / `Topic` / SYSTEM `Concept` / SYSTEM `ConceptRelation`) is retained
+- Operational records (`UsageRecord` / `AIInteraction` / `AuditLog`) follow separate retention/anonymization policy after product/legal review — not claimed as mandatory delete
 
 ```
 Account delete / data delete request
