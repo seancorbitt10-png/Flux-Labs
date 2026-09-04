@@ -2,17 +2,21 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 20:04 UTC
+Updated: 2026-09-04 20:25 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 architecture is HUMAN-APPROVED (canonical: docs/PHASE2_ARCHITECTURE.md).
-Phase 2 IMPLEMENTATION #1 (Student Model + database foundation) is DONE
-on branch cursor/phase2-student-model-foundation-399a / PR #3.
-Phase 2 overall is NOT complete — this is foundation slice #1 only.
+Phase 2 architecture is HUMAN-APPROVED (docs/PHASE2_ARCHITECTURE.md).
+Phase 2 IMPLEMENTATION #1 (Student Model + DB foundation) is IMPLEMENTED
+on PR #3, but an independent READ-ONLY review returned:
+
+  OVERALL VERDICT: CHANGES REQUIRED — do not merge yet.
+
+No Critical findings. Five High findings must be fixed before merge.
+Phase 2 overall remains incomplete (foundation slice only).
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -22,11 +26,11 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-Working HEAD:             f4f2f79
-Remote tip (same):        f4f2f79
-Local/remote match:       YES
-
-Commit message:           feat: implement Phase 2 student model foundation
+Implementation commit:    f4f2f79
+                          feat: implement Phase 2 student model foundation
+PR tip (docs after impl): ecc30e3
+                          docs: refresh status report after Phase 2 foundation
+Merge base with main:     e1dc1d0
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -41,13 +45,13 @@ Phase 1 foundation
 PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 docs: Phase 2 architecture design (Student Model + Onboarding)
-Scope: documentation only — source of truth for Phase 2 design
 
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — CHANGES REQUIRED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
 feat: Phase 2 student model + database foundation
-Head: f4f2f79
-Base: main
+Head: ecc30e3 (impl at f4f2f79)
+Base: main @ e1dc1d0
+Independent review: CHANGES REQUIRED (do not merge)
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -57,93 +61,89 @@ Phase 0   Inspect                         COMPLETE
 Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
           Design                          COMPLETE — HUMAN-APPROVED
-          Implementation #1               COMPLETE (foundation slice)
-            - Student model persistence
-            - Attribute registry + one-active invariant
-            - Onboarding backend (no UI)
-            - Knowledge catalog foundation
-            - Ownership / deletion semantics
-            - Automated tests
+          Implementation #1               IMPLEMENTED — AWAITING FIXES
+                                          Independent review: CHANGES REQUIRED
           Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 — WHAT SHIPPED
+IMPLEMENTATION #1 — WHAT EXISTS (f4f2f79)
 --------------------------------------------------------------------------------
 
-Database / Prisma
-- Extended StudentProfile (onboardingVersion, onboardingSkippedAt)
-- StudentAttribute, StudentGoal, OnboardingSession, OnboardingAnswer
-- StudentObservation, LearningEvidence, StudentConceptState,
-  StudentMisconception
-- Subject → Topic → Concept + ConceptRelation
-- Migration: 20260904194300_phase2_student_model_foundation
-- Partial unique index:
-  student_attribute_one_active_per_key
-  UNIQUE(userId, key) WHERE supersededAt IS NULL
-
-Domain services (server-side)
-- src/lib/student/*          registry, attributes, goals, profile,
-                             observations, evidence, concept-state,
-                             misconceptions, deletion, client-attributes
-- src/lib/onboarding/*       catalog + session/answer/complete/dismiss
-- src/lib/knowledge/*        Subject/Topic/Concept/Relation helpers
-- src/lib/provenance/*       confidence defaults + overwrite precedence
-- src/lib/auth/ownership.ts  assertResourceOwner (IDOR guard)
-
-Key invariants enforced
-- Attribute keys / provenance / confidence / source are server-controlled
-- At most one active StudentAttribute per (userId, key)
-- Weak OBSERVED/INFERRED cannot overwrite EXPLICIT
-- Evidence does NOT auto-set MASTERED
-- No evidence IDs in misconception metadata
-- Onboarding question IDs server-controlled; no legal-consent questions
-- User-owned educational data deletable; SYSTEM catalog retained;
-  operational rows (Usage/AI/Audit) separate retention policy
+Shipped (structurally correct in mainline areas):
+- Prisma models + additive migration
+- Partial unique index student_attribute_one_active_per_key
+  UNIQUE(userId, key) WHERE supersededAt IS NULL  [verified in live DB]
+- Attribute registry + transactional supersede
+- Onboarding catalog/session backend (no UI, no legal consent)
+- Knowledge catalog foundation (no embeddings/RAG/keyword resolver)
+- Ownership checks on student domain services
+- Educational-data wipe vs catalog retention
+- Tests: 42/42 green at last verification
+- typecheck / lint / build / migrate: green at last verification
 
 --------------------------------------------------------------------------------
-QUALITY GATES (verified on f4f2f79)
+PR #3 REVIEW SUMMARY (READ-ONLY — NO FIXES APPLIED)
+--------------------------------------------------------------------------------
+
+CRITICAL:  0
+HIGH:      5
+MEDIUM:    6
+LOW:       3
+
+HIGH findings (must fix before merge):
+1. System writer can mint EXPLICIT via registry defaultProvenance
+   when systemProvenance is omitted (attributes.ts resolveProvenance)
+2. Observations / misconceptions accept caller provenance + confidence
+   (authority fields not hardened like attribute client path)
+3. Knowledge catalog create* helpers have no actor/authz;
+   createConcept accepts arbitrary createdByUserId
+4. USER concept attribution not bound to authenticated actor
+5. Full User delete SetNulls createdByUserId and orphans USER concepts
+   (educational wipe deletes them; account-delete path does not)
+
+MEDIUM (notable):
+- IDOR tests thin outside attributes/goals/onboarding
+- Onboarding complete does not require essential answers
+- Catalog ~13 questions vs ~24 target
+- Profile update mass-assignment shape if later exposed
+- Incidental DROP of redundant trials_userId_idx in Phase 2 migration
+
+DEFERRED / INTENTIONAL (correctly absent):
+- Onboarding UI, assembleAIContext, knowledge seed
+- Mastery algorithms, MisconceptionEvidence join
+- Concept resolution / RAG / embeddings
+- Phase 2 HTTP APIs / billing / deployment
+
+Review conclusion: core registry + partial unique + evidence≠mastery
+are sound; fix High items, then re-review before merge.
+
+--------------------------------------------------------------------------------
+QUALITY GATES (last verified on foundation impl)
 --------------------------------------------------------------------------------
 
 npm test                 42/42 passed
 npm run typecheck        PASS
 npm run lint             PASS
 npm run build            PASS
-prisma migrate status    Database schema is up to date
+prisma migrate status    up to date
+Partial unique index     present in PostgreSQL
+
+Note: green tests do not override High review findings;
+several High items lack dedicated failing tests today.
 
 --------------------------------------------------------------------------------
-INTENTIONALLY DEFERRED (later Phase 2 slices)
+NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-- Onboarding UI
-- assembleAIContext + orchestration wiring
-- Knowledge seed script / starter catalog content
-- Mastery algorithms
-- MisconceptionEvidence join table
-- Keyword / semantic concept resolution, RAG, embeddings
-- Billing / Stripe / deployment / polished product UI
+1. Fix the five High findings on the implementation branch
+2. Add tests that lock those fixes (system≠EXPLICIT by default,
+   authority-field rejection, catalog authz, USER concept delete)
+3. Re-run independent review / quality gates
+4. Only then consider merging PR #3
 
---------------------------------------------------------------------------------
-CANONICAL DOCS
---------------------------------------------------------------------------------
-
-docs/PHASE2_ARCHITECTURE.md   Approved Phase 2 design (do not reinterpret)
-docs/STUDENT_MODEL.md          Updated with foundation implementation facts
-docs/ARCHITECTURE.md           System overview
-docs/AI_SYSTEM.md              AI orchestration notes
-docs/IMPLEMENTATION_PLAN.md    Phased plan
-
---------------------------------------------------------------------------------
-NEXT SUGGESTED WORK
---------------------------------------------------------------------------------
-
-1. Review / merge PR #3 (foundation) when ready
-2. Next implementation slice options:
-   - Onboarding UI (multi-step, skip, resume, dismiss)
-   - assembleAIContext + wire into orchestration
-   - Idempotent knowledge seed
-
-Do NOT claim Phase 2 complete until remaining slices + §15 DoD are met.
+Do NOT merge PR #3 until High findings are resolved.
+Do NOT claim Phase 2 complete.
 
 ================================================================================
 END OF STATUS REPORT
