@@ -10,7 +10,8 @@ BOTTOM LINE
 
 Phase 1 is complete and merged to main.
 Phase 2 design has been revised (architecture-review tightening) on PR #2.
-Phase 2 implementation has not started. Awaiting final architecture approval.
+Phase 2 implementation has not started.
+Architecture approval is not claimed — awaiting final human review.
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -20,6 +21,9 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-architecture-design-399a
+Working HEAD:             f20501b
+                          Phase 2 design docs + architecture-review revisions
+
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
 --------------------------------------------------------------------------------
@@ -28,11 +32,13 @@ PULL REQUESTS
 
 PR #1 — MERGED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/1
+Phase 1 foundation: app shell, auth, entitlements, AI orchestration
 
-PR #2 — OPEN (DRAFT) — documentation only
+PR #2 — OPEN (DRAFT)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-Phase 2 architecture design + architecture-review revisions
-No schema / UI / app behavior
+docs: Phase 2 architecture design (Student Model + Onboarding)
+Branch: cursor/phase2-architecture-design-399a → main
+Scope: documentation only (no schema, UI, or app behavior)
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -46,15 +52,46 @@ Phase 2   Student Model + Onboarding
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-PHASE 2 DESIGN (PR #2)
+PHASE 1 — ON MAIN
 --------------------------------------------------------------------------------
 
-Primary: docs/PHASE2_ARCHITECTURE.md
-Export:  PHASE2_DESIGN_EXPORT.txt
+Shipped:
+- App shell + nav, Auth.js, PostgreSQL/Prisma
+- Trial entitlements + atomic reservation
+- AI orchestration (stub) + Study path
+- Security hardening, docs, Vitest, CI
 
-Review tightening added (docs only):
+Quality at merge:
+- Tests: 22/22 passed
+- Typecheck / lint / build: clean
+- CI: SUCCESS
+  https://github.com/seancorbitt10-png/Flux-Labs/actions/runs/33863236490
+
+--------------------------------------------------------------------------------
+PHASE 2 — DESIGN ONLY (PR #2)
+--------------------------------------------------------------------------------
+
+Primary design:
+- docs/PHASE2_ARCHITECTURE.md
+
+Related docs:
+- docs/STUDENT_MODEL.md
+- docs/IMPLEMENTATION_PLAN.md
+- docs/ARCHITECTURE.md
+- docs/AI_SYSTEM.md
+
+Combined export:
+- PHASE2_DESIGN_EXPORT.txt
+
+Core architecture (preserved):
+- StudentProfile / Attribute / Goal / Observation /
+  LearningEvidence / ConceptState / Misconception
+- Knowledge: Subject → Topic → Concept
+- Current state + evidence history model
+
+Architecture-review tightening (docs only):
 - StudentAttribute server-side registry
-- One active attribute per user+key
+- One active attribute per user + key
 - Confidence = reliability score (not probability)
 - Conservative mastery boundary
 - No relational IDs in metadata JSON
@@ -65,13 +102,65 @@ Review tightening added (docs only):
 - Onboarding answer validation
 - Updated Definition of Done
 
+Not in this PR:
+- No schema / migrations
+- No onboarding UI or APIs
+- No assembleAIContext implementation
+- No knowledge seed
+- No app behavior changes
+
+Open human decisions (Appendix D):
+- Final attribute-key naming conventions
+- Whether supersededById is mandatory
+- Anonymize vs delete for operational logs (legal review)
+- Keyword-match fallback vs explicit-focus-only in Phase 2
+
+--------------------------------------------------------------------------------
+KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+
+- Stub AI only (no real LLM providers)
+- Classes / Tasks / Calendar / Resources / Progress are shell pages
+- No billing provider
+- No LMS integrations
+- In-memory rate limits (single-instance)
+
+--------------------------------------------------------------------------------
+BLOCKERS
+--------------------------------------------------------------------------------
+
+None technical for starting Phase 2 implementation after final design approval.
+Gate is human final architecture review of PR #2.
+
 --------------------------------------------------------------------------------
 NEXT STEPS
 --------------------------------------------------------------------------------
 
 1. Final human architecture review of PR #2
-2. Approve or reject design
-3. Only after approval: Phase 2 implementation prompt
+2. Approve or reject the design
+3. Only after approval: issue Phase 2 implementation prompt
+4. Implement off origin/main in layers
+   (schema → services → onboarding → knowledge →
+   assembleAIContext → deletion/ownership tests → CI)
+
+--------------------------------------------------------------------------------
+KEY LINKS
+--------------------------------------------------------------------------------
+
+Status report:
+https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
+
+Raw:
+https://raw.githubusercontent.com/seancorbitt10-png/Flux-Labs/cursor/phase2-architecture-design-399a/STATUS_REPORT.txt
+
+Phase 2 design:
+https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/docs/PHASE2_ARCHITECTURE.md
+
+Phase 2 design export:
+https://github.com/seancorbitt10-png/Flux-Labs/blob/cursor/phase2-architecture-design-399a/PHASE2_DESIGN_EXPORT.txt
+
+PR #2:
+https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
 --------------------------------------------------------------------------------
 VERDICT
