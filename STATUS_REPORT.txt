@@ -20,7 +20,9 @@ REPOSITORY
 --------------------------------------------------------------------------------
 
 origin/main:              e1dc1d0
-Working (Impl #2):        cursor/phase2-ai-context-assembly-399a @ 2860b94
+Working (Impl #2):        cursor/phase2-ai-context-assembly-399a
+Feature commit:           2860b94
+Branch HEAD:              4d266e4
 Base for Impl #2 PR:      cursor/phase2-student-model-foundation-399a
 Impl #1 remediation:      a0bc665
 
