@@ -714,14 +714,35 @@ After response (Phase 2 optional hook / Phase 4 real):
 
 **Purpose:** Typed, registry-controlled key/value facts — **not** an arbitrary profile store  
 **Fields:** `id`, `userId`, `key` (registry-allowlisted only), `valueJson` (schema-validated per key), `provenance`, `confidence`, `source`, `supersededAt?`, `supersededById?`, `createdAt`, `updatedAt`  
-**Indexes / invariants:**  
-- **Required invariant:** for every `(userId, key)`, at most one row with `supersededAt IS NULL`  
-- **Required DB enforcement:** `UNIQUE(userId, key) WHERE supersededAt IS NULL` (PostgreSQL partial unique index; SQL migration if Prisma cannot express it)  
-- Supporting: `(userId, key)`, `(userId, supersededAt)` for history  
+
+**Active uniqueness invariant (design requirement — not implemented yet):**  
+At most one **active** `StudentAttribute` exists for each `(userId, key)` — i.e. at most one row per `(userId, key)` with `supersededAt IS NULL`.
+
+Preferred PostgreSQL implementation (create during Phase 2 implementation, **not now**):
+
+```
+UNIQUE(userId, key)
+WHERE supersededAt IS NULL
+```
+
+as a **partial unique index**. Example:
+
+```sql
+CREATE UNIQUE INDEX student_attribute_one_active_per_key
+  ON "StudentAttribute" ("userId", "key")
+  WHERE "supersededAt" IS NULL;
+```
+
+**Prisma note:** Ordinary Prisma `@@unique([userId, key])` does **not** express the `WHERE supersededAt IS NULL` predicate. Do **not** pretend it can. Implementation must add the partial unique index via a **SQL migration** during Phase 2 implementation (design-only here).
+
+**Application writes:** supersede the previous current attribute and create the replacement **atomically / transactionally**. Concurrent writes must not create multiple active values for the same `(userId, key)`.
+
+**Supporting indexes (non-uniqueness history/lookup):** `(userId, key)`, `(userId, supersededAt)`  
+
 **Ownership:** user  
 **Security:** owner-only; `key` server-controlled; clients cannot invent keys or set provenance/confidence/source; no direct arbitrary writes  
 **State:** at most one active row per `(userId, key)`; history via superseded rows  
-**Writes:** server mapping only (onboarding / settings / system); supersede + create replacement **atomically/transactionally**
+**Writes:** server mapping only (onboarding / settings / system)
 
 #### `StudentGoal`
 
