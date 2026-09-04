@@ -9,6 +9,7 @@ import { registerSchema } from "@/lib/validation/auth";
 import { provisionTrialEntitlement } from "@/lib/entitlements/check";
 import { toClientError } from "@/lib/errors";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 
 export type ActionResult =
   | { ok: true }
@@ -20,6 +21,11 @@ export async function registerAction(
 ): Promise<ActionResult> {
   try {
     const emailRaw = String(formData.get("email") ?? "");
+    const ip = await getRequestIp();
+    assertRateLimit(`register:ip:${ip}`, {
+      limit: 10,
+      windowMs: 60 * 60_000,
+    });
     assertRateLimit(`register:${emailRaw.toLowerCase()}`, {
       limit: 5,
       windowMs: 15 * 60_000,
@@ -115,6 +121,11 @@ export async function loginAction(
 ): Promise<ActionResult> {
   try {
     const emailRaw = String(formData.get("email") ?? "");
+    const ip = await getRequestIp();
+    assertRateLimit(`login:ip:${ip}`, {
+      limit: 30,
+      windowMs: 15 * 60_000,
+    });
     assertRateLimit(`login:${emailRaw.toLowerCase()}`, {
       limit: 10,
       windowMs: 15 * 60_000,

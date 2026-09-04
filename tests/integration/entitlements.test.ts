@@ -166,3 +166,34 @@ describe("orchestration helpers", () => {
     expect(summary).not.toContain("2 + 2");
   });
 });
+
+describe("usage recording after reservation", () => {
+  it("applies cost near budget without throwing after reserve", async () => {
+    const { recordUsage } = await import("@/lib/entitlements/usage");
+    const user = await createTrialUser(`budget-${Date.now()}`);
+    await prisma.trial.update({
+      where: { userId: user.id },
+      data: { estimatedCostMicros: 1_999_990, aiSessionsUsed: 1 },
+    });
+
+    await expect(
+      recordUsage({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        estimatedCostMicros: 50,
+        success: true,
+        capabilityReserved: true,
+      }),
+    ).resolves.toBeUndefined();
+
+    const trial = await prisma.trial.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(trial.estimatedCostMicros).toBe(2_000_040);
+    expect(trial.aiSessionsUsed).toBe(1);
+
+    const usage = await prisma.usageRecord.count({ where: { userId: user.id } });
+    expect(usage).toBe(1);
+  });
+});

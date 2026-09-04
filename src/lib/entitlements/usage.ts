@@ -1,7 +1,5 @@
 import type { UsageCapability } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { EntitlementError } from "@/lib/errors";
-import { getPlanDefinition } from "./plans";
 
 export type RecordUsageInput = {
   userId: string;
@@ -18,7 +16,7 @@ export type RecordUsageInput = {
   metadata?: object;
   /**
    * When true, capability counters were already incremented by reserveCapability.
-   * Only write telemetry + apply cost micros (with budget guard).
+   * Only write telemetry + apply cost micros.
    */
   capabilityReserved?: boolean;
 };
@@ -27,6 +25,10 @@ export type RecordUsageInput = {
  * Persist operational usage telemetry.
  * Capability unit counters are reserved atomically before AI work;
  * this records the event and applies estimated cost.
+ *
+ * Soft budget is enforced at reservation time. After a successful reserve,
+ * cost is always attributed so counters and usage_records stay consistent
+ * (never throw away telemetry for an already-spent AI call).
  */
 export async function recordUsage(input: RecordUsageInput): Promise<void> {
   const cost = input.estimatedCostMicros ?? 0;
@@ -50,7 +52,7 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
       },
     });
 
-    if (!success || cost <= 0) return;
+    if (!success) return;
 
     const now = new Date();
     const trial = await tx.trial.findFirst({
@@ -63,27 +65,18 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
 
     if (!trial) return;
 
-    const plan = getPlanDefinition("FREE_TRIAL");
-    if (
-      plan.limits.aiBudgetMicros !== null &&
-      trial.estimatedCostMicros + cost > plan.limits.aiBudgetMicros
-    ) {
-      // Still record telemetry above; reject further spend attribution hard-cap.
-      throw new EntitlementError(
-        "Trial AI budget exceeded",
-        "You have reached the trial usage limit.",
-      );
-    }
+    const data = {
+      ...(cost > 0 ? { estimatedCostMicros: { increment: cost } } : {}),
+      ...(input.capabilityReserved
+        ? {}
+        : incrementCounters(input.capability)),
+    };
+
+    if (Object.keys(data).length === 0) return;
 
     await tx.trial.update({
       where: { id: trial.id },
-      data: {
-        estimatedCostMicros: { increment: cost },
-        // If capability was not pre-reserved (legacy path), increment counters here.
-        ...(input.capabilityReserved
-          ? {}
-          : incrementCounters(input.capability)),
-      },
+      data,
     });
   });
 }
