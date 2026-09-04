@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 20:51 UTC
+Updated: 2026-09-04 21:07 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -10,16 +10,20 @@ BOTTOM LINE
 
 Phase 1 is complete and merged to main.
 Phase 2 architecture is HUMAN-APPROVED (docs/PHASE2_ARCHITECTURE.md).
+Architecture contracts are documented (AI context, AI write, onboarding,
+engineering non-negotiables).
 
-Phase 2 IMPLEMENTATION #1 is on PR #3:
-  - Foundation implemented (f4f2f79)
-  - Five HIGH findings remediated (ddeffc8)
-  - Architecture contracts documented (0d3fc77) — docs only
+Phase 2 IMPLEMENTATION #1 is on PR #3.
 
-STATUS: Independent re-review of PR #3 implementation still required
-before merge. Contracts do not replace that review.
+Independent RE-REVIEW verdict: CHANGES REQUIRED
 
-Do NOT claim PR #3 merge-ready solely because tests pass or docs exist.
+- Original five HIGH findings: all PASS (remediations verified)
+- New HIGH findings: 2 (must fix before merge)
+- Critical: 0
+
+Do NOT merge PR #3 until the two new High findings are fixed and
+re-checked.
+
 Phase 2 overall remains incomplete.
 
 --------------------------------------------------------------------------------
@@ -30,14 +34,16 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-PR tip:                   0d3fc77
+PR tip:                   3bb58a5
+Reviewed commit:          0d3fc77
+                          (tip after that is STATUS_REPORT-only)
 Merge base with main:     e1dc1d0
 
-Notable commits on branch:
+Notable commits:
   f4f2f79  feat: implement Phase 2 student model foundation
   ddeffc8  fix: harden phase 2 authority and ownership boundaries
-  56546df  docs: refresh status report after high-finding remediation
   0d3fc77  docs: define phase 2 AI and onboarding contracts
+  3bb58a5  docs: refresh status report after architecture contracts
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -47,17 +53,15 @@ PULL REQUESTS
 
 PR #1 — MERGED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/1
-Phase 1 foundation
 
 PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
 https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-docs: Phase 2 architecture design
 
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 + REMEDIATION + CONTRACTS
+PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — CHANGES REQUIRED
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-Head: 0d3fc77
+Head: 3bb58a5
 Base: main @ e1dc1d0
-Gate: independent re-review of implementation required before merge
+Independent re-review: CHANGES REQUIRED (do not merge)
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -67,80 +71,94 @@ Phase 0   Inspect                         COMPLETE
 Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
           Design                          COMPLETE — HUMAN-APPROVED
-          Implementation #1               IMPLEMENTED + HIGH REMEDIATED
-                                          Awaiting independent re-review
-          Architecture contracts          DOCUMENTED (pre-next-slice)
+          Architecture contracts          DOCUMENTED
+          Implementation #1               IMPLEMENTED
+                                          Original Highs remediated (PASS)
+                                          Re-review: CHANGES REQUIRED
+                                          (2 new High findings)
           Implementation #2+              NOT STARTED
 Phase 3–10                                NOT STARTED
 
 --------------------------------------------------------------------------------
-ARCHITECTURE CONTRACTS (0d3fc77) — DOCS ONLY
+RE-REVIEW — ORIGINAL FIVE HIGHS
+--------------------------------------------------------------------------------
+
+1. System EXPLICIT via attribute registry     PASS
+2. Observation/misconception authority        PASS
+3. Knowledge catalog create authz             PASS
+4. USER concept attribution binding           PASS
+5. Account delete USER concept orphans        PASS
+
+--------------------------------------------------------------------------------
+RE-REVIEW — NEW BLOCKING HIGHS
+--------------------------------------------------------------------------------
+
+H-NEW-1  src/lib/student/concept-state.ts
+         upsertExplicitConceptState
+         System path accepts provenance: EXPLICIT, which then allows
+         mastery MASTERED. System/AI can mint authoritative mastery.
+         Fix: reject system→EXPLICIT; never allow system to set MASTERED;
+         server-assign confidence.
+
+H-NEW-2  src/lib/student/goals.ts
+         createStudentGoal
+         Always writes provenance EXPLICIT, including source: "system".
+         System can mint authoritative goals.
+         Fix: EXPLICIT only for onboarding/settings; reject or
+         non-EXPLICIT-forbid system goal creates until student accepts.
+
+Critical: 0
+High (new): 2
+Medium: ~6 (evidence source free-form; concept-state confidence;
+  CatalogWriteActor honor-system; profile mass-assignment;
+  IDOR test gaps; incidental trials index drop)
+Low/Info: onboarding catalog subset vs ONBOARDING_SPEC; naming;
+  no Phase 2 HTTP routes yet
+
+--------------------------------------------------------------------------------
+AREA SCORES (RE-REVIEW)
+--------------------------------------------------------------------------------
+
+Database                         PASS
+Authorization / IDOR             PASS
+Provenance                       FAIL (concept-state + goals)
+Deletion semantics               PASS
+Architecture compliance          FAIL (new Highs)
+Scope discipline                 PASS
+Test adequacy (original Highs)   PASS
+Test adequacy (adjacent auth)    Gaps noted
+
+--------------------------------------------------------------------------------
+ARCHITECTURE CONTRACTS (PRESENT)
 --------------------------------------------------------------------------------
 
 docs/AI_CONTEXT_CONTRACT.md
-  Future assembleAIContext rules: categories, provenance labeling,
-  instruction hierarchy, minimization, no side effects / no RAG.
-
 docs/AI_WRITE_CONTRACT.md
-  AI output = proposal; server authority fields; no AI-minted EXPLICIT;
-  evidence ≠ mastery; validated concept IDs only.
-
 docs/ONBOARDING_SPEC.md
-  ~22–26 question design catalog; essential nine; skip/resume/dismiss;
-  onboarding ≠ legal consent.
-
 docs/ENGINEERING_NON_NEGOTIABLES.md
-  20 guardrails + Phase 2 deferred-feature discipline.
-
-Open decisions noted in contracts (not silently decided):
-  - Confirmation UX for high-impact AI write-back proposals
-  - Whether some onboarding answers stay answer_only until registry expansion
-
---------------------------------------------------------------------------------
-IMPLEMENTATION #1 — RUNTIME (ddeffc8)
---------------------------------------------------------------------------------
-
-Student Model persistence + domain services
-Attribute registry + one-active partial unique index
-Onboarding backend (subset catalog; no UI)
-Knowledge catalog with actor authz
-High remediation: no system EXPLICIT minting; hardened observation/
-  misconception authority; USER concept attribution; account-delete
-  USER concept cascade
-
-Quality at remediation (ddeffc8):
-  npm test                 49/49
-  typecheck / lint / build PASS
-  migrate status           up to date
-  partial unique index     intact
-
-Contracts commit (0d3fc77) did not change application code.
+docs/PHASE2_ARCHITECTURE.md          (approved source of truth)
 
 --------------------------------------------------------------------------------
 INTENTIONALLY DEFERRED
 --------------------------------------------------------------------------------
 
 - Onboarding UI
-- assembleAIContext wiring
-- AI proposal pipeline (default off)
-- Knowledge seed content
-- Mastery algorithms / MisconceptionEvidence join
+- assembleAIContext / AI proposal pipeline
+- Knowledge seed, mastery algorithms, MisconceptionEvidence
 - RAG / embeddings / semantic concept resolution
 - Billing / deployment / teacher-admin systems
-- Prior Medium/Low review items (out of High-remediation scope)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of PR #3 implementation (including High remediations)
-2. Merge only if re-review clears Critical/High
-3. After merge, next slices may use the new contracts:
-   - Onboarding UI per ONBOARDING_SPEC
-   - assembleAIContext per AI_CONTEXT_CONTRACT
-   - Optional AI write-back per AI_WRITE_CONTRACT (feature-flagged)
+1. Fix H-NEW-1 (concept-state system EXPLICIT / MASTERED)
+2. Fix H-NEW-2 (goals system→EXPLICIT)
+3. Add regression tests for both
+4. Re-run quality gates + independent re-review
+5. Merge only if Critical=0 and High=0
 
-Do NOT merge PR #3 until re-review completes.
+Do NOT merge PR #3 until new Highs are resolved.
 Do NOT claim Phase 2 complete.
 
 ================================================================================
