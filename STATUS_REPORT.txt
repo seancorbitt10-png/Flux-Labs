@@ -19,7 +19,7 @@ Second High-finding remediation implemented; independent re-review
 required before merge.
 
 - Original five HIGH findings: PASS
-- H-NEW-1 / H-NEW-2: remediated on tip a0bc665 (await re-review)
+- H-NEW-1 / H-NEW-2: remediated on a0bc665 (await re-review)
 - Critical: 0
 
 Do NOT merge PR #3 until independent re-review clears Highs.
@@ -34,7 +34,6 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-student-model-foundation-399a
-PR tip:                   6781faa
 Remediation commit:       a0bc665
 Merge base with main:     e1dc1d0
 
@@ -43,7 +42,6 @@ Notable commits:
   ddeffc8  fix: harden phase 2 authority and ownership boundaries
   0d3fc77  docs: define phase 2 AI and onboarding contracts
   a0bc665  fix: block system-authoritative concept state and goals
-  6781faa  docs: refresh status report after second High remediation
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -59,9 +57,9 @@ https://github.com/seancorbitt10-png/Flux-Labs/pull/2
 
 PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — AWAITING RE-REVIEW
 https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-Head: 6781faa (remediation: a0bc665)
 Base: main @ e1dc1d0
-Status: Second High remediation on tip; independent re-review required
+Remediation: a0bc665
+Status: Second High remediation done; independent re-review required
 
 --------------------------------------------------------------------------------
 PHASE STATUS
@@ -114,7 +112,7 @@ QUALITY GATES (at a0bc665)
 --------------------------------------------------------------------------------
 
 npm test                     52/52 pass
-npm run typecheck            pass (verified at remediation)
+npm run typecheck            pass
 npm run lint                 pass
 npm run build                pass
 npx prisma migrate status    up to date
@@ -159,7 +157,7 @@ INTENTIONALLY DEFERRED
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of tip a0bc665 (H-NEW-1/2 + adjacent)
+1. Independent re-review of remediation a0bc665 (H-NEW-1/2 + adjacent)
 2. Merge only if Critical=0 and High=0
 3. Do not claim Phase 2 complete
 
