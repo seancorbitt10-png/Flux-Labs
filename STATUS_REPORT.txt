@@ -20,7 +20,7 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             8348466
+Working HEAD:             cb38486
                           Phase 2 design docs + export + status report
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
