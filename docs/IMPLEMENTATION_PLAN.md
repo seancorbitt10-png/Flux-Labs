@@ -8,7 +8,7 @@ Develop incrementally. Do not build the entire product in one pass.
 |-------|-------|--------|
 | 0 | Inspect repository | **Done** |
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** (merged to `main` @ `e1dc1d0`) |
-| 2 | Student model + onboarding + knowledge foundation | **Design revised** (architecture review tightening) — implementation not started |
+| 2 | Student model + onboarding + knowledge foundation | **Design finalized for review** (correction pass) — implementation not started |
 | 3 | Classes / tasks / calendar | Planned |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
@@ -34,9 +34,9 @@ Shipped and merged via PR #1:
 
 ### Design
 
-Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** (revised after architecture review; still documentation only).
+Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** (final architecture-review correction pass; still documentation only).
 
-Includes: Student Model, attribute registry, one-active-key invariant, provenance/confidence semantics, conservative mastery boundary, onboarding (≤30 Q, server validation, privacy notice ≠ consent), Knowledge Foundation (Subject→Topic→Concept), student↔knowledge, untrusted AI context assembly, proposed Prisma models, deletion semantics, privacy, implementation layers, non-goals, Definition of Done.
+Includes: controlled StudentAttribute registry; one-active-key invariant; provenance/confidence semantics; conservative mastery contract; onboarding question registry (≤30 Q; no consent question); Knowledge Foundation; untrusted AI context assembly (no premature keyword intelligence); deletion/ownership semantics; testing requirements; non-goals; Definition of Done.
 
 ### Implementation
 

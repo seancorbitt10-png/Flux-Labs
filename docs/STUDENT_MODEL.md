@@ -13,8 +13,8 @@ Distinguish:
 | Observed | Measured behavior/outcomes |
 | Inferred | Model hypothesis |
 | Hypothesis | Tentative, easily revised |
-| Confidence | Internal reliability / prioritization score — **not** a calibrated probability |
-| Source + time | Provenance |
+| Confidence | Internal reliability / prioritization score — **not** a calibrated probability, diagnosis, or truth override |
+| Source + time | Provenance (outranks confidence numbers) |
 
 Weak inferences must not permanently define the student.  
 High-confidence explicit facts must not be silently overwritten by weaker observed/inferred signals.  
@@ -40,13 +40,14 @@ See **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** for the full design.
 Summary:
 
 - Keep `StudentProfile` as the stable 1:1 account-facing profile
-- Add provenance-aware `StudentAttribute` (server-side **attribute registry**; one active value per user+key) and `StudentGoal`
-- Add append-only `StudentObservation` + `LearningEvidence`
+- `StudentAttribute` is a **typed, registry-controlled** key/value system (not an arbitrary profile store); one active value per user+key
+- Add `StudentGoal`, append-only `StudentObservation` + `LearningEvidence`
 - Add shared catalog `Subject` → `Topic` → `Concept` (+ minimal relations)
-- Add `StudentConceptState` + `StudentMisconception` (no evidence-ID arrays in JSON metadata)
-- Conservative mastery boundary: evidence recording ≠ automatic MASTERED from one signal
-- Add resumeable onboarding session/answers with server-side validation (privacy notice ≠ legal consent)
-- Add budgeted `assembleAIContext`; student context is **untrusted data**
+- Add `StudentConceptState` + `StudentMisconception` (no relational IDs in metadata JSON)
+- Mastery contract: no `response → model → MASTERED`; evidence ≠ automatic mastery
+- Server-validated onboarding catalog (≤30 Q); privacy notice ≠ legal consent; no consent question in onboarding
+- Budgeted `assembleAIContext`; student context is **untrusted data** under system/policy precedence
+- Defined ownership/deletion semantics for user-owned vs catalog vs operational records
 
 ## Later (Phase 3+)
 

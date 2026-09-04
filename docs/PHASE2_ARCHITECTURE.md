@@ -4,7 +4,7 @@
 **Baseline:** `origin/main` @ `e1dc1d016eb3ee9329250933a7f995b185141c15` (Phase 1 tip `d98b388`)  
 **Branch:** `cursor/phase2-architecture-design-399a`  
 **Date:** 2026-09-04  
-**Revision:** Architecture-review tightening (documentation only; core model unchanged)
+**Revision:** Final architecture-review correction pass (documentation only; core model unchanged)
 
 This document is the Phase 2 design deliverable. It does **not** authorize schema migrations, UI implementation, or application behavior changes until an explicit implementation prompt is approved.
 
@@ -52,7 +52,7 @@ New signal → evidence/observation → evaluation → current-state update
 
 ### Design principle for Phase 2
 
-**Extend relational structure.** Prefer small typed tables + optional JSON metadata over one giant student JSON blob. Prefer append-only evidence with revisable current state.
+**Extend relational structure.** Prefer small typed tables over one giant student JSON blob. Prefer append-only evidence with revisable current state. Optional metadata JSON is only for **auxiliary non-relational** fields — never for primary database relationships or ID arrays.
 
 ---
 
@@ -115,70 +115,77 @@ Weak inferences must not overwrite high-confidence explicit facts without clear 
 
 ### StudentAttribute registry (required)
 
-`StudentAttribute` must **not** become an unrestricted profile blob.
+**StudentAttribute is a typed, registry-controlled key/value system, not an arbitrary user-defined profile store.**
 
-Flux maintains a **server-side attribute registry** (code config, versioned with onboarding/product config). Only registered keys may be written or read for personalization.
+`StudentAttribute` must **not** become an unrestricted profile blob or free-form JSON bag.
 
-Illustrative registered keys (names may match existing `academic.*` / `pref.*` / `habit.*` conventions; exact catalog finalized at implementation):
+Flux maintains a **server-side attribute registry** (code config, versioned with onboarding/product config). Attribute keys are **allowlisted** by that configuration.
 
-| Example key | Role |
-|-------------|------|
-| `academic.level` | Academic level |
-| `academic.subjects` | Subjects this term (structured multi-value) |
-| `interest.primary` / `interest.secondary` | Interests |
-| `pref.explanation_length` / `preference.explanation_length` | Explanation length preference |
-| `pref.guided_participation` / `preference.guided_participation` | Guided participation preference |
-| `pref.assistance_style` / `preference.assistance_style` | Assistance style |
-| `habit.typical_weekly_time` / `study.typical_weekly_time` | Study time band |
-| `challenge.primary` | Primary challenge |
-| `approach.*` | Effective approaches (low initial confidence; never “learning style”) |
+**Clients cannot:**
 
-For **each** registered key, the server controls:
+- invent attribute keys
+- choose `provenance`
+- choose `confidence`
+- choose `source` / authority classification
+- directly write arbitrary `StudentAttribute` records (including arbitrary `valueJson`)
 
-- allowed value type and validation schema
-- maximum size / length
-- scalar vs multi-value
-- which flows may write it (onboarding / settings / system observation / AI inference)
-- whether it may be included in AI context
+**The server alone** determines keys, value validation, provenance, confidence, and source from the authenticated flow and registry rules.
 
-**Critical security rule:** The client must **never** be trusted to choose:
+For **each** approved registry key, the server defines:
 
-- arbitrary attribute keys
-- `provenance`
-- `confidence`
-- `source` classification
+| Registry field | Meaning |
+|----------------|---------|
+| value type / schema | scalar, enum, string, number, boolean, or structured JSON only if declared |
+| validation / max length | enforced server-side |
+| multi-value? | yes/no |
+| permitted writers | e.g. onboarding, settings, system (observation), AI inference (usually none in Phase 2) |
+| context eligibility | whether `assembleAIContext` may include it |
 
-The server determines those values from the authenticated flow and registry rules.
+**JSON rule:** `valueJson` may hold structured JSON **only** where the registered attribute explicitly defines a structured JSON value schema. Arbitrary free-form JSON is rejected even though the column type is Json.
 
-**Prohibited:**
+#### Example registry (concise — not exhaustive)
 
-- Arbitrary client-created `StudentAttribute` keys
-- Accepting arbitrary free-form JSON merely because the DB column is `Json`
-- Controlled structured JSON is allowed **only** when the registered attribute’s schema requires it
+| Key | Value type | Writer(s) | Provenance (server-set) | Context allowed |
+|-----|------------|-----------|-------------------------|-----------------|
+| `academic.level` | enum string | onboarding, settings | EXPLICIT | yes |
+| `academic.subjects` | string[] (max N, max len each) | onboarding, settings | EXPLICIT | yes |
+| `interest.primary` | string (max len) | onboarding, settings | EXPLICIT | yes |
+| `interest.secondary` | string (max len) | onboarding, settings | EXPLICIT | optional |
+| `pref.explanation_length` | enum (`concise`\|`detailed`) | onboarding, settings | EXPLICIT | yes |
+| `pref.guided_participation` | boolean | onboarding, settings | EXPLICIT | yes |
+| `pref.assistance_style` | enum | onboarding, settings | EXPLICIT | yes |
+| `habit.typical_weekly_time` | enum band | onboarding, settings | EXPLICIT | yes |
+| `challenge.primary` | string (max len) | onboarding, settings | EXPLICIT | yes |
+| `approach.worked_example` | boolean / low-confidence flag | settings, system (later) | EXPLICIT or OBSERVED | optional; never “learning style” |
+
+Exact final key names are finalized at implementation; wildcards such as open-ended `approach.*` are **not** a license for client-defined keys — each key must be registered.
 
 ### One active attribute per user + key (invariant)
 
-For a given `(userId, key)`, there may be only **one active/current** attribute value:
+**Invariant:** For every `(userId, key)`, at most one `StudentAttribute` may have `supersededAt IS NULL`.
 
+Preferred database enforcement (implementation later — **not now**):
+
+```sql
+CREATE UNIQUE INDEX student_attribute_one_active_per_key
+  ON "StudentAttribute" ("userId", "key")
+  WHERE "supersededAt" IS NULL;
 ```
-UNIQUE (userId, key) WHERE supersededAt IS NULL
-```
 
-Preferred enforcement:
+If Prisma cannot express this partial unique index in `schema.prisma`, implementation **must** add it via a SQL migration. Prefer **both** DB constraint and transactional service-layer supersede.
 
-1. PostgreSQL **partial unique index** on `(userId, key) WHERE supersededAt IS NULL`
-2. Transactional service-layer supersede (preferably **both**)
-
-Explicit correction (atomic):
+Application write path (atomic):
 
 ```
 BEGIN
-  mark current row: supersededAt = now(), supersededById = <newId> (or set after insert)
-  insert new current row (supersededAt NULL) with EXPLICIT provenance
+  mark current row: supersededAt = now(), supersededById = <newId>
+  insert new current row (supersededAt NULL) with server-assigned provenance
 COMMIT
 ```
 
-Do **not** allow concurrent writes to create multiple current values. `supersededById` (when used) points from the old row to the new current row; semantics must remain clear under concurrency (transaction + partial unique index).
+Do **not** allow concurrent writes to create multiple current values.
+
+This invariant applies in: model definition (§8), settings/onboarding data flows (§9), and tests (§12).
 
 ### Decision: keep `StudentProfile`
 
@@ -228,7 +235,18 @@ If updating current state:
 
 ### Confidence policy (initial heuristics — not calibrated probability)
 
-**Semantics:** `confidence` is an **internal reliability / prioritization score** used to order and gate personalization. It is **not** a calibrated statistical probability and must **not** be interpreted as “there is an X% chance this fact is true.”
+**Definition:** `confidence` is an **internal reliability / prioritization score**, **not** a calibrated statistical probability.
+
+Confidence:
+
+- is **not** a diagnosis
+- is **not** a psychological measurement
+- does **not** independently determine truth
+- **cannot** override the provenance hierarchy
+
+It must **not** be interpreted as “there is an X% chance this fact is true.”
+
+**Provenance outranks the number:** Explicit `EXPLICIT` information remains authoritative over weaker `OBSERVED` / `INFERRED` / `HYPOTHESIS` information unless the student **explicitly** changes it. A higher numerical confidence alone must **never** cause an inferred belief to overwrite an explicit fact.
 
 Initial heuristics (may be tuned later without changing semantics):
 
@@ -254,7 +272,7 @@ Correct behavior:
 - append the observation (and optional LearningEvidence)
 - allow a later **explicit** correction or confirmation to change the preference
 
-Never silently replace student-stated goals or preferences with AI guesses.
+Never silently replace student-stated goals or preferences with AI guesses. Repeated observations cannot silently rewrite explicit facts.
 
 ### Historical preservation
 
@@ -305,7 +323,7 @@ All model tables: `createdAt`; mutable current-state: `updatedAt`; evidence: eve
 | H | Motivation / context | 1–2 | Attributes `context.*` | Optional |
 | I | What Flux should help with | 2–3 | Attributes `intent.*` + Goals | Recommended |
 
-**Total target:** ~24 questions, with ~10 marked essential for “complete,” rest optional/skippable.
+**Total target:** ~24 questions (≤30), with ~9 marked essential for “complete,” rest optional/skippable. Privacy/legal consent are **not** onboarding questions (see §4.1).
 
 ### Essential questions (must ask; allow skip with cost of weaker personalization)
 
@@ -318,23 +336,29 @@ All model tables: `createdAt`; mutable current-state: `updatedAt`; evidence: eve
 7. Whether they want Flux to push participation (guided) by default
 8. What “success this month” looks like (short text)
 9. Typical weekly study time (bands)
-10. Product privacy / data-use **notice** (informational; see §4.1 — not legal consent)
 
-### 4.1 Privacy notice ≠ legal consent
+### 4.1 Privacy notice ≠ legal consent — remove consent from onboarding questions
 
-Onboarding must **not** become the legal-consent mechanism.
+**Do not** include a “consent note” or legal-consent question in the onboarding question catalog.
 
 Distinguish three concerns:
 
 | Concern | Role in product | Phase 2 treatment |
 |---------|-----------------|-------------------|
-| Product privacy / data-use notice | Explains how Flux uses onboarding answers and study activity for personalization | Short informational copy during onboarding is OK |
-| Onboarding personalization | Helps Flux understand the student | Question catalog + Attribute/Goal writes |
-| Legally required consent / authorization | Age gates, parental consent, school DPA, etc. | **Separate compliance flow after legal review** — not an onboarding question |
+| Onboarding personalization | Helps Flux understand the student | Versioned question catalog + Attribute/Goal writes |
+| Product privacy / data-use notice | Explains data practices in normal product language | **Separate product flow / copy** (settings, signup footer, or interstitial) — **not** an onboarding quiz item |
+| Legally required consent / authorization | Age gates, parental consent, school DPA, etc. | **Separate compliance flow after legal review** — not established by completing onboarding |
 
-Do **not** design an onboarding answer as though it establishes legally sufficient consent. Do **not** claim onboarding satisfies COPPA/GDPR/FERPA/etc.
+Rules:
 
-Flux may process educational personal data and may serve minors; appropriate legal/privacy review is required before launch (**Code ≠ compliance**).
+- Onboarding may use normal product language about personalization where appropriate; that is **not** legal consent
+- Legal consent is **not** established merely by completing onboarding
+- Actual consent/authorization requirements depend on age, jurisdiction, deployment context, and applicable law
+- Legal review remains required before launch
+- Do **not** build the legal consent system in Phase 2
+- Do **not** claim onboarding satisfies COPPA/GDPR/FERPA/etc.
+
+Flux may process educational personal data and may serve minors (**Code ≠ compliance**).
 
 ### Optional / learn later through interaction
 
@@ -351,18 +375,44 @@ Flux may process educational personal data and may serve minors; appropriate leg
 - Do not invent Attribute rows for skips
 - Onboarding progress stored as `OnboardingAnswer` rows so the session can resume
 
-### Onboarding answer validation (server-side)
+### Onboarding question registry + answer validation (server-side)
 
-Retain `OnboardingSession` + `OnboardingAnswer`, with these rules:
+Retain `OnboardingSession` + `OnboardingAnswer`.
 
-- Question IDs come **only** from a **server-side versioned question catalog**
-- Session stores `version` (e.g. `ONBOARDING_VERSION = "2026-09-phase2"`); answers validated against that version’s catalog
-- Answer schemas / types are defined by the question definition
-- Maximum lengths / sizes enforced server-side
-- Unsupported fields rejected
-- Client **cannot** assign provenance, confidence, or source
-- Client **cannot** write arbitrary `StudentAttribute` keys; mapping is server-side via registry
-- `answerJson` is a storage representation only — it does **not** mean arbitrary unvalidated JSON is accepted
+The **server-side versioned onboarding catalog** is the only source of questions. Each question definition specifies:
+
+| Field | Purpose |
+|-------|---------|
+| `questionId` | Stable ID within a version |
+| `onboardingVersion` | Catalog version (bound to session) |
+| expected answer type | enum, string, multi-select, boolean, etc. |
+| validation schema | server Zod/schema |
+| maximum length / size | enforced server-side |
+| multiple values allowed? | yes/no |
+| essential? | yes/no |
+| can be skipped? | yes/no |
+| mapping target | e.g. Attribute key / Goal / Profile field — **server-defined only** |
+
+**Clients cannot define:** `questionId`, mapping target, attribute key, provenance, or confidence.
+
+Session / answer states (explicit):
+
+| State | Meaning |
+|-------|---------|
+| unanswered | No `OnboardingAnswer` row yet for that question |
+| skipped | `OnboardingAnswer.skipped = true` (no Attribute write) |
+| answered | Validated payload stored; mapped server-side if applicable |
+| `IN_PROGRESS` | Session ongoing |
+| `DISMISSED` | Soft-gated away (`onboardingSkippedAt` / dismissed) |
+| `COMPLETED` | Finished path; `onboardingCompletedAt` set |
+
+Rules:
+
+- Answers validated against the session’s catalog version
+- Unsupported fields rejected; oversized answers rejected
+- Invalid `questionId` rejected
+- `answerJson` is storage only — **never** arbitrary unvalidated JSON
+- Mapping to `StudentAttribute` / `StudentGoal` / Profile is **server-controlled** via registries
 
 ### Contradiction handling
 
@@ -470,13 +520,24 @@ Student (User)
 - `statement` (short normalized text)
 - `status`: `ACTIVE | RESOLVED | DISMISSED`
 - `confidence`, `provenance`
-- **No** arrays of evidence IDs in metadata JSON
 
-Phase 2 keeps `StudentMisconception` and `LearningEvidence` as **separate entities** without a misconception↔evidence relationship. If a many-to-many link is needed later, use a dedicated relational join table (e.g. `MisconceptionEvidence` with `misconceptionId` + `evidenceId`) — **never** put database ID arrays inside generic metadata JSON.
+**No database relationships inside JSON metadata.**
 
-### Conservative mastery updates (Phase 2 boundary)
+- Database IDs must **not** be stored in arbitrary metadata JSON as the primary relationship mechanism
+- Phase 2 does **not** require a misconception→evidence relationship
+- If needed later, create a proper relational join table such as `MisconceptionEvidence` (`misconceptionId`, `evidenceId`)
+- Keep `StudentMisconception` and `LearningEvidence` as separate entities in Phase 2
+- Metadata (where present on evidence/observation rows) is only for genuinely auxiliary **non-relational** data — never ID arrays or foreign-key substitutes
 
-Clarify roles:
+### Mastery update contract (Phase 2)
+
+**Forbidden Phase 2 path:**
+
+```
+student response → model judgment → MASTERED
+```
+
+Roles:
 
 | Entity | Role in Phase 2 |
 |--------|-----------------|
@@ -484,26 +545,26 @@ Clarify roles:
 | `LearningEvidence` | Append-only events that may later support/refute mastery |
 | `StudentObservation` | Append-only measured behavior / academic observations |
 
-**Phase 2 must not** create an uncontrolled system where one AI interaction immediately becomes permanent mastery.
+**Allowed Phase 2 mutations of `StudentConceptState`:**
 
-Explicit Phase 2 rules:
+| Operation | Allowed? | Provenance |
+|-----------|----------|------------|
+| Onboarding / settings self-report of weak/intro topics (server-mapped) | **Yes** | EXPLICIT |
+| Student explicit correction via settings/API | **Yes** | EXPLICIT |
+| Recording `LearningEvidence` alone | Creates evidence only — **does not** auto-mutate mastery |
+| Recording `StudentObservation` alone | Observation only — **does not** auto-mutate mastery |
+| Automatic inference from one practice success/failure | **No** |
+| `TUTOR_SIGNAL` / model judgment → authoritative ConceptState | **No** (not EXPLICIT; cannot silently become fact) |
+| Sophisticated automatic mastery algorithm | **Deferred** (Phase 4/6) |
 
-- Student **self-report** may update `StudentConceptState` (EXPLICIT)
-- Learning interactions may create `LearningEvidence`
-- Observations may record measured behavior
-- **Automatic mastery inference remains conservative / deferred**
-- A single correct answer must **not** automatically mean `MASTERED`
-- A single incorrect answer must **not** automatically mean the concept is weak
-- `TUTOR_SIGNAL` must **not** automatically become educational truth merely because the model produced it
-- If model-derived evidence is recorded, it retains appropriate provenance/source and **must not** bypass student-model update / precedence rules
+Rules:
 
-**Phase 2 focus:** record evidence and establish the data model — **not** build a sophisticated mastery algorithm. Exact automatic mastery-update algorithms are **intentionally deferred** (Phase 4/6).
-
-Optional Phase 2 behaviors:
-
-1. Onboarding self-report may set ConceptState to `INTRODUCED` / `DEVELOPING` with EXPLICIT provenance for selected weak topics
-2. Study interactions write LearningEvidence; ConceptState auto-updates from OBSERVED rules are stubbed/hooks only
-3. Ship write APIs + onboarding self-report; tutor-driven mastery updates deferred
+- Evidence can be recorded; evidence does **not** automatically equal mastery
+- One practice success does **not** establish `MASTERED`
+- One practice failure does **not** establish “weak”
+- Model-generated `TUTOR_SIGNAL` is **not** equivalent to `EXPLICIT`
+- AI-generated observations/inferences cannot silently become authoritative student facts
+- Keep the mastery algorithm intentionally simple/deferred — Phase 2 establishes the data model and write boundaries, not the algorithm
 
 ### Concepts across courses
 
@@ -545,44 +606,61 @@ assembleAIContext(input: {
 - `policyHints`: e.g. prefer hints; avoid answer dump
 - `provenanceNotes`: what was EXPLICIT vs OBSERVED (for system prompt caution)
 
-### Selection heuristics (Phase 2 — prefer reliable sources)
+### Selection heuristics (Phase 2 — no premature keyword intelligence)
 
-Priority order:
+Phase 2 priority order:
 
-1. Explicit interaction focus (concept/class/task IDs if provided)
-2. Relevant topic/concept from **reliable** focus (explicit IDs preferred)
-3. Active misconceptions for those concepts
-4. High-confidence preferences affecting assistance mode
-5. Active goals
-6. Recent relevant evidence
-7. Stop when token/context budget reached
+1. Explicitly supplied and **server-validated** focus (`conceptIds`, later class/task IDs)
+2. Class/task context when available in later phases
+3. Reliable concept matches **only when** such a resolver exists (not required in Phase 2)
+4. Active misconceptions for **confirmed** relevant concepts
+5. High-confidence relevant preferences (registry + context-eligible)
+6. Active goals
+7. Recent relevant evidence/observations
+8. Stop at budget
 
-**Phase 2 must not** build a sophisticated or unreliable semantic retrieval system merely to satisfy “topic matching.”
+**If no reliable concept resolver exists in Phase 2, Flux must not substitute a low-quality keyword matcher merely to satisfy the architecture.**
 
-Prefer:
+Do **not** add embeddings, vector search, RAG, or another AI call for concept resolution in Phase 2.
 
-- explicit `conceptIds`
-- explicit class/task context when available (Phase 3+)
-- explicit user-selected focus
-
-If simple keyword matching is included as an early fallback, define it as **best-effort and non-authoritative**. Weak keyword matches must not cause incorrect mastery/context to be treated as fact. Sophisticated semantic concept resolution remains future work.
+Focus sources preferred: explicit `conceptIds`, explicit user-selected focus, later class/task context.
 
 ### Student context is untrusted data (prompt-injection boundary)
 
-Any student-generated or AI-derived information stored in StudentAttribute, StudentGoal, StudentObservation, LearningEvidence, StudentMisconception, onboarding answers, or future imported academic content is **DATA**, not trusted instructions.
+All student-originated (and AI-derived student-model) content is **DATA**, not instructions. This includes:
+
+- onboarding text / answers
+- goals, interests, attribute values
+- observations, evidence summaries
+- misconception statements
+- imported student information
+- future user-generated content
 
 `assembleAIContext` must:
 
 - select only **approved** fields (registry / allowlist)
-- apply field and length limits (see Appendix B)
-- preserve provenance and distinguish EXPLICIT vs OBSERVED/INFERRED
-- **not** blindly dump database content into prompts
-- **not** allow stored student content to override system policy
-- **not** accept client-supplied student facts as trusted truth
-- treat free-form student text as **untrusted content**
-- preserve the existing AI policy / system hierarchy
+- enforce field-length limits (Appendix B)
+- use **structured serialization** (labeled fields; not raw free-form dump)
+- preserve provenance
+- distinguish explicit facts from observations/inferences
+- never allow student data to override system/application policy
+- never trust client-supplied provenance or confidence
+- never treat stored text as system instructions
+- never inject raw chat transcripts automatically
 
-**Precedence (always):** system-level safety → academic assistance policy → entitlement / authz → then student context.
+Conceptual priority (highest → lowest):
+
+```
+SYSTEM / SAFETY / APPLICATION POLICY
+        ↓
+APPLICATION-CONTROLLED AI POLICY
+        ↓
+TRUSTED APPLICATION STATE (authz, entitlements, routing)
+        ↓
+STUDENT DATA AS UNTRUSTED CONTEXT
+        ↓
+CURRENT USER REQUEST
+```
 
 Do not over-engineer a full prompt-injection research stack in Phase 2; establish this architectural boundary.
 
@@ -620,15 +698,15 @@ After response (Phase 2 optional hook / Phase 4 real):
 
 #### `StudentAttribute`
 
-**Purpose:** Keyed student facts with provenance — **registry-allowlisted keys only**  
-**Fields:** `id`, `userId`, `key` (string, namespaced, registry-validated), `valueJson` (Json — schema-validated per key, not arbitrary), `provenance`, `confidence`, `source`, `supersededAt?`, `supersededById?`, `createdAt`, `updatedAt`  
-**Indexes:**  
-- Partial unique: `(userId, key) WHERE supersededAt IS NULL` — **one active value per user+key**  
-- `(userId, key)`, `(userId, supersededAt)` for history queries  
+**Purpose:** Typed, registry-controlled key/value facts — **not** an arbitrary profile store  
+**Fields:** `id`, `userId`, `key` (registry-allowlisted only), `valueJson` (schema-validated per key), `provenance`, `confidence`, `source`, `supersededAt?`, `supersededById?`, `createdAt`, `updatedAt`  
+**Indexes / invariants:**  
+- **Required:** PostgreSQL partial unique index `UNIQUE(userId, key) WHERE supersededAt IS NULL` (SQL migration if Prisma cannot express it)  
+- Supporting: `(userId, key)`, `(userId, supersededAt)` for history  
 **Ownership:** user  
-**Security:** owner-only; client cannot invent keys/provenance/confidence/source; minimize sensitive keys  
-**State:** current (filter `supersededAt IS NULL`); history via superseded rows  
-**Writes:** server mapping only (onboarding / settings / system); see attribute registry
+**Security:** owner-only; clients cannot invent keys or set provenance/confidence/source; no direct arbitrary writes  
+**State:** at most one active row per `(userId, key)`; history via superseded rows  
+**Writes:** server mapping only (onboarding / settings / system); atomic supersede
 
 #### `StudentGoal`
 
@@ -677,16 +755,16 @@ After response (Phase 2 optional hook / Phase 4 real):
 #### `LearningEvidence`
 
 **Purpose:** Append-only evidence for mastery/personalization  
-**Fields:** `id`, `userId`, `conceptId?`, `observationId?`, `kind`, `polarity`, `weight`, `source`, `summary` (short, non-transcript), `metadata?`, `createdAt`  
+**Fields:** `id`, `userId`, `conceptId?`, `observationId?`, `kind`, `polarity`, `weight`, `source`, `summary` (short, non-transcript), `metadata?` (auxiliary non-relational only — **no DB ID arrays**), `createdAt`  
 **Indexes:** `(userId, createdAt)`, `(userId, conceptId, createdAt)`  
 **Ownership:** user  
 **Security:** owner-only; no full chat content  
-**State:** historical evidence
+**State:** historical evidence (append-only; does not auto-set mastery)
 
 #### `StudentObservation`
 
 **Purpose:** Append-only behavioral/academic observations  
-**Fields:** `id`, `userId`, `category` (e.g. `study`, `assistance`, `engagement`), `type`, `summary`, `provenance` (usually OBSERVED), `confidence`, `source`, `metadata?`, `createdAt`  
+**Fields:** `id`, `userId`, `category` (e.g. `study`, `assistance`, `engagement`), `type`, `summary`, `provenance` (usually OBSERVED), `confidence`, `source`, `metadata?` (auxiliary non-relational only — **no DB ID arrays**), `createdAt`  
 **Indexes:** `(userId, createdAt)`, `(userId, category, createdAt)`  
 **Ownership:** user  
 **State:** historical
@@ -698,7 +776,7 @@ After response (Phase 2 optional hook / Phase 4 real):
 **Indexes:** `(userId, status)`, `(userId, conceptId)`  
 **Ownership:** user  
 **State:** current (+ resolved history via status)  
-**Note:** no evidence-ID arrays in metadata; future join table if needed (`MisconceptionEvidence`)
+**Note:** no misconception↔evidence relationship in Phase 2; future join table if needed (`MisconceptionEvidence`) — never ID arrays in metadata
 
 ### Explicitly deferred models (Phase 3+)
 
@@ -752,10 +830,13 @@ User message
 
 ```
 Student edits preference/goal
- → EXPLICIT write
- → supersede prior Attribute/Goal
+ → server validates against attribute/goal registries
+ → EXPLICIT write (server sets provenance/confidence/source)
+ → atomic supersede prior Attribute (one active per user+key) / Goal
  → AuditLog profile.updated
 ```
+
+Clients never submit provenance, confidence, source, or arbitrary attribute keys.
 
 ### Deletion path (technical semantics — not legal retention claims)
 
@@ -766,16 +847,18 @@ Phase 2 introduces significant educational personal data. Intended **technical**
 | `StudentProfile` | **Delete** (user-owned) |
 | `StudentAttribute` | **Delete** (user-owned, including superseded history) |
 | `StudentGoal` | **Delete** |
-| `OnboardingSession` / `OnboardingAnswer` | **Delete** |
+| `OnboardingSession` | **Delete** |
+| `OnboardingAnswer` | **Delete** |
 | `StudentObservation` | **Delete** |
 | `LearningEvidence` | **Delete** |
 | `StudentConceptState` | **Delete** |
 | `StudentMisconception` | **Delete** |
-| Global `Subject` / `Topic` / `Concept` (SYSTEM) | **Retain** (shared catalog; not user-owned) |
+| Future student-owned relations | **Delete** / cascade with ownership |
+| Global `Subject` / `Topic` / SYSTEM `Concept` / SYSTEM `ConceptRelation` | **Retain** (shared catalog; not user-owned) |
 | USER-created `Concept` owned by user | **Delete** or reassign per policy (prefer delete if unused) |
-| `AuditLog` | **Separate treatment** — retain with anonymization / null `userId` or delete after legal review |
-| `UsageRecord` | **Separate treatment** — operational/billing telemetry; anonymize or retain per legal review |
-| `AIInteraction` | **Separate treatment** — operational; hashed summaries today; anonymize/delete per legal review |
+| `AuditLog` | **Operational** — retention/anonymization subject to product/legal policy (not claimed here) |
+| `UsageRecord` | **Operational** — retention/anonymization subject to product/legal policy |
+| `AIInteraction` | **Operational** — retention/anonymization subject to product/legal policy |
 
 Final retention periods and legal exceptions require privacy/legal review. Do **not** claim these rows satisfy a specific statute.
 
@@ -816,7 +899,7 @@ Onboarding and student attributes are **educational personal data**, possibly ab
 | Audit | Onboarding complete, dismiss, profile corrections |
 | Telemetry split | Keep `UsageRecord` free of educational content |
 | Untrusted context | Student/AI-derived fields are DATA in prompts; policy outranks context |
-| Privacy notice vs consent | Onboarding notice ≠ legal consent (§4.1) |
+| Privacy notice vs consent | Privacy/data-use notice is a separate product flow; not an onboarding question; ≠ legal consent (§4.1) |
 
 ### Legal / privacy review required before launch (not claimed done)
 
@@ -845,16 +928,16 @@ Safe order after design approval:
 
 | Layer | Work | Completion criterion |
 |-------|------|----------------------|
-| **2.0** | Schema + migrations (incl. partial unique active attribute) | Migrate deploy; Prisma generate; no UI yet |
-| **2.1** | Repositories/services: attribute registry, goals, provenance rules | Unit tests for registry + one-active-key + precedence |
-| **2.2** | Onboarding question catalog (versioned) + server validation + mapping | Answers → attributes/goals; invalid JSON rejected |
-| **2.3** | Onboarding UI (multi-step, skip, resume) | Soft gate works; completedAt / skippedAt set |
+| **2.0** | Schema + migrations (incl. partial unique active attribute; SQL migration if needed) | Migrate deploy; Prisma generate; no UI yet |
+| **2.1** | Attribute registry + repositories/services (goals, provenance, supersede) | Registry + one-active-key + precedence unit tests |
+| **2.2** | Onboarding catalog + validation + server actions / mapping | Invalid questionId/shape rejected; server-controlled mapping |
+| **2.3** | Onboarding UI (multi-step, skip, resume, dismiss) | Soft gate; unanswered/skipped/dismissed/completed states |
 | **2.4** | Knowledge seed (Subject/Topic/Concept + few relations) | Seed script idempotent |
-| **2.5** | StudentConceptState + misconception APIs (self-report) | Owner-scoped CRUD; no auto-mastery from one signal |
-| **2.6** | `assembleAIContext` + wire into orchestration | Budgeted, allowlisted, untrusted-data handling |
-| **2.7** | Observation/evidence write helpers (hooks; light use) | Tests for non-overwrite / TUTOR_SIGNAL rules |
-| **2.8** | Deletion / cascade / ownership tests + privacy checklist | User-owned rows deleted; catalog retained; operational rows policy-documented |
-| **2.9** | Integration tests + CI green | IDOR, provenance, onboarding, context budget, entitlements |
+| **2.5** | StudentConceptState + misconception services (self-report only) | Owner-scoped; mastery contract enforced |
+| **2.6** | `assembleAIContext` + orchestration integration | Budgeted, allowlisted, untrusted-data handling |
+| **2.7** | Observation/evidence helpers | Append-only; no silent EXPLICIT overwrite; TUTOR_SIGNAL rules |
+| **2.8** | Deletion/export implementation as scoped | User-owned delete; catalog retained; operational policy documented |
+| **2.9** | Integration / security / regression tests + CI | Attribute, onboarding, provenance, mastery, context, deletion, Phase 1 green |
 
 Each layer merges only when its criterion is met. **Do not implement any of these in this documentation task.**
 
@@ -862,27 +945,76 @@ Each layer merges only when its criterion is met. **Do not implement any of thes
 
 ## 12. Testing strategy (Phase 2 implementation)
 
-### Must test
+### ATTRIBUTE SECURITY
 
-- Owner isolation (IDOR) on all new user-owned tables
-- Attribute registry rejection of unknown keys
-- One-active-attribute-per-key under concurrent supersede
-- Provenance rules (explicit not overwritten by observation/inference)
-- Confidence treated as score (behavior tests), not claimed probability
-- Onboarding mapping correctness + answer schema validation
-- Skip/resume behavior; session version binding
-- Context assembly budget caps + allowlisted fields only
-- Untrusted context does not override policy/entitlements (contract-level)
-- Orchestration still reserves entitlements (`reserveCapability`)
-- Cascade delete / ownership for new student-model tables
-- Conservative mastery: single evidence item does not force MASTERED/weak
+- invalid attribute key rejected
+- invalid attribute value rejected
+- client cannot set provenance
+- client cannot set confidence authority
+- client cannot set source authority
+- only one active attribute per user/key (including concurrent supersede)
+- superseding is atomic
+- cross-user access rejected (IDOR)
+
+### ONBOARDING
+
+- invalid questionId rejected
+- invalid answer shape rejected
+- oversized answer rejected
+- mapping is server-controlled
+- skip works
+- resume works
+- dismiss works
+- completion works
+
+### PROVENANCE
+
+- explicit beats inference
+- inference cannot overwrite explicit
+- repeated observations cannot silently rewrite explicit facts
+- client cannot upgrade provenance
+- confidence score alone cannot override provenance hierarchy
+
+### MASTERY
+
+- self-report follows defined mutation rules
+- evidence is append-only
+- practice success does not automatically mean MASTERED
+- TUTOR_SIGNAL is not EXPLICIT
+- evidence/observation alone does not auto-mutate ConceptState to MASTERED
+
+### CONTEXT
+
+- hard context limits
+- only approved fields selected
+- student text treated as untrusted data
+- stored student content cannot override application policy
+- raw chat is not automatically injected
+- client-provided student facts are not trusted
+- no keyword-matcher required for Phase 2 correctness
+
+### DELETION
+
+- user-owned records are isolated
+- deletion removes appropriate user-owned data
+- global catalog records survive (Subject/Topic/SYSTEM Concept/ConceptRelation)
+- operational/audit handling follows documented policy
+
+### REGRESSION
+
+- Phase 1 tests remain green
+- typecheck
+- lint
+- build
+- CI
+- `reserveCapability` / entitlement path intact
 
 ### Need not test yet
 
 - ML accuracy / calibrated confidence
 - Full curriculum coverage
 - LMS import fidelity
-- Semantic retrieval quality
+- Semantic retrieval / embeddings quality
 
 ---
 
@@ -894,7 +1026,7 @@ Each layer merges only when its criterion is met. **Do not implement any of thes
 | Profile / Attribute becoming a blob | Server-side attribute registry; no arbitrary keys/JSON |
 | Onboarding friction | ≤30 Q; skip; soft gate |
 | Premature inference / mastery engine | Structure + evidence only; conservative mastery boundary |
-| Premature keyword “intelligence” | Explicit focus first; keyword match best-effort only |
+| Premature keyword “intelligence” | No keyword matcher required in Phase 2; explicit/server-validated focus only |
 | Prompt injection via stored context | Untrusted-data boundary; allowlists; policy precedence |
 | Prompt cost growth | Hard context budgets |
 | Privacy / consent conflation | Notice ≠ legal consent; separate compliance flows |
@@ -929,52 +1061,38 @@ Phase 2 remains a foundational **student-model + onboarding + knowledge/context 
 
 ---
 
-## 15. Definition of Done (Phase 2 — design readiness + future implementation)
+## 15. Definition of Done (Phase 2)
 
-### Design readiness (this PR / documentation)
+**Claiming documentation completeness ≠ claiming architecture approval.** Approval is a human decision after final review.
 
-The architecture revision is ready for **final human architecture review** when the following are specified in docs (not necessarily coded):
+Phase 2 (design + future implementation) Definition of Done explicitly requires:
 
-1. Schema design fully specified
-2. StudentAttribute registry / invariants specified
-3. One-active-attribute-per-key invariant specified
-4. Provenance rules specified
-5. Confidence semantics specified (reliability score, not probability)
-6. Onboarding question catalog / versioning specified
-7. Onboarding answer validation specified
-8. Knowledge catalog specified
-9. StudentConceptState semantics specified
-10. LearningEvidence and StudentObservation semantics specified
-11. Conservative mastery-update boundary specified
-12. `assembleAIContext` contract specified
-13. Student context explicitly treated as untrusted data
-14. Context budget / caps specified
-15. Account deletion semantics specified
-16. IDOR / ownership requirements specified
-17. Provenance tests specified
-18. Onboarding mapping tests specified
-19. Context budget / security tests specified
-20. Cascade / delete tests specified
-21. Phase 1 entitlement reservation remains intact (no redesign)
-22. Phase 2 non-goals remain out of scope
-23. Related docs consistent with this architecture
-24. CI / build / typecheck / test expectations defined for implementation
+1. **Controlled StudentAttribute registry** (allowlisted keys; server-set provenance/confidence/source; typed values)
+2. **One-active-attribute invariant** (`UNIQUE(userId, key) WHERE supersededAt IS NULL` + atomic supersede)
+3. **Server-validated onboarding registry** (questionId, version, schemas, mapping targets; no client-defined keys)
+4. **Provenance enforcement** (EXPLICIT authoritative; client cannot upgrade provenance)
+5. **Confidence semantics** (reliability/prioritization score — not probability, diagnosis, or truth override)
+6. **Conservative mastery contract** (no `response → model → MASTERED`; evidence ≠ automatic mastery)
+7. **No relational IDs in metadata JSON** (join tables later if needed; e.g. `MisconceptionEvidence`)
+8. **Privacy notice separated from legal consent** (no consent question in onboarding; legal flows separate)
+9. **Student context treated as untrusted data** (priority stack; structured serialization; policy outranks context)
+10. **Bounded context assembly** (allowlists, budgets; no premature keyword intelligence required)
+11. **Defined ownership/deletion semantics** (user-owned vs catalog vs operational)
+12. **Required authorization / provenance / context / deletion / mastery tests** (§12)
+13. **Phase 1 regression protection** (tests, typecheck, lint, build, CI; entitlements intact)
+14. **Documentation consistency** across PHASE2 / STUDENT_MODEL / IMPLEMENTATION_PLAN / ARCHITECTURE / AI_SYSTEM
+15. **All Phase 2 non-goals preserved** (§14)
 
-**Claiming design readiness ≠ claiming architecture approval.** Approval is a human decision after review.
+### Implementation Done (future — after approval only)
 
-### Implementation Done (future — after approval)
-
-Phase 2 implementation is done when the above are realized in code with:
-
-- Approved schema migrated and documented
-- Student can complete or dismiss onboarding (≤30 questions)
-- Answers persist as EXPLICIT attributes/goals with server-assigned provenance
-- Minimal knowledge catalog exists; optional self-reported weak-topic links
-- `assembleAIContext` supplies budgeted, allowlisted, untrusted-handled context
-- Evidence/observation helpers + isolation / deletion tests
-- No entitlement/authz regressions; CI green
-- PRIVACY / STUDENT_MODEL docs match implementation
-- Explicit non-goals remain out of scope
+- Schema migrated (including partial unique index via SQL if needed)
+- Onboarding complete/dismiss/skip/resume within ≤30 questions
+- Server-mapped EXPLICIT attributes/goals
+- Minimal knowledge catalog + optional self-report ConceptState
+- `assembleAIContext` wired with budgets + untrusted-data handling
+- Evidence/observation helpers without silent identity rewrite
+- Deletion/ownership tests green; catalog retained
+- §12 tests green; Phase 1 CI green
 
 ---
 
@@ -990,7 +1108,7 @@ Store as versioned code config `ONBOARDING_VERSION = "2026-09-phase2"`.
 **Cluster 6 — Habits (3):** study days/week band; typical session length; preferred study time of day  
 **Cluster 7 — Help intent (3):** what Flux should prioritize; notifications comfort (later); anything Flux should avoid  
 
-≈ **25** items; mark 10 essential in config.
+≈ **24–25** items; mark ~9 essential in config. **No consent/legal question** in the catalog.
 
 ---
 
@@ -1011,7 +1129,7 @@ Total assembled context target: **well under** one cheap-model context chunk; ad
 
 ## Appendix C — Documents updated by this design task
 
-- `docs/PHASE2_ARCHITECTURE.md` (this file — architecture-review tightening)
+- `docs/PHASE2_ARCHITECTURE.md` (this file — final architecture-review correction pass)
 - `docs/STUDENT_MODEL.md` (aligned to design)
 - `docs/IMPLEMENTATION_PLAN.md` (Phase 1 complete; Phase 2 design)
 - `docs/AI_SYSTEM.md` (untrusted student context; Phase 2 assembly pointer)
@@ -1023,7 +1141,7 @@ Total assembled context target: **well under** one cheap-model context chunk; ad
 
 These are intentional open points for final architecture review — not invitations to expand Phase 2 scope:
 
-1. Exact final attribute-key catalog naming (`pref.*` vs `preference.*`, `habit.*` vs `study.*`) — preserve existing conventions unless a single namespace is preferred.
+1. Exact final attribute-key catalog naming (`pref.*` vs `preference.*`, `habit.*` vs `study.*`) — one namespace preferred at implementation.
 2. Whether `supersededById` is mandatory on Attribute rows or optional when partial unique + timestamps suffice.
-3. Exact anonymization strategy for `AuditLog` / `UsageRecord` / `AIInteraction` after legal review (technical delete vs anonymize).
-4. Whether Phase 2 ships any keyword-match fallback at all, or explicit-focus-only until Phase 3/4.
+3. Exact anonymization vs deletion strategy for `AuditLog` / `UsageRecord` / `AIInteraction` after legal review.
+4. When (after Phase 2) a reliable concept resolver may be introduced — **not** via low-quality keyword matching in Phase 2.
