@@ -75,7 +75,7 @@ tests/               # Unit tests
 
 ## What Phase 1 deliberately excludes
 
-- Full onboarding questionnaire (Phase 2)
+- Full onboarding questionnaire (**Phase 2 design:** `docs/PHASE2_ARCHITECTURE.md`)
 - Classes / tasks / calendar CRUD (Phase 3)
 - Real AI providers & streaming tutoring UX (Phase 4)
 - Document upload/RAG (Phase 5)

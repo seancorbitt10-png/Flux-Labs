@@ -14,8 +14,11 @@ User request
  → Provider call
  → Structured response
  → Usage + interaction logging
- → (later) Student model update
+ → (Phase 2+) optional student evidence / observation hooks
+ → (Phase 2+) budgeted context assembly from Student Model + Knowledge Foundation
 ```
+
+See `docs/PHASE2_ARCHITECTURE.md` for the designed context-selection layer (not implemented yet).
 
 Entrypoint: `src/lib/ai/orchestration.ts`
 

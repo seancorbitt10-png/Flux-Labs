@@ -1,0 +1,743 @@
+# Phase 2 Architecture Design
+
+**Status:** DESIGN ONLY — not implemented  
+**Baseline:** `origin/main` @ `e1dc1d016eb3ee9329250933a7f995b185141c15` (Phase 1 tip `d98b388`)  
+**Branch:** `cursor/phase2-architecture-design-399a`  
+**Date:** 2026-09-04
+
+This document is the Phase 2 design deliverable. It does **not** authorize schema migrations, UI implementation, or application behavior changes until an explicit implementation prompt is approved.
+
+---
+
+## 1. Current Phase 1 baseline (what we extend)
+
+### Already established (do not duplicate)
+
+| Area | What exists | Phase 2 role |
+|------|-------------|--------------|
+| Auth / user isolation | Auth.js, `requireUserId`, middleware, ownership helpers | All new student/knowledge data owned by `userId` |
+| `User` | Account identity | Parent of student model |
+| `StudentProfile` | Thin profile: displayName, academicLevel, timezone, onboardingCompletedAt, preferredAssistanceStyle, goalsSummary | **Keep** as stable account-facing profile; extend carefully |
+| Entitlements / trial | Atomic `reserveCapability`, usage accounting | Unchanged; onboarding is not AI-billable |
+| AI orchestration | Auth → reserve → route → policy → context → provider → usage | Add **context assembly** + optional **evidence write-back hooks** |
+| `AIInteraction` / `UsageRecord` | Operational telemetry (hashed summaries, costs) | Remain operational; learning evidence is separate |
+| `AuditLog` | Security/audit events | Use for onboarding complete, profile corrections, deletions |
+| Docs / CI / tests | Architecture docs, 22 tests, green CI | Extend docs + add Phase 2 tests in implementation |
+
+### Explicit Phase 1 gaps Phase 2 fills
+
+- No structured onboarding
+- No provenance (explicit vs observed vs inferred)
+- No knowledge/concept catalog
+- No mastery / misconception / evidence tables
+- Orchestration only injects a few `StudentProfile` strings
+
+### Design principle for Phase 2
+
+**Extend relational structure.** Prefer small typed tables + optional JSON metadata over one giant student JSON blob. Prefer append-only evidence with revisable current state.
+
+---
+
+## 2. Student Model architecture
+
+### Mental model
+
+```
+User
+ └── StudentProfile          (stable, account-facing, mostly explicit)
+ └── StudentAttribute[]      (keyed facts with provenance + confidence)
+ └── StudentGoal[]           (goals with status)
+ └── StudentObservation[]    (append-only behavioral/academic events)
+ └── LearningEvidence[]      (append-only evidence linked to concepts when known)
+ └── StudentConceptState[]   (current mastery/confidence per concept)
+ └── StudentMisconception[]  (active/resolved misconception records)
+```
+
+### What the Student Model represents
+
+| Domain | Representation | Notes |
+|--------|----------------|-------|
+| Academic context | Attributes + (Phase 3) Class/Enrollment | Phase 2: level, subjects of interest, self-reported courses as text attributes |
+| Goals | `StudentGoal` | Explicit; revisable |
+| Interests | Attributes (`interest.*`) | Explicit + later observed |
+| Preferences | Profile fields + Attributes (`pref.*`) | Assistance style, explanation length, pace tolerance |
+| Prior knowledge | Attributes + ConceptState | Self-report then evidence |
+| Strengths / weaknesses | ConceptState + Observations | Evidence-weighted, not permanent labels |
+| Misconceptions | `StudentMisconception` | Linked to Concept when possible |
+| Study behavior | Observations (`study.*`) | Frequency, session length signals later |
+| Effective approaches | Attributes (`approach.*`) with low initial confidence | Updated from outcomes, never fixed “learning style” |
+
+### Forbidden personalization model
+
+Do **not** store or ask for:
+
+- Visual / auditory / kinesthetic learner types
+- Fixed personality typology as product truth
+- Permanent immutable labels from weak AI inference
+
+### Provenance taxonomy (required on mutable beliefs)
+
+| Kind | Meaning | Who writes | Default confidence |
+|------|---------|------------|--------------------|
+| `EXPLICIT` | Student stated it | Onboarding / settings | High (0.8–1.0) |
+| `IMPORTED` | External system (LMS later) | Integrations | Medium–high with source |
+| `OBSERVED` | Measured behavior/outcome | System from interactions | Medium (0.4–0.7) |
+| `INFERRED` | Hypothesis from evidence | System (conservative) | Low–medium (≤0.5) |
+| `HYPOTHESIS` | Tentative, easy to revise | System / tutor policy | Low (≤0.3) |
+
+Every stored belief that can personalize AI behavior should carry:
+
+- `provenance`
+- `confidence` (0.0–1.0)
+- `source` (e.g. `onboarding`, `study_session`, `settings`)
+- `createdAt` / `updatedAt`
+- optional `supersededAt` / `supersededById` when revised
+
+Weak inferences must not overwrite high-confidence explicit facts without clear rules (see §3).
+
+### Decision: keep `StudentProfile`
+
+**Keep `StudentProfile` as the 1:1 stable profile** (identity-adjacent UX fields + onboarding gate).
+
+Do **not** dump dynamic mastery/evidence into it.
+
+Extend only with fields that are:
+
+- singular per student
+- primarily explicit
+- frequently needed in UI / authz gates
+
+Candidates to add in implementation (not now):
+
+- `onboardingVersion` (string/int)
+- `onboardingSkippedAt` (nullable)
+- maybe `primarySubjectFocus` — **prefer Attribute instead** to avoid profile bloat
+
+`goalsSummary` / `preferredAssistanceStyle` remain for backward compatibility; Phase 2 should also mirror them into `StudentAttribute` / `StudentGoal` for provenance, then treat Profile fields as denormalized convenience.
+
+---
+
+## 3. Student Model evolution
+
+### Two layers
+
+1. **Current state** — what Flux believes *now* (`StudentAttribute`, `StudentGoal`, `StudentConceptState`, active misconceptions)
+2. **Evidence log** — what happened (`StudentObservation`, `LearningEvidence`)
+
+This is enough for personalization without building an ML platform.
+
+### Update rules
+
+```
+New signal
+  → write Observation and/or LearningEvidence (append-only)
+  → decide whether to update current state
+
+If updating current state:
+  → if new provenance is EXPLICIT → update/replace attribute (high confidence)
+  → if OBSERVED/INFERRED and conflicts with EXPLICIT high-confidence → do not overwrite; record observation only
+  → if OBSERVED strengthens existing belief → bump confidence (capped)
+  → if repeated OBSERVED contradicts old INFERRED → supersede inference, lower/replace
+  → never delete evidence; supersede current-state rows
+```
+
+### Confidence policy (simple, deterministic)
+
+- Explicit answer: confidence `0.9`
+- Explicit “not sure / skip”: no write, or write with confidence `0.3` and flag `uncertain`
+- First observation: confidence `0.45`
+- Repeated consistent observations: +0.05 each, cap `0.75` unless explicit confirmation
+- Inferences: start ≤ `0.35`; require N supporting evidence items before influencing tutoring defaults
+- AI-proposed inferences in Phase 2 implementation: **optional hook only**; default off or human-visible later — Phase 2 ships structure + onboarding writes, not autonomous profiling bots
+
+### Historical preservation
+
+- Observations/Evidence: append-only
+- Attributes/Goals/ConceptState: update in place **or** supersede (recommended: soft-supersede for attributes that change)
+- Do not rewrite old evidence rows
+
+### Timestamps
+
+All model tables: `createdAt`; mutable current-state: `updatedAt`; evidence: event time = `createdAt` (+ optional `occurredAt` if delayed).
+
+---
+
+## 4. Onboarding specification
+
+### Goals
+
+- ≤ **30** questions (target **22–26** core)
+- Establish a *useful initial* Student Model
+- Feel like setup for academic help, not a psych survey
+- Skippable where possible; never block account forever (soft gate)
+
+### UX principles
+
+- Short steps, one job per screen (or small grouped clusters)
+- Progress indicator, clear “Skip for now”
+- Plain language; no diagnostic jargon
+- End with: “Flux will improve from how you study — this was just a starting point.”
+- Do **not** present results as “you are an X learner”
+
+### Gate behavior
+
+- `StudentProfile.onboardingCompletedAt` set when finished or explicitly dismissed after minimum path
+- Soft gate: after login, if null → prompt onboarding; allow “Later” (sets `onboardingSkippedAt` in implementation)
+- AI works without full onboarding (degraded context)
+
+### Question categories (mapped)
+
+| # | Category | Count | Maps to | Required? |
+|---|----------|-------|---------|-----------|
+| A | Academic identity | 3–4 | Profile.academicLevel; Attributes `academic.*` | Mostly yes |
+| B | Current courses (lightweight) | 2–4 | Attributes `course.self_reported.*` / free text list | Optional detail |
+| C | Goals | 3–4 | `StudentGoal` | At least 1 |
+| D | Interests | 2–3 | Attributes `interest.*` | Optional |
+| E | Challenges / weak areas | 2–3 | Attributes `challenge.*` + optional Concept tags later | Optional |
+| F | Assistance preferences | 3–4 | Profile + Attributes `pref.*` | Recommended |
+| G | Study habits (behavioral self-report) | 2–3 | Attributes `habit.*` (EXPLICIT, revisable) | Optional |
+| H | Motivation / context | 1–2 | Attributes `context.*` | Optional |
+| I | What Flux should help with | 2–3 | Attributes `intent.*` + Goals | Recommended |
+
+**Total target:** ~24 questions, with ~10 marked essential for “complete,” rest optional/skippable.
+
+### Essential questions (must ask; allow skip with cost of weaker personalization)
+
+1. Academic level (HS / undergrad / grad / other)
+2. Primary subjects this term (multi-select + other)
+3. Top goal for using Flux (pass class / deepen understanding / exam prep / organization / other)
+4. Biggest current academic challenge
+5. Preferred assistance: more hints vs more explanation vs check-my-work first
+6. Explanation preference: concise vs detailed
+7. Whether they want Flux to push participation (guided) by default
+8. What “success this month” looks like (short text)
+9. Typical weekly study time (bands)
+10. Consent note: Flux personalizes from answers + future study activity (informational)
+
+### Optional / learn later through interaction
+
+- Exact course codes, instructor names → Phase 3 Classes
+- Topic-level mastery → evidence over time
+- Misconceptions → tutoring sessions
+- True study behavior → observations (not self-report alone)
+- Effective pedagogical tactics → outcome-linked observations
+
+### Skip handling
+
+- Skipped question → no Attribute write (preferred) **or** Attribute with `value=null` + `provenance=EXPLICIT` + `confidence=0` + `metadata.skipped=true`
+- Recommended: **no row** for skip (simpler minimization)
+- Onboarding progress stored as `OnboardingResponse` rows for answered items only (see schema) so we can resume
+
+### Contradiction handling
+
+- Later EXPLICIT settings edit supersedes onboarding Attribute
+- Later OBSERVED conflict: keep EXPLICIT; add Observation noting conflict; optionally surface in UI later (“You said X; your practice suggests Y”)
+- Never silently replace student-stated goals with AI guesses
+
+### Tone anti-patterns to avoid
+
+- Long personality inventories
+- “Which learning style are you?”
+- Forced ranking of 20 values
+- Medical/mental-health diagnosis framing
+
+### Sample question → storage mapping (illustrative)
+
+| Question | Storage |
+|----------|---------|
+| “What is your academic level?” | `StudentProfile.academicLevel` + Attribute `academic.level` EXPLICIT 0.9 |
+| “Main subjects this term?” | Attributes `academic.subjects` JSON array EXPLICIT 0.9 |
+| “Top goal?” | `StudentGoal` title/type EXPLICIT |
+| “Prefer concise explanations?” | Attribute `pref.explanation_length=concise` + Profile.preferredAssistanceStyle convenience |
+| “Struggle with math word problems?” | Attribute `challenge.math_word_problems=true` EXPLICIT 0.85 |
+
+---
+
+## 5. Knowledge Foundation architecture
+
+### Intent
+
+Support the learning loop:
+
+Acquire → Understand → Organize → Connect → Retrieve → Apply → Evaluate → Refine
+
+with a **small extensible catalog**, not a giant graph.
+
+### Hierarchy (Phase 2)
+
+```
+Subject          (e.g., Mathematics, Biology)     — shared catalog
+  └── Topic      (e.g., Algebra, Quadratic equations)
+        └── Concept (e.g., Factoring trinomials)
+```
+
+### Relationships (minimal)
+
+`ConceptRelation`:
+
+- `PREREQUISITE` (A before B)
+- `RELATED` (soft association)
+
+No transitive closure engine, no embedding index, no ontology import pipeline in Phase 2.
+
+### Concept identity
+
+- Concepts are **global catalog entities**, not per-student copies
+- Stable `slug` + `subjectId`
+- Optional `aliases[]` / description for tutor grounding
+- Seed a **small starter catalog** in implementation (dozens–low hundreds of concepts max), expandable later
+- User-defined concepts: allow `source=USER` concepts owned by `createdByUserId` for custom topics (optional in Phase 2b)
+
+### What Phase 2 does *not* build
+
+- Full curriculum graphs for all subjects
+- Automatic syllabus → graph ingestion
+- Vector knowledge base
+- Cross-institution standards alignment (Common Core DB, etc.)
+
+---
+
+## 6. Student ↔ Knowledge relationship
+
+```
+Student (User)
+  └── StudentConceptState     (current mastery for Concept)
+  └── LearningEvidence        (events supporting/refuting mastery)
+  └── StudentMisconception    (active/resolved, optional Concept link)
+  └── (Phase 3) Class/Enrollment/Task links to Concept via join tables later
+```
+
+### Where mastery lives
+
+**`StudentConceptState`** (current state per student×concept):
+
+- `mastery` enum or 0–1 score: `UNKNOWN | INTRODUCED | DEVELOPING | PROFICIENT | MASTERED` (recommended enum for clarity)
+- `confidence` 0–1 (how sure Flux is of that mastery label)
+- `lastEvidenceAt`
+- provenance of last update
+
+### Where evidence lives
+
+**`LearningEvidence`** (append-only):
+
+- links: `userId`, optional `conceptId`, optional `observationId`
+- `kind`: `SELF_REPORT | PRACTICE_SUCCESS | PRACTICE_FAILURE | TUTOR_SIGNAL | QUIZ_ITEM | REVIEW`
+- `polarity`: supports higher mastery / supports lower / neutral
+- `weight` small numeric
+- `source` + metadata (no full chat transcripts by default)
+
+### Misconceptions
+
+**`StudentMisconception`**:
+
+- `userId`, optional `conceptId`
+- `statement` (short normalized text)
+- `status`: `ACTIVE | RESOLVED | DISMISSED`
+- `confidence`, `provenance`
+- evidence ids optional via metadata
+
+### How mastery updates (Phase 2 design; light implementation later)
+
+1. Onboarding self-report may set ConceptState to INTRODUCED/DEVELOPING with EXPLICIT provenance for selected weak topics (optional mapping)
+2. Study interactions (Phase 4+) write LearningEvidence → update ConceptState with OBSERVED rules
+3. Phase 2 implementation may ship **write APIs + onboarding self-report only**, with tutor-driven updates stubbed/hooks ready
+
+### Concepts across courses
+
+- Same `Concept` row reusable
+- Phase 3 adds `ClassConcept` or `TaskConcept` joins without cloning concepts
+- StudentConceptState remains student-scoped, course-agnostic (course filters via joins later)
+
+---
+
+## 7. AI context architecture
+
+### Problem
+
+Flux must answer: *What does Flux need to know about this student for this interaction?*  
+Not: *Dump the whole student database into the prompt.*
+
+### New interface (design)
+
+```ts
+// Future: src/lib/ai/context-assembly.ts
+assembleAIContext(input: {
+  userId: string
+  taskType: AITaskType
+  // optional focus from UI / Phase 3
+  classId?: string
+  taskId?: string
+  conceptIds?: string[]
+  userMessage: string
+}): Promise<AssembledLearningContext>
+```
+
+`AssembledLearningContext` (conceptual):
+
+- `profile`: displayName, academicLevel, prefs (small)
+- `goals`: top 1–3 active
+- `attributes`: high-confidence prefs/challenges only (budgeted)
+- `concepts`: relevant ConceptState + active misconceptions for focus concepts
+- `recentObservations`: last N short summaries (not raw chat)
+- `policyHints`: e.g. prefer hints; avoid answer dump
+- `provenanceNotes`: what was EXPLICIT vs OBSERVED (for system prompt caution)
+
+### Selection heuristics (future implementation)
+
+Priority order:
+
+1. Explicit interaction focus (concept/class/task if provided)
+2. Keyword/topic match from user message → concept candidates (simple later)
+3. Active misconceptions for those concepts
+4. High-confidence preferences affecting assistance mode
+5. Active goals
+6. Recent failing evidence
+7. Stop when token/context budget reached
+
+### Integration with Phase 1 orchestration
+
+Replace ad-hoc profile string building in `runAIOrchestration` with `assembleAIContext`.
+
+After response (Phase 2 optional hook / Phase 4 real):
+
+- `recordObservation(...)` / `recordLearningEvidence(...)` — **feature-flagged**, never trust model output as EXPLICIT fact
+
+### Cost control
+
+- Context assembly must be cheap (DB queries, no extra LLM call in Phase 2)
+- Hard caps: e.g. max 3 goals, 5 attributes, 5 concept states, 3 misconceptions per request
+
+---
+
+## 8. Proposed Prisma models (smallest sensible set)
+
+> Proposed only — **no migrations in this task.**
+
+### Keep / extend
+
+#### `StudentProfile` (extend lightly)
+
+**Purpose:** Stable 1:1 profile + onboarding gate  
+**Key fields (existing + proposed):**  
+`userId`, `displayName`, `academicLevel`, `timezone`, `preferredAssistanceStyle`, `goalsSummary`, `onboardingCompletedAt`, **`onboardingVersion`**, **`onboardingSkippedAt`**  
+**Ownership:** `userId` unique  
+**Security:** owner-only; never return to other users  
+**State vs history:** current state
+
+### New models
+
+#### `StudentAttribute`
+
+**Purpose:** Keyed student facts with provenance  
+**Fields:** `id`, `userId`, `key` (string, namespaced), `valueJson` (Json), `provenance`, `confidence`, `source`, `supersededAt?`, `createdAt`, `updatedAt`  
+**Indexes:** `(userId, key)`, `(userId, supersededAt)`  
+**Ownership:** user  
+**Security:** owner-only; minimize sensitive keys  
+**State:** current (filter `supersededAt IS NULL`); history via superseded rows
+
+#### `StudentGoal`
+
+**Purpose:** Structured goals  
+**Fields:** `id`, `userId`, `title`, `description?`, `category?`, `status` (`ACTIVE|ACHIEVED|ABANDONED`), `priority?`, `provenance`, `confidence`, `source`, `targetDate?`, `createdAt`, `updatedAt`  
+**Indexes:** `(userId, status)`  
+**Ownership:** user  
+**State:** current
+
+#### `OnboardingSession` + `OnboardingAnswer`
+
+**Purpose:** Resumeable onboarding without survey lock-in  
+**Session fields:** `id`, `userId`, `version`, `status` (`IN_PROGRESS|COMPLETED|DISMISSED`), `startedAt`, `completedAt?`  
+**Answer fields:** `id`, `sessionId`, `questionId`, `answerJson`, `skipped` bool, `createdAt`  
+**Indexes:** `(userId, status)`, `(sessionId, questionId)` unique  
+**Ownership:** user  
+**State:** session current; answers historical log of onboarding itself
+
+#### `Subject` / `Topic` / `Concept`
+
+**Purpose:** Shared knowledge catalog  
+**Subject:** `id`, `slug` unique, `name`, `description?`  
+**Topic:** `id`, `subjectId`, `slug`, `name`, `description?`; unique `(subjectId, slug)`  
+**Concept:** `id`, `topicId`, `slug`, `name`, `description?`, `source` (`SYSTEM|USER`), `createdByUserId?`; unique `(topicId, slug)`  
+**Ownership:** catalog global; user-created concepts constrained to owner for edits  
+**Security:** read broadly for SYSTEM; USER concepts readable only by owner unless published later  
+**State:** catalog current
+
+#### `ConceptRelation`
+
+**Purpose:** Minimal graph edges  
+**Fields:** `id`, `fromConceptId`, `toConceptId`, `type` (`PREREQUISITE|RELATED`)  
+**Indexes:** `(fromConceptId)`, `(toConceptId)`, unique `(fromConceptId, toConceptId, type)`  
+**State:** catalog
+
+#### `StudentConceptState`
+
+**Purpose:** Current mastery per student×concept  
+**Fields:** `id`, `userId`, `conceptId`, `mastery`, `confidence`, `provenance`, `source`, `lastEvidenceAt?`, `createdAt`, `updatedAt`  
+**Indexes:** unique `(userId, conceptId)`, `(userId, mastery)`  
+**Ownership:** user  
+**Security:** owner-only  
+**State:** current
+
+#### `LearningEvidence`
+
+**Purpose:** Append-only evidence for mastery/personalization  
+**Fields:** `id`, `userId`, `conceptId?`, `observationId?`, `kind`, `polarity`, `weight`, `source`, `summary` (short, non-transcript), `metadata?`, `createdAt`  
+**Indexes:** `(userId, createdAt)`, `(userId, conceptId, createdAt)`  
+**Ownership:** user  
+**Security:** owner-only; no full chat content  
+**State:** historical evidence
+
+#### `StudentObservation`
+
+**Purpose:** Append-only behavioral/academic observations  
+**Fields:** `id`, `userId`, `category` (e.g. `study`, `assistance`, `engagement`), `type`, `summary`, `provenance` (usually OBSERVED), `confidence`, `source`, `metadata?`, `createdAt`  
+**Indexes:** `(userId, createdAt)`, `(userId, category, createdAt)`  
+**Ownership:** user  
+**State:** historical
+
+#### `StudentMisconception`
+
+**Purpose:** Track active misconceptions  
+**Fields:** `id`, `userId`, `conceptId?`, `statement`, `status`, `provenance`, `confidence`, `source`, `resolvedAt?`, `createdAt`, `updatedAt`  
+**Indexes:** `(userId, status)`, `(userId, conceptId)`  
+**Ownership:** user  
+**State:** current (+ resolved history via status)
+
+### Explicitly deferred models (Phase 3+)
+
+- `Class`, `Enrollment`, `Assignment`, `Task`, `CalendarEvent`
+- `ClassConcept`, resource/document graphs
+- Recommendation engine tables
+- Teacher/org hierarchies
+
+### Relationship diagram (conceptual)
+
+```
+User 1─1 StudentProfile
+User 1─* StudentAttribute / StudentGoal / OnboardingSession
+User 1─* StudentObservation / LearningEvidence
+User 1─* StudentConceptState / StudentMisconception
+Subject 1─* Topic 1─* Concept
+Concept *─* Concept (via ConceptRelation)
+Concept 1─* StudentConceptState
+```
+
+---
+
+## 9. Data flow
+
+### Onboarding write path
+
+```
+UI answers
+ → server action (authz)
+ → validate questionId/answer against onboarding catalog (code config)
+ → upsert OnboardingAnswer
+ → map to StudentAttribute / StudentGoal / StudentProfile fields (EXPLICIT)
+ → optional StudentConceptState self-report
+ → AuditLog onboarding.completed | dismissed
+```
+
+### AI request path (Phase 2 target)
+
+```
+User message
+ → authz + entitlement reserve (Phase 1)
+ → route + policy (Phase 1)
+ → assembleAIContext (NEW)  // budgeted retrieval
+ → provider
+ → usage log (Phase 1)
+ → optional observation/evidence hooks (feature-flagged)
+```
+
+### Settings correction path
+
+```
+Student edits preference/goal
+ → EXPLICIT write
+ → supersede prior Attribute/Goal
+ → AuditLog profile.updated
+```
+
+### Deletion path (design requirement)
+
+```
+Account delete / data delete request
+ → cascade user-owned student/knowledge-state rows
+ → retain AuditLog with null user or anonymize per policy (legal review)
+ → catalog Subject/Topic/Concept SYSTEM rows remain
+```
+
+---
+
+## 10. Privacy / security considerations
+
+### Phase 2 increases sensitivity
+
+Onboarding and student attributes are **educational personal data**, possibly about minors later.
+
+### Controls (design)
+
+| Control | Approach |
+|---------|----------|
+| Minimization | Skip = no row; avoid psychometrics; short summaries only |
+| Isolation | All student tables keyed by `userId`; server-side ownership checks |
+| Access | Owner only in Phase 2 (no teacher role yet) |
+| Inferences | Low confidence; cannot override EXPLICIT; optional/off by default |
+| Deletion | Cascade from User; document export/delete APIs before launch |
+| Correction | Settings + supersede attributes |
+| Retention | Evidence retention policy TBD; default keep while account active |
+| Audit | Onboarding complete, dismiss, profile corrections |
+| Telemetry split | Keep `UsageRecord` free of educational content |
+
+### Legal / privacy review required before launch (not claimed done)
+
+- COPPA (if under-13 / mixed ages)
+- FERPA (if school deployments)
+- GDPR/UK GDPR lawful basis, retention, DPIA if EU users
+- State student privacy laws
+- Parental consent flows
+- School contract data processing terms
+
+**Code ≠ compliance.**
+
+### Security notes
+
+- Onboarding answers validated server-side (allowlisted question IDs)
+- No client-authored provenance upgrades (`INFERRED` cannot be posted by client as `EXPLICIT`)
+- Context assembly must not accept client-provided “student facts” as trusted truth without server verification
+
+---
+
+## 11. Implementation sequence (for later — not this task)
+
+Safe order after design approval:
+
+| Layer | Work | Completion criterion |
+|-------|------|----------------------|
+| **2.0** | Schema + migrations for models above | Migrate deploy; Prisma generate; no UI yet |
+| **2.1** | Repositories/services: attributes, goals, onboarding mapping | Unit tests for provenance rules |
+| **2.2** | Onboarding question catalog (code config) + server actions | Can persist answers → attributes/goals |
+| **2.3** | Onboarding UI (multi-step, skip, resume) | Soft gate works; completedAt set |
+| **2.4** | Knowledge seed (Subject/Topic/Concept + few relations) | Seed script idempotent |
+| **2.5** | StudentConceptState + misconception APIs (self-report) | Owner-scoped CRUD tests |
+| **2.6** | `assembleAIContext` + wire into orchestration | Study prompt includes budgeted context |
+| **2.7** | Observation/evidence write helpers (hooks; light use) | Tests for non-overwrite rules |
+| **2.8** | Privacy: export/delete stubs or documented TODOs | Checklist in PRIVACY.md |
+| **2.9** | Integration tests + CI green | Authz isolation tests for new tables |
+
+Each layer merges only when its criterion is met.
+
+---
+
+## 12. Testing strategy (Phase 2 implementation)
+
+### Must test
+
+- Owner isolation (IDOR) on all new tables
+- Provenance rules (explicit not overwritten by inference)
+- Onboarding mapping correctness
+- Skip/resume behavior
+- Context assembly budget caps
+- Orchestration still reserves entitlements
+- Cascade delete / user isolation
+
+### Need not test yet
+
+- ML accuracy
+- Full curriculum coverage
+- LMS import fidelity
+
+---
+
+## 13. Risks / tradeoffs
+
+| Risk | Mitigation |
+|------|------------|
+| Over-building knowledge graph | Cap Phase 2 to Subject/Topic/Concept + 2 relation types; small seed |
+| Profile becoming a blob | Keep dynamic data in Attribute/Evidence tables |
+| Onboarding friction | ≤30 Q; skip; soft gate |
+| Premature inference engine | Structure only; conservative confidence; no silent profiling |
+| Prompt cost growth | Hard context budgets |
+| Privacy scope creep | Minimization + legal review gates |
+| Phase 3 class model mismatch | Keep concepts global; join later |
+
+**Tradeoff accepted:** Self-reported courses in onboarding as attributes, not full Class entities — Class CRUD is Phase 3.
+
+---
+
+## 14. Explicit Phase 2 non-goals
+
+Do **not** build in Phase 2:
+
+- Giant multi-domain knowledge graph / ontology import
+- Sophisticated ML personalization / bandit optimization
+- Complex recommendation engine / “Flux recommends” product surface (Phase 6/7)
+- Analytics vanity dashboards
+- LMS / SIS / Google Classroom connectors
+- Teacher, parent, or school admin systems
+- Real LLM provider swap (still stub OK; context wiring only)
+- Document upload / RAG
+- Full Classes / Tasks / Calendar CRUD
+- Billing / trial economics changes
+- Learning-style quizzes
+- Medical/psychometric assessments
+- Automatic silent rewriting of student identity from AI chat
+
+---
+
+## 15. Definition of Done (Phase 2 implementation — future)
+
+Phase 2 is done when:
+
+1. Approved schema migrated and documented
+2. Student can complete or dismiss onboarding (≤30 questions)
+3. Answers persist as EXPLICIT attributes/goals with provenance
+4. Minimal knowledge catalog exists and can link to optional self-reported weak topics
+5. `assembleAIContext` supplies budgeted student context into orchestration
+6. Evidence/observation tables exist with write helpers and isolation tests
+7. No client-side entitlement/authz regressions
+8. Tests + typecheck + lint + build + CI green
+9. PRIVACY/STUDENT_MODEL docs updated to match implementation
+10. Explicit non-goals above remain out of scope
+
+---
+
+## Appendix A — Onboarding question catalog sketch (for implementation config)
+
+Store as versioned code config `ONBOARDING_VERSION = "2026-09-phase2"`.
+
+**Cluster 1 — You (3):** academic level; graduation/target year band; primary learning setting (HS/college/self)  
+**Cluster 2 — What you’re taking (4):** subjects multi-select; hardest class now (text); optional course list; optional exam soon?  
+**Cluster 3 — Goals (4):** primary goal; secondary goal; success this month; organization vs understanding priority  
+**Cluster 4 — Preferences (4):** explanation length; hint-first vs explain-first; check-my-work preference; default guided participation  
+**Cluster 5 — Challenges (3):** top challenge; topics that feel shaky (multi); time pressure?  
+**Cluster 6 — Habits (3):** study days/week band; typical session length; preferred study time of day  
+**Cluster 7 — Help intent (3):** what Flux should prioritize; notifications comfort (later); anything Flux should avoid  
+
+≈ **25** items; mark 10 essential in config.
+
+---
+
+## Appendix B — Context assembly budget (initial proposal)
+
+| Slice | Max items | Max chars (approx) |
+|-------|-----------|--------------------|
+| Profile | 1 | 200 |
+| Goals | 3 | 300 |
+| Prefs/challenges attributes | 5 | 400 |
+| Concept states | 5 | 400 |
+| Misconceptions | 3 | 300 |
+| Recent observations | 3 | 300 |
+
+Total assembled context target: **well under** one cheap-model context chunk; adjust in Phase 4 with token accounting.
+
+---
+
+## Appendix C — Documents updated by this design task
+
+- `docs/PHASE2_ARCHITECTURE.md` (this file)
+- `docs/STUDENT_MODEL.md` (aligned to design)
+- `docs/IMPLEMENTATION_PLAN.md` (Phase 1 complete; Phase 2 design)
+
+**No application code, schema, or migrations changed.**
