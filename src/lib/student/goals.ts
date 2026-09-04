@@ -6,10 +6,14 @@ import {
   clampConfidence,
   defaultConfidenceFor,
 } from "@/lib/provenance/policy";
+import { rejectClientAuthorityFields } from "./attribute-registry";
 
 const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 2000;
 const CATEGORY_MAX = 80;
+
+/** Student-authoritative goal writers only. System/AI goal persistence is deferred. */
+export type StudentGoalSource = "onboarding" | "settings";
 
 export type CreateGoalInput = {
   actorUserId: string;
@@ -19,14 +23,45 @@ export type CreateGoalInput = {
   category?: string | null;
   priority?: number | null;
   targetDate?: Date | null;
-  /** Server-controlled source label, e.g. onboarding | settings */
-  source: "onboarding" | "settings" | "system";
+  /** Server-controlled source — onboarding | settings only. */
+  source: StudentGoalSource;
 };
+
+const STUDENT_GOAL_SOURCES = new Set<StudentGoalSource>([
+  "onboarding",
+  "settings",
+]);
 
 export async function createStudentGoal(
   input: CreateGoalInput,
 ): Promise<StudentGoal> {
   assertResourceOwner(input.userId, input.actorUserId);
+
+  const bag = input as Record<string, unknown>;
+  if (
+    "provenance" in bag ||
+    "confidence" in bag ||
+    Object.prototype.hasOwnProperty.call(bag, "systemProvenance")
+  ) {
+    rejectClientAuthorityFields({
+      provenance: bag.provenance,
+      confidence: bag.confidence,
+      source: bag.source,
+    });
+  }
+
+  if (!STUDENT_GOAL_SOURCES.has(input.source)) {
+    throw new ValidationError(
+      "Goals require an authorized student-originated path (onboarding/settings). System/AI cannot create EXPLICIT goals.",
+    );
+  }
+
+  // Defense against residual runtime "system" strings.
+  if ((input.source as string) === "system") {
+    throw new ValidationError(
+      "System/AI actors cannot create StudentGoal records in Phase 2.",
+    );
+  }
 
   const title = input.title?.trim();
   if (!title || title.length > TITLE_MAX) {
@@ -39,6 +74,10 @@ export async function createStudentGoal(
     throw new ValidationError("Goal category is too long.");
   }
 
+  // Server-controlled authority — EXPLICIT only for student-originated paths.
+  const provenance = "EXPLICIT" as const;
+  const confidence = clampConfidence(defaultConfidenceFor(provenance));
+
   return prisma.studentGoal.create({
     data: {
       userId: input.userId,
@@ -48,8 +87,8 @@ export async function createStudentGoal(
       priority: input.priority ?? null,
       targetDate: input.targetDate ?? null,
       status: "ACTIVE",
-      provenance: "EXPLICIT",
-      confidence: clampConfidence(defaultConfidenceFor("EXPLICIT")),
+      provenance,
+      confidence,
       source: input.source,
     },
   });
@@ -78,6 +117,15 @@ export async function updateStudentGoalStatus(args: {
   status: GoalStatus;
 }): Promise<StudentGoal> {
   assertResourceOwner(args.userId, args.actorUserId);
+
+  const bag = args as Record<string, unknown>;
+  if ("provenance" in bag || "confidence" in bag) {
+    rejectClientAuthorityFields({
+      provenance: bag.provenance,
+      confidence: bag.confidence,
+      source: bag.source,
+    });
+  }
 
   const goal = await prisma.studentGoal.findUnique({ where: { id: args.goalId } });
   if (!goal || goal.userId !== args.userId) {

@@ -1071,4 +1071,196 @@ describe("Phase 2 student model foundation", () => {
       ).toBeNull();
     });
   });
+
+  describe("HIGH remediation #2 — concept state and goals authority", () => {
+    async function seedConcept(suffix: string) {
+      const subject = await createSubject({
+        actor: SYSTEM,
+        slug: `test-cs-${suffix}`,
+        name: "CS Subject",
+      });
+      const topic = await createTopic({
+        actor: SYSTEM,
+        subjectId: subject.id,
+        slug: "t",
+        name: "Topic",
+      });
+      const concept = await createSystemConcept({
+        actor: SYSTEM,
+        topicId: topic.id,
+        slug: "c",
+        name: "Concept",
+      });
+      return concept;
+    }
+
+    it("rejects system EXPLICIT / MASTERED concept-state writes", async () => {
+      const user = await createUser(`cs-sys-${Date.now()}`);
+      const other = await createUser(`cs-oth-${Date.now()}`);
+      const concept = await seedConcept(`${Date.now()}`);
+
+      await expect(
+        upsertExplicitConceptState({
+          actorUserId: user.id,
+          userId: user.id,
+          conceptId: concept.id,
+          mastery: "INTRODUCED",
+          source: "system",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        upsertExplicitConceptState({
+          actorUserId: user.id,
+          userId: user.id,
+          conceptId: concept.id,
+          mastery: "MASTERED",
+          source: "system",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        upsertExplicitConceptState({
+          actorUserId: user.id,
+          userId: user.id,
+          conceptId: concept.id,
+          mastery: "DEVELOPING",
+          source: "settings",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        upsertExplicitConceptState({
+          actorUserId: user.id,
+          userId: user.id,
+          conceptId: concept.id,
+          mastery: "MASTERED",
+          source: "settings",
+          confidence: 1,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      const ok = await upsertExplicitConceptState({
+        actorUserId: user.id,
+        userId: user.id,
+        conceptId: concept.id,
+        mastery: "INTRODUCED",
+        source: "settings",
+      });
+      expect(ok.provenance).toBe("EXPLICIT");
+      expect(ok.source).toBe("settings");
+      expect(ok.mastery).toBe("INTRODUCED");
+
+      const mastered = await upsertExplicitConceptState({
+        actorUserId: user.id,
+        userId: user.id,
+        conceptId: concept.id,
+        mastery: "MASTERED",
+        source: "settings",
+      });
+      expect(mastered.mastery).toBe("MASTERED");
+      expect(mastered.provenance).toBe("EXPLICIT");
+
+      await expect(
+        upsertExplicitConceptState({
+          actorUserId: other.id,
+          userId: user.id,
+          conceptId: concept.id,
+          mastery: "DEVELOPING",
+          source: "settings",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+
+    it("rejects system EXPLICIT goals; student path remains", async () => {
+      const user = await createUser(`goal-sys-${Date.now()}`);
+      const other = await createUser(`goal-oth-${Date.now()}`);
+
+      await expect(
+        createStudentGoal({
+          actorUserId: user.id,
+          userId: user.id,
+          title: "System goal",
+          source: "system",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createStudentGoal({
+          actorUserId: user.id,
+          userId: user.id,
+          title: "Spoofed",
+          source: "settings",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createStudentGoal({
+          actorUserId: user.id,
+          userId: user.id,
+          title: "Spoofed conf",
+          source: "settings",
+          confidence: 1,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      const ok = await createStudentGoal({
+        actorUserId: user.id,
+        userId: user.id,
+        title: "Pass organic chemistry",
+        source: "settings",
+      });
+      expect(ok.provenance).toBe("EXPLICIT");
+      expect(ok.source).toBe("settings");
+
+      await expect(
+        createStudentGoal({
+          actorUserId: other.id,
+          userId: user.id,
+          title: "IDOR goal",
+          source: "settings",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+
+    it("keeps prior attribute and observation/misconception authority protections", async () => {
+      const user = await createUser(`adj-${Date.now()}`);
+
+      await expect(
+        setStudentAttribute({
+          actorUserId: user.id,
+          userId: user.id,
+          key: "approach.worked_example",
+          value: true,
+          writer: "system",
+          systemProvenance: "EXPLICIT",
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        recordStudentObservation({
+          actorUserId: user.id,
+          userId: user.id,
+          category: "study",
+          type: "t",
+          summary: "x",
+          channel: "study_session",
+          provenance: "EXPLICIT",
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      await expect(
+        createStudentMisconception({
+          actorUserId: user.id,
+          userId: user.id,
+          statement: "x",
+          channel: "tutor",
+          confidence: 0.99,
+        } as never),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
 });
