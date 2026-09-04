@@ -9,7 +9,7 @@ BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 is complete and merged to main.
-Phase 2 design docs completed a final surgical cleanup on PR #2.
+Phase 2 design docs are on PR #2 after final cleanup + micro-correction.
 Phase 2 implementation has not started.
 Architecture approval is not claimed — awaiting final human review.
 
@@ -21,8 +21,8 @@ origin/main:              e1dc1d0
                           Merge PR #1 — Phase 1 foundation
 
 Working branch:           cursor/phase2-architecture-design-399a
-Working HEAD:             9e7cf4f
-                          Final Phase 2 architecture cleanup (docs only)
+Working HEAD:             0ac167f
+                          Clarify StudentAttribute active uniqueness invariant
 
 Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -47,8 +47,7 @@ PHASE STATUS
 Phase 0   Inspect                         COMPLETE
 Phase 1   Foundation                      COMPLETE (on main)
 Phase 2   Student Model + Onboarding
-          Design                          FINAL SURGICAL CLEANUP COMPLETE
-                                          AWAITING FINAL HUMAN REVIEW
+          Design                          READY FOR FINAL HUMAN REVIEW
           Implementation                  NOT STARTED
 Phase 3–10                                NOT STARTED
 
@@ -75,14 +74,22 @@ Core architecture preserved:
 - Knowledge: Subject → Topic → Concept
 - Current state + evidence history
 
-Final surgical cleanup specified:
+Design requirements locked in docs:
 1. Concrete Phase 2 StudentAttribute starter registry (server-controlled)
 2. One-active-attribute invariant:
    UNIQUE(userId, key) WHERE supersededAt IS NULL
+   (partial unique index via SQL migration in implementation;
+   ordinary Prisma @@unique cannot express the predicate)
 3. No misconception evidence IDs in metadata JSON
 4. Consent removed from onboarding; onboarding ≠ legal consent
 5. Ownership/deletion is a Phase 2 implementation requirement + tests
-   (not a TODO); catalog retained; operational retention separate
+6. Untrusted student context; no premature keyword intelligence
+7. Conservative mastery contract; confidence = reliability score
+
+Latest micro-correction (0ac167f):
+- Proposed Prisma StudentAttribute section explicitly documents
+  the active uniqueness invariant, partial unique index, Prisma
+  limitation, and atomic supersede/create writes
 
 Not in this PR:
 - No schema / migrations
@@ -90,12 +97,6 @@ Not in this PR:
 - No assembleAIContext implementation
 - No knowledge seed
 - No app behavior changes
-
-Open human decisions (Appendix D):
-- Final attribute-key naming namespace
-- Whether supersededById is mandatory
-- Anonymize vs delete for operational logs (legal review)
-- When a reliable concept resolver may be added after Phase 2
 
 --------------------------------------------------------------------------------
 KNOWN LIMITATIONS
@@ -145,7 +146,7 @@ VERDICT
 --------------------------------------------------------------------------------
 
 PHASE 1: COMPLETE
-PHASE 2 DESIGN: FINAL SURGICAL CLEANUP COMPLETE — READY FOR FINAL REVIEW
+PHASE 2 DESIGN: READY FOR FINAL HUMAN REVIEW
 PHASE 2 IMPLEMENTATION: NOT STARTED
 ARCHITECTURE APPROVAL: NOT CLAIMED
 
