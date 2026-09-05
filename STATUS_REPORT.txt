@@ -2,94 +2,82 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 21:33 UTC
+Updated: 2026-09-05 18:04 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 complete on main.
-Phase 2 architecture HUMAN-APPROVED.
+Phase 2 architecture HUMAN-APPROVED and on main.
+Phase 2 Implementation #1 (Student Model) MERGED to main.
+Phase 2 Implementation #2 (AI context assembly) present on this branch
+  (was merged to the foundation branch; now rebased onto main with #3).
 
-Phase 2 Implementation #1 (PR #3): CLEAR FOR MERGE
-Phase 2 Implementation #2 (PR #4): CLEAR FOR MERGE
+Phase 2 Implementation #3 (AI orchestration boundary) IMPLEMENTED on this
+branch — awaiting independent review.
 
-Independent re-review of PR #4 (a0bc665 foundation + 2860b94 assembly):
-- Critical: 0
-- High: 0
-- Medium: 2 (non-blocking)
-- Verdict: CLEAR FOR MERGE / MERGE
-
-Both PRs remain DRAFT pending human merge.
-Phase 2 is NOT complete (Implementation #3+ not started).
+Phase 2 is NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              e1dc1d0
-Impl #1 branch:           cursor/phase2-student-model-foundation-399a
-Impl #1 remediation:      a0bc665
-Impl #2 branch:           cursor/phase2-ai-context-assembly-399a
-Impl #2 feature:          2860b94
-Impl #2 HEAD:             13d0975
+origin/main:              7c1fd66 (includes Phase 1 + Impl #1)
+Working branch:           cursor/phase2-ai-orchestration-boundary-399a
+Includes:                 Impl #2 (assembleAIContext) + Impl #3 (orchestration)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
 --------------------------------------------------------------------------------
-PULL REQUESTS
+IMPLEMENTATION MAP (pre-deploy)
 --------------------------------------------------------------------------------
 
-PR #1 — MERGED (Phase 1)
-PR #2 — DRAFT architecture (HUMAN-APPROVED)
-PR #3 — DRAFT Implementation #1 — CLEAR FOR MERGE
-        https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-PR #4 — DRAFT Implementation #2 — CLEAR FOR MERGE
-        https://github.com/seancorbitt10-png/Flux-Labs/pull/4
-        Stacked on Implementation #1 branch
-        Feature: 2860b94 assembleAIContext
+EXISTS
+- Student Model domain + provenance authority (Impl #1)
+- assembleAIContext read-only assembly (Impl #2)
+- Phase 1 stub provider, router, assistance policy, entitlements
+- Onboarding catalog/session services (no full UI product yet)
+
+IMPL #3 (this slice) — AI ORCHESTRATION BOUNDARY
+- runAIOrchestration consumes assembleAIContext
+- Prompt hierarchy: policy → trusted focus → STUDENT_DATA fence → user message
+- Provider output validation (empty / non-string / oversized)
+- Rejects caller authority/routing fields; ignores legacy client context blobs
+- No Student Model writes; no AI proposal persistence; stub provider remains
+
+STILL MISSING (later slices — DO NOT START YET)
+- #4 Onboarding + student setup UI/product
+- #5 Controlled AI proposal / write-back pipeline
+- #6 Study experience
+- #7–#19 Classes, Tasks, Calendar, Resources, Progress, personalization,
+  proactive agent, cross-feature workflow, AI entry audit, security pass,
+  QA expansion, UX/a11y, production-readiness audit
+
+BLOCKER NOTE
+- GitHub PR #4 was merged into cursor/phase2-student-model-foundation-399a,
+  not main. This branch rebases Impl #2 onto main together with Impl #3 so
+  main can receive both.
 
 --------------------------------------------------------------------------------
-PHASE STATUS
+QUALITY GATES (Impl #3)
 --------------------------------------------------------------------------------
 
-Phase 0–1                         COMPLETE
-Phase 2 Design                    COMPLETE — HUMAN-APPROVED
-Phase 2 Implementation #1         CLEAR FOR MERGE (awaiting human merge)
-Phase 2 Implementation #2         CLEAR FOR MERGE (awaiting human merge)
-Phase 2 Implementation #3+        NOT STARTED
-Phase 3–10                        NOT STARTED
-
---------------------------------------------------------------------------------
-IMPLEMENTATION #2 (REVIEWED)
---------------------------------------------------------------------------------
-
-assembleAIContext — read-only, budgeted, provenance-preserving.
-Current state vs historical evidence separated.
-Student content role: student_data.
-Ownership enforced; no LLM; no writes; no concept resolution.
-Schema/migration unchanged.
-
-Quality gates at 2860b94: 63/63 tests; typecheck/lint/build/migrate OK.
-
---------------------------------------------------------------------------------
-REMAINING NON-BLOCKING (Impl #2 re-review)
---------------------------------------------------------------------------------
-
-Medium:
-- LearningEvidence free-form source/weight forwarded into context as DATA
-- Observations budgeted globally (no concept FK; not focus-scoped)
-
-Low/Info: assembler test gaps (OBSERVED round-trip, budget overflow);
-  policyHints / orchestration wiring deferred by design.
+npm test                 71/71 pass
+npm run typecheck        pass
+npm run lint             pass
+npm run build            pass
+prisma migrate status    up to date (no schema changes)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge PR #3, then PR #4 (stacked)
-2. Do not claim Phase 2 complete
-3. Later: orchestration wiring, AI write-back, etc. as separate slices
+1. Independent review of Implementation #3
+2. Human merge decision (this branch → main)
+3. Only then proceed to Implementation #4 (onboarding product)
+
+Do not claim Phase 2 or pre-deploy product complete.
 
 ================================================================================
 END OF STATUS REPORT
