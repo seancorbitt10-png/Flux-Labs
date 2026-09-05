@@ -38,7 +38,7 @@ export default auth((req) => {
 
   if (isLoggedIn && (pathname === "/login" || pathname === "/register")) {
     const url = req.nextUrl.clone();
-    url.pathname = "/home";
+    url.pathname = "/start";
     return NextResponse.redirect(url);
   }
 
