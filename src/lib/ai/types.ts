@@ -83,10 +83,19 @@ export type OrchestrationRequest = {
   userId: string;
   userMessage: string;
   /**
+   * Optional server-validated focus concept IDs.
+   * Validated again inside assembleAIContext (ownership + existence).
+   */
+  conceptIds?: string[];
+  /**
    * Optional server-only classification hint for tests/internal callers.
    * Never accept this from the client — orchestration ignores client-supplied routing.
    */
   taskTypeHint?: AITaskType;
+  /**
+   * @deprecated Phase 1 free-form context. Ignored by the orchestration boundary.
+   * Student facts must come from assembleAIContext, not the client.
+   */
   context?: AssembledContext;
 };
 
@@ -96,6 +105,10 @@ export type OrchestrationResult = {
   modelKey: InternalModelKey;
   reply: string;
   requiresStudentParticipation: boolean;
+  /** True when the provider reply was truncated to the server max length. */
+  replyTruncated: boolean;
+  /** Context assembly version consumed for this turn. */
+  contextVersion: string;
   usage: {
     inputTokens?: number;
     outputTokens?: number;
