@@ -2,161 +2,92 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-04 21:19 UTC
+Updated: 2026-09-05 18:44 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
-Phase 1 is complete and merged to main.
-Phase 2 architecture is HUMAN-APPROVED (docs/PHASE2_ARCHITECTURE.md).
-Architecture contracts are documented (AI context, AI write, onboarding,
-engineering non-negotiables).
+Phase 1 complete on main.
+Phase 2 architecture HUMAN-APPROVED and on main.
+Phase 2 Implementation #1 (Student Model) MERGED to main.
 
-Phase 2 IMPLEMENTATION #1 is on PR #3.
+Phase 2 Implementation #2 (AI context assembly) + Implementation #3
+(AI orchestration boundary) are on PR #5.
 
-Independent RE-REVIEW of remediation a0bc665: CLEAR FOR MERGE
-
+Independent re-review of Implementation #3: CLEAR FOR MERGE
 - Critical: 0
 - High: 0
-- Original five HIGH findings: PASS
-- H-NEW-1 / H-NEW-2: PASS
-- Medium: 5 (non-blocking)
-- Low: 3 / Info: 2
+- Medium: 3 (non-blocking)
+- Feature commit: 8aaa543
 
-PR #3 remains DRAFT. Human may merge when ready.
-Phase 2 overall remains incomplete (Implementation #2+ not started).
+PR #5 remains DRAFT pending human merge.
+Phase 2 / pre-deploy product are NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              e1dc1d0
-                          Merge PR #1 — Phase 1 foundation
+origin/main:              7c1fd66 (Phase 1 + Impl #1)
+Working branch:           cursor/phase2-ai-orchestration-boundary-399a
+Branch HEAD:              cf92aac
+Impl #3 feature:          8aaa543
+Includes:                 Impl #2 (assembleAIContext) + Impl #3 (orchestration)
 
-Working branch:           cursor/phase2-student-model-foundation-399a
-Remediation commit:       a0bc665
-Merge base with main:     e1dc1d0
+PR #5 (draft, CLEAR FOR MERGE):
+https://github.com/seancorbitt10-png/Flux-Labs/pull/5
 
-Notable commits:
-  f4f2f79  feat: implement Phase 2 student model foundation
-  ddeffc8  fix: harden phase 2 authority and ownership boundaries
-  0d3fc77  docs: define phase 2 AI and onboarding contracts
-  a0bc665  fix: block system-authoritative concept state and goals
-
-Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
+Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
 --------------------------------------------------------------------------------
-PULL REQUESTS
+PHASE / IMPLEMENTATION STATUS
 --------------------------------------------------------------------------------
 
-PR #1 — MERGED
-https://github.com/seancorbitt10-png/Flux-Labs/pull/1
-
-PR #2 — OPEN (DRAFT) — ARCHITECTURE (HUMAN-APPROVED)
-https://github.com/seancorbitt10-png/Flux-Labs/pull/2
-
-PR #3 — OPEN (DRAFT) — IMPLEMENTATION #1 — CLEAR FOR MERGE
-https://github.com/seancorbitt10-png/Flux-Labs/pull/3
-Base: main @ e1dc1d0
-Remediation reviewed: a0bc665
-Independent re-review: CLEAR FOR MERGE (Critical=0, High=0)
+Phase 0–1                         COMPLETE (main)
+Phase 2 Design                    COMPLETE — HUMAN-APPROVED
+Phase 2 Implementation #1         MERGED to main
+Phase 2 Implementation #2         On PR #5 (rebased onto main with #3)
+Phase 2 Implementation #3         CLEAR FOR MERGE (awaiting human merge)
+Phase 2 Implementation #4+        NOT STARTED (onboarding product next)
+Pre-deploy slices #5–#19          NOT STARTED
 
 --------------------------------------------------------------------------------
-PHASE STATUS
+IMPLEMENTATION #3 (REVIEWED)
 --------------------------------------------------------------------------------
 
-Phase 0   Inspect                         COMPLETE
-Phase 1   Foundation                      COMPLETE (on main)
-Phase 2   Student Model + Onboarding
-          Design                          COMPLETE — HUMAN-APPROVED
-          Architecture contracts          DOCUMENTED
-          Implementation #1               IMPLEMENTED + RE-REVIEW CLEAR
-                                          Awaiting human merge decision
-          Implementation #2+              NOT STARTED
-Phase 3–10                                NOT STARTED
+runAIOrchestration consumes assembleAIContext.
+Prompt hierarchy: policy → trusted focus → STUDENT_DATA fence → user message.
+Provider output validated; caller authority/routing rejected.
+No Student Model writes; no AI proposal persistence; stub provider remains.
+Session entrypoints bind userId from auth (sendStudyMessage, /api/ai/ping).
+
+Quality gates (re-verified in review):
+npm test                 71/71 pass
+npm run typecheck        pass
+npm run lint             pass
+npm run build            pass
+prisma migrate status    up to date
 
 --------------------------------------------------------------------------------
-INDEPENDENT RE-REVIEW (a0bc665)
---------------------------------------------------------------------------------
-
-H-NEW-1  ConceptState system EXPLICIT/MASTERED     PASS
-         System/AI ConceptState writes rejected;
-         only onboarding|settings; server EXPLICIT/confidence.
-
-H-NEW-2  Goals system→EXPLICIT                     PASS
-         System goal creation rejected; student paths only;
-         spoofed provenance/confidence rejected.
-
-Original five Highs                            ALL PASS
-  H1 Attribute authority
-  H2 Observation/misconception authority
-  H3 Catalog authorization
-  H4 USER concept attribution
-  H5 Deletion semantics
-
-Schema/migration unchanged by a0bc665.
-Partial unique index intact.
-USER concept FK Cascade intact.
-
---------------------------------------------------------------------------------
-QUALITY GATES (at a0bc665)
---------------------------------------------------------------------------------
-
-npm test                     52/52 pass
-npm run typecheck            pass
-npm run lint                 pass
-npm run build                pass
-npx prisma migrate status    up to date
-
---------------------------------------------------------------------------------
-REMAINING MEDIUM / LOW (non-blocking)
+NON-BLOCKING FOLLOW-UPS (from Impl #3 re-review)
 --------------------------------------------------------------------------------
 
 Medium:
-- LearningEvidence free-form source/weight
-- CatalogWriteActor {type:"system"} honor-system
-- Profile mass-assignment of lifecycle fields
-- Domain trusts caller-claimed onboarding|settings channel
-- Incomplete IDOR test coverage for evidence/profile
+- Domain trusts caller-supplied userId (HTTP binds session today; prefer
+  explicit authenticated-actor binding before more call sites)
+- Delimiter-based STUDENT_DATA fencing is soft against fence-token spoofing
+- Test gap: route-level assertion that client cannot supply userId
 
-Low:
-- Incidental trials_userId_idx drop in foundation migration
-- Onboarding code catalog subset vs ONBOARDING_SPEC
-- No Phase 2 HTTP routes yet (domain-layer only)
-
-Info:
-- Student EXPLICIT path may set MASTERED (self-report); mastery algo deferred
-- System-generated goal persistence deferred/rejected
-
---------------------------------------------------------------------------------
-ARCHITECTURE CONTRACTS (PRESENT)
---------------------------------------------------------------------------------
-
-docs/AI_CONTEXT_CONTRACT.md
-docs/AI_WRITE_CONTRACT.md
-docs/ONBOARDING_SPEC.md
-docs/ENGINEERING_NON_NEGOTIABLES.md
-docs/PHASE2_ARCHITECTURE.md          (approved source of truth)
-
---------------------------------------------------------------------------------
-INTENTIONALLY DEFERRED
---------------------------------------------------------------------------------
-
-- Onboarding UI
-- assembleAIContext / AI proposal pipeline
-- Knowledge seed, mastery algorithms, MisconceptionEvidence
-- RAG / embeddings / semantic concept resolution
-- Billing / deployment / teacher-admin systems
-- System-generated goal persistence semantics
+Low/Info: truncate-vs-reject oversized replies; provider-throw test gap;
+  real provider / write-back still deferred by design
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge decision for PR #3 (re-review CLEAR FOR MERGE)
-2. Do not claim Phase 2 complete after merge — Implementation #2+ remains
-3. Medium items may be tracked as follow-ups; not merge blockers
+1. Human merge decision for PR #5 (Impl #2 + #3 onto main)
+2. Do not start Implementation #4 until merge/review cadence allows
+3. Do not claim Phase 2 or pre-deploy product complete
 
 ================================================================================
 END OF STATUS REPORT
