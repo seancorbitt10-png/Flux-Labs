@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-05 18:37 UTC
+Updated: 2026-09-05 18:44 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,13 +11,18 @@ BOTTOM LINE
 Phase 1 complete on main.
 Phase 2 architecture HUMAN-APPROVED and on main.
 Phase 2 Implementation #1 (Student Model) MERGED to main.
-Phase 2 Implementation #2 (AI context assembly) present on this branch
-  (was merged to the foundation branch; now rebased onto main with #3).
 
-Phase 2 Implementation #3 (AI orchestration boundary) IMPLEMENTED —
-awaiting independent review (PR #5 draft).
+Phase 2 Implementation #2 (AI context assembly) + Implementation #3
+(AI orchestration boundary) are on PR #5.
 
-Phase 2 is NOT complete. Pre-deploy product is NOT complete.
+Independent re-review of Implementation #3: CLEAR FOR MERGE
+- Critical: 0
+- High: 0
+- Medium: 3 (non-blocking)
+- Feature commit: 8aaa543
+
+PR #5 remains DRAFT pending human merge.
+Phase 2 / pre-deploy product are NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
@@ -25,63 +30,64 @@ REPOSITORY
 
 origin/main:              7c1fd66 (Phase 1 + Impl #1)
 Working branch:           cursor/phase2-ai-orchestration-boundary-399a
-Branch HEAD:              6a01d87
+Branch HEAD:              cf92aac
 Impl #3 feature:          8aaa543
 Includes:                 Impl #2 (assembleAIContext) + Impl #3 (orchestration)
 
-PR #5 (draft): https://github.com/seancorbitt10-png/Flux-Labs/pull/5
+PR #5 (draft, CLEAR FOR MERGE):
+https://github.com/seancorbitt10-png/Flux-Labs/pull/5
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION MAP (pre-deploy)
+PHASE / IMPLEMENTATION STATUS
 --------------------------------------------------------------------------------
 
-EXISTS
-- Student Model domain + provenance authority (Impl #1)
-- assembleAIContext read-only assembly (Impl #2)
-- Phase 1 stub provider, router, assistance policy, entitlements
-- Onboarding catalog/session services (no full UI product yet)
-
-IMPL #3 (this slice) — AI ORCHESTRATION BOUNDARY
-- runAIOrchestration consumes assembleAIContext
-- Prompt hierarchy: policy → trusted focus → STUDENT_DATA fence → user message
-- Provider output validation (empty / non-string / oversized)
-- Rejects caller authority/routing fields; ignores legacy client context blobs
-- No Student Model writes; no AI proposal persistence; stub provider remains
-
-STILL MISSING (later slices — DO NOT START YET)
-- #4 Onboarding + student setup UI/product
-- #5 Controlled AI proposal / write-back pipeline
-- #6 Study experience
-- #7–#19 Classes, Tasks, Calendar, Resources, Progress, personalization,
-  proactive agent, cross-feature workflow, AI entry audit, security pass,
-  QA expansion, UX/a11y, production-readiness audit
-
-BLOCKER NOTE
-- GitHub PR #4 was merged into cursor/phase2-student-model-foundation-399a,
-  not main. This branch rebases Impl #2 onto main together with Impl #3 so
-  main can receive both.
+Phase 0–1                         COMPLETE (main)
+Phase 2 Design                    COMPLETE — HUMAN-APPROVED
+Phase 2 Implementation #1         MERGED to main
+Phase 2 Implementation #2         On PR #5 (rebased onto main with #3)
+Phase 2 Implementation #3         CLEAR FOR MERGE (awaiting human merge)
+Phase 2 Implementation #4+        NOT STARTED (onboarding product next)
+Pre-deploy slices #5–#19          NOT STARTED
 
 --------------------------------------------------------------------------------
-QUALITY GATES (Impl #3)
+IMPLEMENTATION #3 (REVIEWED)
 --------------------------------------------------------------------------------
 
+runAIOrchestration consumes assembleAIContext.
+Prompt hierarchy: policy → trusted focus → STUDENT_DATA fence → user message.
+Provider output validated; caller authority/routing rejected.
+No Student Model writes; no AI proposal persistence; stub provider remains.
+Session entrypoints bind userId from auth (sendStudyMessage, /api/ai/ping).
+
+Quality gates (re-verified in review):
 npm test                 71/71 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
-prisma migrate status    up to date (no schema changes)
+prisma migrate status    up to date
+
+--------------------------------------------------------------------------------
+NON-BLOCKING FOLLOW-UPS (from Impl #3 re-review)
+--------------------------------------------------------------------------------
+
+Medium:
+- Domain trusts caller-supplied userId (HTTP binds session today; prefer
+  explicit authenticated-actor binding before more call sites)
+- Delimiter-based STUDENT_DATA fencing is soft against fence-token spoofing
+- Test gap: route-level assertion that client cannot supply userId
+
+Low/Info: truncate-vs-reject oversized replies; provider-throw test gap;
+  real provider / write-back still deferred by design
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Implementation #3
-2. Human merge decision (this branch → main)
-3. Only then proceed to Implementation #4 (onboarding product)
-
-Do not claim Phase 2 or pre-deploy product complete.
+1. Human merge decision for PR #5 (Impl #2 + #3 onto main)
+2. Do not start Implementation #4 until merge/review cadence allows
+3. Do not claim Phase 2 or pre-deploy product complete
 
 ================================================================================
 END OF STATUS REPORT
