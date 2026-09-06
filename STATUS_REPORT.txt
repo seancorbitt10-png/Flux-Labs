@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-06 01:31 UTC
+Updated: 2026-09-06 01:52 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,7 +13,8 @@ Phase 2 architecture HUMAN-APPROVED and on main.
 Phase 2 Implementations #1–#3 MERGED to main (PR #5 merged).
 
 Phase 2 Implementation #4 (Onboarding + Student Setup) is complete on
-draft PR #6, CI green, awaiting independent human review.
+draft PR #6, including a visual correction to match the app shell.
+CI is green. Awaiting independent human review.
 
 Phase 2 / pre-deploy product are NOT complete.
 
@@ -23,10 +24,11 @@ REPOSITORY
 
 origin/main:              92f22f2 (Phase 1 + Impl #1–#3)
 Working branch:           cursor/phase2-onboarding-student-setup-9de3
-Branch HEAD:              98837e6
+Branch HEAD:              1e54de8
 Impl #4 feature:          98837e6
+Visual correction:        1e54de8
 
-PR #6 (draft, awaiting human review):
+PR #6 (draft, CI green, mergeable):
 https://github.com/seancorbitt10-png/Flux-Labs/pull/6
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
@@ -52,10 +54,17 @@ Session-bound actions derive userId from auth; client authority fields rejected.
 Supported answers map to Student Model (EXPLICIT); answer-only items stay on
 OnboardingAnswer. Soft gate via /start; resume / skip / dismiss; mobile UI.
 
+Visual correction (1e54de8):
+- Removed in-page Flux Labs hero (brand stays in app chrome)
+- Compact Academic setup header (product/UI density)
+- Progress reduced to Step X of 27 + thin bar
+- Shared Button sizing; denser option rows
+- No catalog / mapping / auth / ownership / persistence changes
+
 Does NOT include: learning-style questions, legal consent, AI write-back,
 concept resolution, LMS import, Class entities, settings re-edit UI.
 
-Quality gates:
+Quality gates (latest):
 npm test                 88/88 pass
 npm run typecheck        pass
 npm run lint             pass
@@ -72,12 +81,13 @@ KNOWN LIMITATIONS (IMPL #4)
 - Course names remain answer-only (Class entities are later)
 - No concept resolution / LMS import
 - AI write-back still deferred
+- Shell brand mark still uses display serif (existing app chrome)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human review decision for PR #6 (Impl #4)
+1. Human review decision for PR #6 (Impl #4 + visual correction)
 2. Do not merge until independent review is complete
 3. Do not start Implementation #5 until merge/review cadence allows
 4. Do not claim Phase 2 or pre-deploy product complete
