@@ -223,35 +223,46 @@ async function applyAnswerMapping(args: {
   userId: string;
   question: OnboardingQuestion;
   value: unknown;
+  db: Prisma.TransactionClient;
 }): Promise<void> {
   const { mapping } = args.question;
+  const writeOpts = { db: args.db };
   switch (mapping.kind) {
     case "none":
       return;
     case "attribute":
-      await setStudentAttribute({
-        actorUserId: args.actorUserId,
-        userId: args.userId,
-        key: mapping.key,
-        value: args.value,
-        writer: "onboarding",
-      });
-      if (mapping.key === "academic.level" && typeof args.value === "string") {
-        await updateStudentProfile({
+      await setStudentAttribute(
+        {
           actorUserId: args.actorUserId,
           userId: args.userId,
-          data: { academicLevel: args.value },
-        });
+          key: mapping.key,
+          value: args.value,
+          writer: "onboarding",
+        },
+        writeOpts,
+      );
+      if (mapping.key === "academic.level" && typeof args.value === "string") {
+        await updateStudentProfile(
+          {
+            actorUserId: args.actorUserId,
+            userId: args.userId,
+            data: { academicLevel: args.value },
+          },
+          writeOpts,
+        );
       }
       if (
         mapping.key === "pref.assistance_style" &&
         typeof args.value === "string"
       ) {
-        await updateStudentProfile({
-          actorUserId: args.actorUserId,
-          userId: args.userId,
-          data: { preferredAssistanceStyle: args.value },
-        });
+        await updateStudentProfile(
+          {
+            actorUserId: args.actorUserId,
+            userId: args.userId,
+            data: { preferredAssistanceStyle: args.value },
+          },
+          writeOpts,
+        );
       }
       return;
     case "goal":
@@ -261,25 +272,47 @@ async function applyAnswerMapping(args: {
       if (!mapping.category) {
         throw new ValidationError("Goal mapping requires a category.");
       }
-      await upsertStudentGoalByCategory({
-        actorUserId: args.actorUserId,
-        userId: args.userId,
-        title: args.value,
-        category: mapping.category,
-        source: "onboarding",
-      });
+      await upsertStudentGoalByCategory(
+        {
+          actorUserId: args.actorUserId,
+          userId: args.userId,
+          title: args.value,
+          category: mapping.category,
+          source: "onboarding",
+        },
+        writeOpts,
+      );
       return;
     case "profile":
       if (typeof args.value !== "string") {
         throw new ValidationError("Profile answer must be a string.");
       }
-      await updateStudentProfile({
-        actorUserId: args.actorUserId,
-        userId: args.userId,
-        data: { [mapping.field]: args.value },
-      });
+      await updateStudentProfile(
+        {
+          actorUserId: args.actorUserId,
+          userId: args.userId,
+          data: { [mapping.field]: args.value },
+        },
+        writeOpts,
+      );
       return;
   }
+}
+
+function answerPayload(
+  skipped: boolean,
+  validated: unknown | null,
+): {
+  skipped: boolean;
+  answerJson: Prisma.InputJsonValue | typeof Prisma.DbNull | undefined;
+} {
+  return {
+    skipped,
+    answerJson:
+      validated === null
+        ? undefined
+        : (validated as Prisma.InputJsonValue),
+  };
 }
 
 export async function submitOnboardingAnswer(args: {
@@ -325,41 +358,65 @@ export async function submitOnboardingAnswer(args: {
     skipped,
   );
 
-  const answer = await prisma.onboardingAnswer.upsert({
-    where: {
-      sessionId_questionId: {
+  const requiresStudentModelMapping =
+    !skipped && validated !== null && question.mapping.kind !== "none";
+
+  // Answer-only / skipped: OnboardingAnswer only — no Student Model mutation.
+  if (!requiresStudentModelMapping) {
+    return prisma.onboardingAnswer.upsert({
+      where: {
+        sessionId_questionId: {
+          sessionId: session.id,
+          questionId: question.questionId,
+        },
+      },
+      create: {
         sessionId: session.id,
         questionId: question.questionId,
+        ...answerPayload(skipped, validated),
       },
-    },
-    create: {
-      sessionId: session.id,
-      questionId: question.questionId,
-      skipped,
-      answerJson:
-        validated === null
-          ? undefined
-          : (validated as Prisma.InputJsonValue),
-    },
-    update: {
-      skipped,
-      answerJson:
-        validated === null
-          ? Prisma.DbNull
-          : (validated as Prisma.InputJsonValue),
-    },
-  });
+      update: {
+        skipped,
+        answerJson:
+          validated === null
+            ? Prisma.DbNull
+            : (validated as Prisma.InputJsonValue),
+      },
+    });
+  }
 
-  if (!skipped && validated !== null) {
+  // Mapped answers: OnboardingAnswer + authorized Student Model write are atomic.
+  // Either both commit or neither does (shared Prisma interactive transaction).
+  return prisma.$transaction(async (tx) => {
+    const answer = await tx.onboardingAnswer.upsert({
+      where: {
+        sessionId_questionId: {
+          sessionId: session.id,
+          questionId: question.questionId,
+        },
+      },
+      create: {
+        sessionId: session.id,
+        questionId: question.questionId,
+        skipped,
+        answerJson: validated as Prisma.InputJsonValue,
+      },
+      update: {
+        skipped,
+        answerJson: validated as Prisma.InputJsonValue,
+      },
+    });
+
     await applyAnswerMapping({
       actorUserId: args.actorUserId,
       userId: args.userId,
       question,
       value: validated,
+      db: tx,
     });
-  }
 
-  return answer;
+    return answer;
+  });
 }
 
 export async function completeOnboardingSession(args: {

@@ -15,8 +15,14 @@ describe("onboarding catalog", () => {
     const catalog = getOnboardingCatalog(ONBOARDING_VERSION);
     expect(catalog.version).toBe(ONBOARDING_VERSION);
     expect(catalog.questions.length).toBeGreaterThanOrEqual(22);
-    expect(catalog.questions.length).toBeLessThanOrEqual(30);
+    expect(catalog.questions.length).toBeLessThanOrEqual(26);
     expect(ONBOARDING_QUESTIONS.length).toBe(catalog.questions.length);
+    expect(ONBOARDING_QUESTIONS.length).toBe(26);
+  });
+
+  it("does not include the removed low-value context.motivation question", () => {
+    const ids = ONBOARDING_QUESTIONS.map((q) => q.questionId);
+    expect(ids).not.toContain("context.motivation");
   });
 
   it("rejects unsupported catalog versions", () => {

@@ -73,12 +73,95 @@ function resolveSource(writer: AttributeWriter): string {
   }
 }
 
+export type StudentWriteOptions = {
+  /**
+   * Optional shared Prisma transaction. When provided, this write joins the
+   * caller's transaction instead of opening a nested `$transaction`.
+   */
+  db?: Prisma.TransactionClient;
+};
+
+async function writeStudentAttributeInTx(
+  tx: Prisma.TransactionClient,
+  args: {
+    userId: string;
+    key: string;
+    valueJson: Prisma.InputJsonValue;
+    provenance: ProvenanceKind;
+    confidence: number;
+    source: string;
+  },
+): Promise<SetAttributeResult> {
+  // Lock any active row for this (userId, key) to serialize concurrent supersedes.
+  await tx.$queryRaw`
+    SELECT id FROM student_attributes
+    WHERE "userId" = ${args.userId}
+      AND key = ${args.key}
+      AND "supersededAt" IS NULL
+    FOR UPDATE
+  `;
+
+  const existing = await tx.studentAttribute.findFirst({
+    where: {
+      userId: args.userId,
+      key: args.key,
+      supersededAt: null,
+    },
+  });
+
+  if (existing) {
+    const allowed = mayOverwriteCurrentState({
+      existingProvenance: existing.provenance,
+      existingConfidence: existing.confidence,
+      incomingProvenance: args.provenance,
+    });
+    if (!allowed) {
+      return {
+        status: "rejected_weaker_provenance" as const,
+        attribute: existing,
+      };
+    }
+
+    // Supersede first so the partial unique index allows the new active row.
+    await tx.studentAttribute.update({
+      where: { id: existing.id },
+      data: { supersededAt: new Date() },
+    });
+  }
+
+  const created = await tx.studentAttribute.create({
+    data: {
+      userId: args.userId,
+      key: args.key,
+      valueJson: args.valueJson,
+      provenance: args.provenance,
+      confidence: args.confidence,
+      source: args.source,
+      supersededAt: null,
+    },
+  });
+
+  if (existing) {
+    await tx.studentAttribute.update({
+      where: { id: existing.id },
+      data: { supersededById: created.id },
+    });
+  }
+
+  return {
+    status: "written" as const,
+    attribute: created,
+    supersededId: existing?.id ?? null,
+  };
+}
+
 /**
  * Atomically set/replace the active StudentAttribute for (userId, key).
  * Enforces registry, ownership, provenance precedence, and partial-unique safety.
  */
 export async function setStudentAttribute(
   input: SetAttributeInput,
+  options?: StudentWriteOptions,
 ): Promise<SetAttributeResult> {
   assertResourceOwner(input.userId, input.actorUserId);
 
@@ -102,75 +185,29 @@ export async function setStudentAttribute(
   const provenance = resolveProvenance(input.writer, input.systemProvenance);
   const confidence = clampConfidence(defaultConfidenceFor(provenance));
   const source = resolveSource(input.writer);
+  const writeArgs = {
+    userId: input.userId,
+    key: input.key,
+    valueJson,
+    provenance,
+    confidence,
+    source,
+  };
+
+  // Join an outer transaction when provided (e.g. onboarding answer + SM mapping).
+  // Do not open a nested interactive transaction — Postgres aborts the outer tx on error.
+  if (options?.db) {
+    return writeStudentAttributeInTx(options.db, writeArgs);
+  }
 
   const maxAttempts = 3;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
-        // Lock any active row for this (userId, key) to serialize concurrent supersedes.
-        await tx.$queryRaw`
-          SELECT id FROM student_attributes
-          WHERE "userId" = ${input.userId}
-            AND key = ${input.key}
-            AND "supersededAt" IS NULL
-          FOR UPDATE
-        `;
-
-        const existing = await tx.studentAttribute.findFirst({
-          where: {
-            userId: input.userId,
-            key: input.key,
-            supersededAt: null,
-          },
-        });
-
-        if (existing) {
-          const allowed = mayOverwriteCurrentState({
-            existingProvenance: existing.provenance,
-            existingConfidence: existing.confidence,
-            incomingProvenance: provenance,
-          });
-          if (!allowed) {
-            return {
-              status: "rejected_weaker_provenance" as const,
-              attribute: existing,
-            };
-          }
-
-          // Supersede first so the partial unique index allows the new active row.
-          await tx.studentAttribute.update({
-            where: { id: existing.id },
-            data: { supersededAt: new Date() },
-          });
-        }
-
-        const created = await tx.studentAttribute.create({
-          data: {
-            userId: input.userId,
-            key: input.key,
-            valueJson,
-            provenance,
-            confidence,
-            source,
-            supersededAt: null,
-          },
-        });
-
-        if (existing) {
-          await tx.studentAttribute.update({
-            where: { id: existing.id },
-            data: { supersededById: created.id },
-          });
-        }
-
-        return {
-          status: "written" as const,
-          attribute: created,
-          supersededId: existing?.id ?? null,
-        };
-      });
+      return await prisma.$transaction(async (tx) =>
+        writeStudentAttributeInTx(tx, writeArgs),
+      );
     } catch (error) {
       lastError = error;
       // Unique violation from concurrent create — retry.

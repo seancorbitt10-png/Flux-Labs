@@ -68,6 +68,7 @@ describe("Phase 2 Implementation #4 — onboarding + student setup", () => {
   it("retrieves the server question registry", async () => {
     const catalog = getOnboardingCatalog(ONBOARDING_VERSION);
     expect(catalog.questions.length).toBeGreaterThanOrEqual(22);
+    expect(catalog.questions.length).toBeLessThanOrEqual(26);
     expect(catalog.questions.every((q) => q.questionId && q.prompt)).toBe(true);
   });
 

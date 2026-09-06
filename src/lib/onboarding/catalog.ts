@@ -433,24 +433,17 @@ export const ONBOARDING_QUESTIONS: readonly OnboardingQuestion[] = [
     skippable: true,
     mapping: { kind: "none" },
   },
-  {
-    questionId: "context.motivation",
-    cluster: "optional",
-    prompt: "Optional: what motivates you this term?",
-    answerType: "string",
-    schema: z.string().trim().min(1).max(MAX_TEXT),
-    maxLength: MAX_TEXT,
-    placeholder: "Optional context — not a personality label",
-    essential: false,
-    skippable: true,
-    mapping: { kind: "none" },
-  },
+  // Removed from 2026-09-phase2 active catalog (was 27 → 26):
+  // `context.motivation` — answer-only optional free text with no Student Model
+  // mapping and the weakest link to downstream academic assistance behavior.
+  // Existing OnboardingAnswer rows for that id (if any) are left untouched and
+  // are not reinterpreted under a new schema.
 ] as const;
 
 const QUESTION_COUNT = ONBOARDING_QUESTIONS.length;
-if (QUESTION_COUNT < 22 || QUESTION_COUNT > 30) {
+if (QUESTION_COUNT < 22 || QUESTION_COUNT > 26) {
   throw new Error(
-    `Onboarding catalog out of range: ${QUESTION_COUNT} (expected 22–30).`,
+    `Onboarding catalog out of range: ${QUESTION_COUNT} (expected 22–26).`,
   );
 }
 

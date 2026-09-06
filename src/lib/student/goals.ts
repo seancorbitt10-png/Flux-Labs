@@ -32,8 +32,14 @@ const STUDENT_GOAL_SOURCES = new Set<StudentGoalSource>([
   "settings",
 ]);
 
+export type StudentGoalWriteOptions = {
+  /** Optional shared Prisma transaction for callers that need atomic multi-writes. */
+  db?: Prisma.TransactionClient;
+};
+
 export async function createStudentGoal(
   input: CreateGoalInput,
+  options?: StudentGoalWriteOptions,
 ): Promise<StudentGoal> {
   assertResourceOwner(input.userId, input.actorUserId);
 
@@ -77,8 +83,9 @@ export async function createStudentGoal(
   // Server-controlled authority — EXPLICIT only for student-originated paths.
   const provenance = "EXPLICIT" as const;
   const confidence = clampConfidence(defaultConfidenceFor(provenance));
+  const db = options?.db ?? prisma;
 
-  return prisma.studentGoal.create({
+  return db.studentGoal.create({
     data: {
       userId: input.userId,
       title,
@@ -116,6 +123,7 @@ export async function listStudentGoals(args: {
  */
 export async function upsertStudentGoalByCategory(
   input: CreateGoalInput & { category: string },
+  options?: StudentGoalWriteOptions,
 ): Promise<StudentGoal> {
   assertResourceOwner(input.userId, input.actorUserId);
 
@@ -136,7 +144,8 @@ export async function upsertStudentGoalByCategory(
     throw new ValidationError("Goal category is too long.");
   }
 
-  const existing = await prisma.studentGoal.findFirst({
+  const db = options?.db ?? prisma;
+  const existing = await db.studentGoal.findFirst({
     where: {
       userId: input.userId,
       category: input.category,
@@ -149,7 +158,7 @@ export async function upsertStudentGoalByCategory(
   const confidence = clampConfidence(defaultConfidenceFor(provenance));
 
   if (existing) {
-    return prisma.studentGoal.update({
+    return db.studentGoal.update({
       where: { id: existing.id },
       data: {
         title,
@@ -164,7 +173,7 @@ export async function upsertStudentGoalByCategory(
     });
   }
 
-  return createStudentGoal(input);
+  return createStudentGoal(input, options);
 }
 
 export async function updateStudentGoalStatus(args: {
