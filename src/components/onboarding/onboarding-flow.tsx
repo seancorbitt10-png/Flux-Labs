@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,11 +65,6 @@ export function OnboardingFlow({ initial }: Props) {
   const total = questions.length;
   const stepNumber = Math.min(index + 1, total);
   const progressPct = total === 0 ? 0 : Math.round((stepNumber / total) * 100);
-
-  const answeredCount = useMemo(
-    () => Object.keys(bootstrap.answers).length,
-    [bootstrap.answers],
-  );
 
   function loadDraftForIndex(
     nextIndex: number,
@@ -201,12 +196,16 @@ export function OnboardingFlow({ initial }: Props) {
 
   if (doneView === "completed") {
     return (
-      <div className="mx-auto max-w-lg space-y-6 animate-fade-up">
-        <h1 className="font-display text-3xl tracking-tight">You&apos;re set up</h1>
-        <p className="text-sm leading-relaxed text-foreground/65">
-          Flux will use the academic context you shared to give more relevant
-          help. You can keep refining things later in Settings.
+      <div className="animate-fade-up max-w-xl space-y-5">
+      <header className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-foreground/45">
+          Setup
         </p>
+        <h1 className="text-xl font-medium tracking-tight sm:text-2xl">You&apos;re set up</h1>
+        <p className="text-sm leading-relaxed text-foreground/65">
+          Flux will use the academic context you shared for more relevant help. You can refine details later in Settings.
+        </p>
+      </header>
         <Button type="button" onClick={() => router.push("/home")}>
           Continue to Home
         </Button>
@@ -216,13 +215,17 @@ export function OnboardingFlow({ initial }: Props) {
 
   if (doneView === "dismissed") {
     return (
-      <div className="mx-auto max-w-lg space-y-6 animate-fade-up">
-        <h1 className="font-display text-3xl tracking-tight">Setup skipped</h1>
-        <p className="text-sm leading-relaxed text-foreground/65">
-          You can use Flux with less personalization. Resume setup anytime —
-          Study still works with degraded context.
+      <div className="animate-fade-up max-w-xl space-y-5">
+      <header className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-foreground/45">
+          Setup
         </p>
-        <div className="flex flex-wrap gap-3">
+        <h1 className="text-xl font-medium tracking-tight sm:text-2xl">Setup skipped</h1>
+        <p className="text-sm leading-relaxed text-foreground/65">
+          You can use Flux with less personalization. Resume setup anytime — Study still works with degraded context.
+        </p>
+      </header>
+        <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={() => router.push("/home")}>
             Go to Home
           </Button>
@@ -248,7 +251,7 @@ export function OnboardingFlow({ initial }: Props) {
 
   if (!question || !bootstrap.session) {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="max-w-xl space-y-3">
         <p className="text-sm text-foreground/65">Loading academic setup…</p>
         {error ? (
           <p className="text-sm text-red-600" role="alert">
@@ -262,34 +265,26 @@ export function OnboardingFlow({ initial }: Props) {
   const canContinue = isAnswerReady(question, draft);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 animate-fade-up">
-      <header className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-foreground/45">
-          Academic setup
+    <div className="animate-fade-up max-w-xl space-y-5">
+      <header className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-foreground/45">
+          Setup
         </p>
-        <h1 className="font-display text-3xl tracking-tight sm:text-4xl">
-          Flux Labs
-        </h1>
+        <h1 className="text-xl font-medium tracking-tight sm:text-2xl">Academic setup</h1>
         <p className="text-sm leading-relaxed text-foreground/65">
-          A short academic setup so Flux can help more usefully. Skip anything
-          you prefer not to share.
+          A short academic setup so Flux can help more usefully. Skip anything you prefer not to share.
         </p>
       </header>
 
       <div
-        className="space-y-2"
+        className="space-y-1.5"
         aria-label={`Progress: step ${stepNumber} of ${total}`}
       >
-        <div className="flex items-center justify-between text-xs text-foreground/55">
-          <span>
-            Step {stepNumber} of {total}
-          </span>
-          <span>
-            {answeredCount} saved · {bootstrap.progress.remaining} remaining
-          </span>
-        </div>
+        <p className="text-xs text-foreground/55">
+          Step {stepNumber} of {total}
+        </p>
         <div
-          className="h-1.5 overflow-hidden rounded-full bg-foreground/10"
+          className="h-1 overflow-hidden rounded-full bg-foreground/10"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -302,17 +297,19 @@ export function OnboardingFlow({ initial }: Props) {
         </div>
       </div>
 
-      <section className="space-y-4 animate-fade-up-delay" aria-live="polite">
+      <section className="space-y-3" aria-live="polite">
         <div className="space-y-1">
-          <h2 className="text-lg font-medium leading-snug">{question.prompt}</h2>
+          <h2 className="text-base font-medium leading-snug sm:text-lg">
+            {question.prompt}
+          </h2>
           <p className="text-xs text-foreground/50">
-            {question.essential ? "Essential for better help" : "Optional"}
+            {question.essential ? "Essential" : "Optional"}
             {question.skippable ? " · Skippable" : ""}
           </p>
         </div>
 
         {question.answerType === "enum" && question.options ? (
-          <fieldset className="space-y-2" disabled={pending}>
+          <fieldset className="space-y-1.5" disabled={pending}>
             <legend className="sr-only">{question.prompt}</legend>
             {question.options.map((option) => {
               const selected = draft === option.value;
@@ -320,10 +317,10 @@ export function OnboardingFlow({ initial }: Props) {
                 <label
                   key={option.value}
                   className={[
-                    "flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition",
+                    "flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm transition",
                     selected
-                      ? "border-foreground/40 bg-background"
-                      : "border-foreground/15 bg-background/60 hover:border-foreground/30",
+                      ? "border-foreground/35 bg-background"
+                      : "border-foreground/15 bg-background/50 hover:border-foreground/25",
                   ].join(" ")}
                 >
                   <input
@@ -355,10 +352,10 @@ export function OnboardingFlow({ initial }: Props) {
                   type="button"
                   aria-pressed={selected}
                   className={[
-                    "min-h-11 rounded-md border px-3 text-sm transition",
+                    "min-h-10 rounded-md border px-3 text-sm transition",
                     selected
-                      ? "border-foreground/40 bg-background"
-                      : "border-foreground/15 bg-background/60 hover:border-foreground/30",
+                      ? "border-foreground/35 bg-background"
+                      : "border-foreground/15 bg-background/50 hover:border-foreground/25",
                   ].join(" ")}
                   onClick={() => setDraft(option.value)}
                 >
@@ -370,10 +367,10 @@ export function OnboardingFlow({ initial }: Props) {
         ) : null}
 
         {question.answerType === "string" ? (
-          <label className="block space-y-1.5">
+          <label className="block">
             <span className="sr-only">{question.prompt}</span>
             <textarea
-              rows={4}
+              rows={3}
               maxLength={question.maxLength ?? 300}
               disabled={pending}
               value={typeof draft === "string" ? draft : ""}
@@ -387,7 +384,7 @@ export function OnboardingFlow({ initial }: Props) {
         {question.answerType === "string_array" ? (
           <div className="space-y-3">
             {question.questionId === "academic.subjects" ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {SUBJECT_SUGGESTIONS.map((subject) => {
                   const selected =
                     Array.isArray(draft) && draft.includes(subject);
@@ -398,10 +395,10 @@ export function OnboardingFlow({ initial }: Props) {
                       disabled={pending}
                       aria-pressed={selected}
                       className={[
-                        "min-h-10 rounded-md border px-3 text-sm transition",
+                        "min-h-9 rounded-md border px-2.5 text-sm transition",
                         selected
-                          ? "border-foreground/40 bg-background"
-                          : "border-foreground/15 bg-background/60",
+                          ? "border-foreground/35 bg-background"
+                          : "border-foreground/15 bg-background/50",
                       ].join(" ")}
                       onClick={() => {
                         const current = Array.isArray(draft) ? [...draft] : [];
@@ -433,7 +430,7 @@ export function OnboardingFlow({ initial }: Props) {
                     addTag(tagInput);
                   }
                 }}
-                className="min-h-11 flex-1 rounded-md border border-foreground/15 bg-background/80 px-3 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                className="min-h-9 flex-1 rounded-md border border-foreground/15 bg-background/80 px-3 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
                 aria-label={question.placeholder ?? "Add an item"}
               />
               <Button
@@ -447,12 +444,12 @@ export function OnboardingFlow({ initial }: Props) {
             </div>
 
             {Array.isArray(draft) && draft.length > 0 ? (
-              <ul className="flex flex-wrap gap-2" aria-label="Selected items">
+              <ul className="flex flex-wrap gap-1.5" aria-label="Selected items">
                 {draft.map((item) => (
                   <li key={item}>
                     <button
                       type="button"
-                      className="min-h-10 rounded-md border border-foreground/20 bg-background px-3 text-sm"
+                      className="min-h-9 rounded-md border border-foreground/20 bg-background px-2.5 text-sm"
                       onClick={() => removeTag(item)}
                       aria-label={`Remove ${item}`}
                     >
@@ -474,43 +471,41 @@ export function OnboardingFlow({ initial }: Props) {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           disabled={pending || index === 0}
           variant="ghost"
-          className="min-h-11 sm:order-1"
           onClick={() => goTo(index - 1)}
         >
           Back
-        </Button>
-        <Button
-          type="button"
-          disabled={pending || !canContinue}
-          className="min-h-11 sm:order-3 sm:ml-auto"
-          onClick={() => submitCurrent(false)}
-        >
-          {pending ? "Saving…" : index >= total - 1 ? "Save" : "Next"}
         </Button>
         {question.skippable ? (
           <Button
             type="button"
             variant="secondary"
             disabled={pending}
-            className="min-h-11 sm:order-2"
             onClick={() => submitCurrent(true)}
           >
             Skip
           </Button>
         ) : null}
+        <Button
+          type="button"
+          disabled={pending || !canContinue}
+          className="sm:ml-auto"
+          onClick={() => submitCurrent(false)}
+        >
+          {pending ? "Saving…" : index >= total - 1 ? "Save" : "Next"}
+        </Button>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-foreground/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-foreground/10 pt-4">
         <Button
           type="button"
           variant="ghost"
           disabled={pending}
-          className="min-h-11 justify-start px-0 sm:px-4"
+          className="px-0 sm:px-4"
           onClick={dismiss}
         >
           Skip setup for now
@@ -519,7 +514,6 @@ export function OnboardingFlow({ initial }: Props) {
           type="button"
           variant="secondary"
           disabled={pending}
-          className="min-h-11"
           onClick={finish}
         >
           Finish setup
