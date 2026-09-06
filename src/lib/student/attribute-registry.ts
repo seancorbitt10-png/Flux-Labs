@@ -135,7 +135,7 @@ export const ATTRIBUTE_REGISTRY: Record<string, AttributeRegistryEntry> = {
     key: "approach.worked_example",
     valueType: "boolean",
     schema: z.boolean(),
-    writers: ["settings", "system"],
+    writers: ["onboarding", "settings", "system"],
     defaultProvenance: "EXPLICIT",
     aiContextEligible: "optional",
     description: "Worked-example approach preference (not a learning style)",

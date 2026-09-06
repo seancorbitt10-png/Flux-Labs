@@ -19,7 +19,7 @@ export {
 } from "./attributes";
 export { applyClientAttributeUpdate } from "./client-attributes";
 
-export { createStudentGoal, listStudentGoals, updateStudentGoalStatus } from "./goals";
+export { createStudentGoal, listStudentGoals, updateStudentGoalStatus, upsertStudentGoalByCategory } from "./goals";
 export {
   getStudentProfile,
   ensureStudentProfile,
