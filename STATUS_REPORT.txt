@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-08 23:12 UTC
+Updated: 2026-09-08 23:20 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,8 +13,10 @@ Phase 2 complete on main (Implementations #1–#6).
 Phase 3 architecture HUMAN-APPROVED on main.
 
 Phase 3 Implementation #1 (Academic Workspace Data Foundation) is on DRAFT PR #10,
-awaiting independent review.
+awaiting independent review after HIGH remediation (calendar global limit +
+class date partial-update invariant).
 
+PR #10 is NOT CLEAR FOR MERGE until the next independent review.
 Phase 3 / product are NOT complete.
 
 --------------------------------------------------------------------------------
@@ -23,9 +25,9 @@ REPOSITORY
 
 origin/main:              0b118cf (authorize Phase 3 implementation slice 1)
 Working branch:           cursor/phase3-academic-workspace-foundation-399a
-Final commit:             3eab02d82f9f62377cc21496428660390741fbc8
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/10
-PR state:                 draft, open, mergeable
+Final commit:             7edd4375ce361e7af5b5caaaca9402f5366a102d
+PR state:                 draft, open, unmerged — awaiting re-review
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -35,48 +37,45 @@ PHASE / IMPLEMENTATION STATUS
 
 Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
-Phase 3 Implementation #1         DRAFT — awaiting independent review
+Phase 3 Implementation #1         DRAFT PR #10 — remediated; awaiting re-review
 Phase 3 Implementations #2–#4     NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 (THIS SLICE)
+IMPLEMENTATION #1 + REMEDIATION
 --------------------------------------------------------------------------------
 
 Academic Workspace Data Foundation — Class / Task / TaskConcept + calendar query.
 
-Features:
-- Prisma Class, Task, TaskConcept models + enums + migration
-- Domain services: class/task CRUD, archive, status transitions, concept attach/detach
-- Ownership-scoped queries (id + userId); not-found for cross-user IDs
-- Server-owned userId / completedAt; Zod validation; status transition matrix
-- Class delete SET NULL on Task.classId (tasks preserved)
-- Deterministic calendar read query (no CalendarEvent table)
-- Educational wipe extended to Classes/Tasks
-- No UI, no assembleAIContext changes, stub provider unchanged
+Remediation (HIGH findings):
+1. Calendar query merges all matching Task + class-period records, sorts with
+   deterministic tie-breakers (sortAt, kind, id), then applies the global limit.
+   `truncated` reflects whether more merged items exist.
+2. updateClass validates effective next startsAt/endsAt against the persisted
+   row so partial updates cannot break startsAt <= endsAt.
 
-Database: migration 20260908215328_phase3_academic_workspace_foundation
+No schema/migration changes in remediation.
+No UI / AI context / out-of-scope features.
 
-Quality gates (on tip 3eab02d):
-npm test                 135/135 pass
+Quality gates:
+npm test                 142/142 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
 prisma migrate status    up to date (6 migrations)
 
 Intentionally deferred:
-- Classes / Tasks / Calendar UI (Impl #2–#3)
-- Academic AI context integration (Impl #4)
+- Classes / Tasks / Calendar UI
+- Academic AI context integration
 - LMS / external calendar / notifications / gradebook / recurring schedules
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Implementation #1 PR #10
-2. Do not merge until CLEAR FOR MERGE
-3. Do not start UI slices until review cadence allows
-4. Do not claim Phase 3 or product complete
+1. Independent re-review of PR #10 tip after remediation
+2. Do not merge until CLEAR FOR MERGE from that review
+3. Do not claim Phase 3 or product complete
 
 ================================================================================
 END OF STATUS REPORT

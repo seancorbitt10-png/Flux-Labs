@@ -52,9 +52,27 @@ export type CalendarQueryResult = {
 };
 
 /**
+ * Deterministic total order for calendar items.
+ * 1) sortAt ascending
+ * 2) kind: class_period before task (stable mixed timelines)
+ * 3) id ascending (tie-breaker)
+ */
+export function compareCalendarItems(a: CalendarItem, b: CalendarItem): number {
+  const byTime = a.sortAt.getTime() - b.sortAt.getTime();
+  if (byTime !== 0) return byTime;
+  if (a.kind !== b.kind) {
+    return a.kind === "class_period" ? -1 : 1;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+/**
  * Deterministic calendar read projection.
  * Tasks remain the source of truth for deadlines — no CalendarEvent table.
  * Class startsAt/endsAt appear only as optional course-period metadata.
+ *
+ * Global limit applies AFTER merging all matching sources so earlier records
+ * cannot be dropped by per-source take().
  */
 export async function queryAcademicCalendar(args: {
   actorUserId: string;
@@ -83,7 +101,8 @@ export async function queryAcademicCalendar(args: {
     }
   }
 
-  // Task appears in range if dueAt OR startsAt falls within [from, to].
+  // Load all matching tasks in range (ownership-scoped). Limit is applied
+  // only after merge so ordering is globally correct.
   const tasks = await prisma.task.findMany({
     where: {
       userId: args.userId,
@@ -105,14 +124,15 @@ export async function queryAcademicCalendar(args: {
         },
       },
     },
-    orderBy: [{ dueAt: "asc" }, { startsAt: "asc" }, { createdAt: "asc" }],
-    take: limit + 1,
+    orderBy: [{ dueAt: "asc" }, { startsAt: "asc" }, { id: "asc" }],
   });
 
-  const taskItems: CalendarTaskItem[] = tasks.slice(0, limit).map((t) => {
-    const sortAt = t.dueAt ?? t.startsAt!;
-    return {
-      kind: "task" as const,
+  const taskItems: CalendarTaskItem[] = [];
+  for (const t of tasks) {
+    const sortAt = t.dueAt ?? t.startsAt;
+    if (!sortAt) continue;
+    taskItems.push({
+      kind: "task",
       id: t.id,
       title: t.title,
       status: t.status,
@@ -130,8 +150,8 @@ export async function queryAcademicCalendar(args: {
           }
         : null,
       sortAt,
-    };
-  });
+    });
+  }
 
   // Optional course-period metadata (not recurring events).
   // Only include when no task-status filter (status filters apply to tasks).
@@ -155,7 +175,7 @@ export async function queryAcademicCalendar(args: {
         startsAt: true,
         endsAt: true,
       },
-      take: limit,
+      orderBy: [{ startsAt: "asc" }, { endsAt: "asc" }, { id: "asc" }],
     });
 
     for (const c of classes) {
@@ -175,11 +195,8 @@ export async function queryAcademicCalendar(args: {
     }
   }
 
-  const merged = [...taskItems, ...classPeriodItems].sort(
-    (a, b) => a.sortAt.getTime() - b.sortAt.getTime(),
-  );
-  const truncated =
-    tasks.length > limit || merged.length > limit;
+  const merged = [...taskItems, ...classPeriodItems].sort(compareCalendarItems);
+  const truncated = merged.length > limit;
   const items = merged.slice(0, limit);
 
   return { from, to, items, truncated, limit };

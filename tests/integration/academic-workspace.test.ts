@@ -5,6 +5,7 @@ import {
   assertNoClientAcademicAuthority,
   archiveClass,
   attachTaskConcepts,
+  compareCalendarItems,
   createClass,
   createTask,
   deleteClass,
@@ -739,6 +740,257 @@ describe("Phase 3 Academic Workspace Data Foundation", () => {
       });
       expect(result.items.length).toBeLessThanOrEqual(3);
       expect(result.truncated).toBe(true);
+    });
+
+    it("applies global limit after merge so early class periods are not dropped", async () => {
+      const user = await createUser(`mix-${Date.now()}`);
+      // Earliest: class period on day 1
+      await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Early Class",
+          term: "Fall 2026",
+          startsAt: "2026-12-01T08:00:00.000Z",
+          endsAt: "2026-12-20T08:00:00.000Z",
+        },
+      });
+      // Three later tasks
+      for (let i = 0; i < 3; i++) {
+        await createTask({
+          actorUserId: user.id,
+          userId: user.id,
+          input: {
+            title: `Later Task ${i}`,
+            dueAt: `2026-12-1${i + 2}T12:00:00.000Z`,
+          },
+        });
+      }
+      // Another class period later
+      await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Late Class",
+          term: "Fall 2026",
+          startsAt: "2026-12-18T08:00:00.000Z",
+          endsAt: "2026-12-25T08:00:00.000Z",
+        },
+      });
+
+      const result = await queryAcademicCalendar({
+        actorUserId: user.id,
+        userId: user.id,
+        query: {
+          from: "2026-12-01T00:00:00.000Z",
+          to: "2026-12-31T23:59:59.000Z",
+          limit: 3,
+        },
+      });
+
+      expect(result.items).toHaveLength(3);
+      expect(result.truncated).toBe(true);
+      // First item must be the earliest class period, not a later task.
+      expect(result.items[0]!.kind).toBe("class_period");
+      expect(result.items[0]!.kind === "class_period" && result.items[0].name).toBe(
+        "Early Class",
+      );
+      expect(result.items[1]!.kind).toBe("task");
+      expect(result.items[2]!.kind).toBe("task");
+
+      // Full ordered set without limit for regression comparison
+      const full = await queryAcademicCalendar({
+        actorUserId: user.id,
+        userId: user.id,
+        query: {
+          from: "2026-12-01T00:00:00.000Z",
+          to: "2026-12-31T23:59:59.000Z",
+          limit: 50,
+        },
+      });
+      expect(full.truncated).toBe(false);
+      expect(full.items.slice(0, 3).map((i) => i.id)).toEqual(
+        result.items.map((i) => i.id),
+      );
+    });
+
+    it("orders equal sortAt with deterministic kind then id tie-breakers", () => {
+      const t = new Date("2026-12-10T12:00:00.000Z");
+      const a = {
+        kind: "task" as const,
+        id: "task-b",
+        title: "B",
+        status: "TODO" as const,
+        dueAt: t,
+        startsAt: null,
+        priority: null,
+        estimatedMinutes: null,
+        class: null,
+        sortAt: t,
+      };
+      const b = {
+        kind: "class_period" as const,
+        id: "class-a",
+        name: "A",
+        term: "Fall",
+        status: "ACTIVE" as const,
+        courseCode: null,
+        startsAt: t,
+        endsAt: null,
+        sortAt: t,
+      };
+      const c = {
+        kind: "task" as const,
+        id: "task-a",
+        title: "A",
+        status: "TODO" as const,
+        dueAt: t,
+        startsAt: null,
+        priority: null,
+        estimatedMinutes: null,
+        class: null,
+        sortAt: t,
+      };
+      const sorted = [a, b, c].sort(compareCalendarItems);
+      expect(sorted.map((i) => i.id)).toEqual(["class-a", "task-a", "task-b"]);
+    });
+  });
+
+  describe("class date invariant on partial update", () => {
+    it("rejects updating only startsAt into an invalid range", async () => {
+      const user = await createUser(`cdate-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Date Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      await expect(
+        updateClass({
+          actorUserId: user.id,
+          userId: user.id,
+          classId: klass.id,
+          input: { startsAt: "2026-01-30T00:00:00.000Z" },
+        }),
+      ).rejects.toThrow(/Class start must be on or before end/);
+
+      const still = await getClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+      });
+      expect(still.startsAt?.toISOString()).toBe("2026-01-10T00:00:00.000Z");
+      expect(still.endsAt?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
+    });
+
+    it("rejects updating only endsAt into an invalid range", async () => {
+      const user = await createUser(`cend-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Date Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      await expect(
+        updateClass({
+          actorUserId: user.id,
+          userId: user.id,
+          classId: klass.id,
+          input: { endsAt: "2026-01-05T00:00:00.000Z" },
+        }),
+      ).rejects.toThrow(/Class start must be on or before end/);
+    });
+
+    it("accepts updating both dates to a valid range", async () => {
+      const user = await createUser(`cboth-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Date Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      const updated = await updateClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+        input: {
+          startsAt: "2026-02-01T00:00:00.000Z",
+          endsAt: "2026-02-28T00:00:00.000Z",
+        },
+      });
+      expect(updated.startsAt?.toISOString()).toBe("2026-02-01T00:00:00.000Z");
+      expect(updated.endsAt?.toISOString()).toBe("2026-02-28T00:00:00.000Z");
+    });
+
+    it("allows clearing nullable date fields", async () => {
+      const user = await createUser(`cclear-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Date Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      const clearedStart = await updateClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+        input: { startsAt: null },
+      });
+      expect(clearedStart.startsAt).toBeNull();
+      expect(clearedStart.endsAt?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
+
+      const clearedBoth = await updateClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+        input: { endsAt: null },
+      });
+      expect(clearedBoth.startsAt).toBeNull();
+      expect(clearedBoth.endsAt).toBeNull();
+    });
+
+    it("preserves valid dates when updating unrelated fields", async () => {
+      const user = await createUser(`cunrel-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Date Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      const updated = await updateClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+        input: { instructorName: "Dr. Preserved" },
+      });
+      expect(updated.instructorName).toBe("Dr. Preserved");
+      expect(updated.startsAt?.toISOString()).toBe("2026-01-10T00:00:00.000Z");
+      expect(updated.endsAt?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
     });
   });
 });

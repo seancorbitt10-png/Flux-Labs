@@ -96,6 +96,22 @@ export async function updateClass(args: {
 
   const data = parseOrThrow(updateClassInputSchema.safeParse(args.input));
 
+  // Load owned row first so date invariants use the effective next state,
+  // not only the fields present in this request.
+  const existing = await prisma.class.findFirst({
+    where: { id: args.classId, userId: args.userId },
+  });
+  if (!existing) {
+    throw new ValidationError("Class not found.");
+  }
+
+  const nextStartsAt =
+    data.startsAt !== undefined ? data.startsAt : existing.startsAt;
+  const nextEndsAt = data.endsAt !== undefined ? data.endsAt : existing.endsAt;
+  if (nextStartsAt && nextEndsAt && nextStartsAt > nextEndsAt) {
+    throw new ValidationError("Class start must be on or before end.");
+  }
+
   // Ownership-scoped update — never mutate by id alone.
   const updated = await prisma.class.updateMany({
     where: { id: args.classId, userId: args.userId },

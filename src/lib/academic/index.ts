@@ -47,6 +47,7 @@ export {
 
 export {
   queryAcademicCalendar,
+  compareCalendarItems,
   type CalendarItem,
   type CalendarQueryResult,
   type CalendarTaskItem,
