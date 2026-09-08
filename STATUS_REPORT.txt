@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-08 23:25 UTC
+Updated: 2026-09-08 23:33 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,10 +13,11 @@ Phase 2 complete on main (Implementations #1–#6).
 Phase 3 architecture HUMAN-APPROVED on main.
 
 Phase 3 Implementation #1 (Academic Workspace Data Foundation) is on DRAFT PR #10
-after HIGH remediation (calendar global limit + class date partial-update
-invariant), awaiting independent re-review.
+after a second remediation round:
+  - bounded globally-correct calendar UNION query
+  - Class date race safety (FOR UPDATE + DB CHECK)
 
-PR #10 is NOT CLEAR FOR MERGE until that re-review.
+PR #10 is NOT CLEAR FOR MERGE until the next independent review.
 Phase 3 / product are NOT complete.
 PR #10 is NOT merged.
 
@@ -26,9 +27,9 @@ REPOSITORY
 
 origin/main:              0b118cf (authorize Phase 3 implementation slice 1)
 Working branch:           cursor/phase3-academic-workspace-foundation-399a
-Branch tip:               5890da9a5e4ecc0dcfdb49a82fb522545f62fec3
-Remediation fix commit:   1694c4f (calendar global limit + class date invariant)
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/10
+Branch tip:               069488db4953548dc9d79cd1be4e81d2d4804fc4
+Remediation commit:       069488db4953548dc9d79cd1be4e81d2d4804fc4
 PR state:                 draft, open, mergeable, unmerged — awaiting re-review
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
@@ -39,49 +40,44 @@ PHASE / IMPLEMENTATION STATUS
 
 Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
-Phase 3 Implementation #1         DRAFT PR #10 — remediated; awaiting re-review
+Phase 3 Implementation #1         DRAFT PR #10 — 2nd remediation; awaiting re-review
 Phase 3 Implementations #2–#4     NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 + REMEDIATION
+SECOND REMEDIATION SUMMARY
 --------------------------------------------------------------------------------
 
-Academic Workspace Data Foundation — Class / Task / TaskConcept + calendar query.
+Calendar:
+- Parameterized SQL UNION of Task + class_period candidates
+- ORDER BY sortAt ASC, kind ASC, id ASC
+- LIMIT limit+1 (bounded key fetch); hydrate only page IDs
+- `limit` = max items returned; `truncated` = more matches exist
+- Global order preserved; no CalendarEvent table
 
-Original slice:
-- Prisma Class, Task, TaskConcept models + enums + migration
-- Ownership-scoped domain services; Zod validation; status/completedAt rules
-- Class delete SET NULL on Task.classId (tasks preserved)
-- Deterministic calendar read query (no CalendarEvent table)
-- No UI; no assembleAIContext changes
+Class dates:
+- updateClass uses transaction + SELECT ... FOR UPDATE
+- Application validates effective next startsAt/endsAt
+- DB CHECK classes_starts_before_ends_check as concurrency backstop
+- Migration: 20260908233123_phase3_class_starts_before_ends_check
 
-HIGH remediation:
-1. Calendar merges all matching Task + class-period records, sorts with
-   deterministic tie-breakers (sortAt, kind, id), then applies the global limit.
-   `truncated` reflects whether more merged items exist.
-2. updateClass validates effective next startsAt/endsAt against the persisted
-   row so partial updates cannot break startsAt <= endsAt.
-
-No schema/migration changes in remediation.
-
-Quality gates (on tip):
-npm test                 142/142 pass
+Quality gates:
+npm test                 145/145 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
-prisma migrate status    up to date (6 migrations)
+prisma migrate status    up to date (7 migrations)
 
 Intentionally deferred:
-- Classes / Tasks / Calendar UI (Impl #2–#3)
-- Academic AI context integration (Impl #4)
+- Classes / Tasks / Calendar UI
+- Academic AI context integration
 - LMS / external calendar / notifications / gradebook / recurring schedules
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of PR #10 tip after remediation
+1. Independent re-review of PR #10 tip after second remediation
 2. Do not merge until CLEAR FOR MERGE from that review
 3. Do not start UI slices until review cadence allows
 4. Do not claim Phase 3 or product complete

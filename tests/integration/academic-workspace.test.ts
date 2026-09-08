@@ -5,12 +5,14 @@ import {
   assertNoClientAcademicAuthority,
   archiveClass,
   attachTaskConcepts,
+  calendarKeyFetchCap,
   compareCalendarItems,
   createClass,
   createTask,
   deleteClass,
   deleteTask,
   detachTaskConcepts,
+  fetchCalendarPageKeys,
   getClass,
   getTask,
   listClasses,
@@ -854,6 +856,72 @@ describe("Phase 3 Academic Workspace Data Foundation", () => {
       const sorted = [a, b, c].sort(compareCalendarItems);
       expect(sorted.map((i) => i.id)).toEqual(["class-a", "task-a", "task-b"]);
     });
+
+    it("bounds key retrieval to limit+1 even when many matches exist", async () => {
+      const user = await createUser(`bound-${Date.now()}`);
+      for (let i = 0; i < 40; i++) {
+        const day = String((i % 28) + 1).padStart(2, "0");
+        await createTask({
+          actorUserId: user.id,
+          userId: user.id,
+          input: {
+            title: `Bulk ${i}`,
+            dueAt: `2027-01-${day}T12:00:00.000Z`,
+          },
+        });
+      }
+
+      const limit = 5;
+      const keys = await fetchCalendarPageKeys({
+        userId: user.id,
+        from: new Date("2027-01-01T00:00:00.000Z"),
+        to: new Date("2027-01-31T23:59:59.000Z"),
+        limit,
+        status: "TODO",
+      });
+      expect(keys.length).toBeLessThanOrEqual(calendarKeyFetchCap(limit));
+      expect(keys.length).toBe(limit + 1); // proves truncated detection without full scan
+
+      const page = await queryAcademicCalendar({
+        actorUserId: user.id,
+        userId: user.id,
+        query: {
+          from: "2027-01-01T00:00:00.000Z",
+          to: "2027-01-31T23:59:59.000Z",
+          limit,
+          status: "TODO",
+        },
+      });
+      expect(page.items).toHaveLength(limit);
+      expect(page.truncated).toBe(true);
+      expect(page.items.map((i) => i.id)).toEqual(
+        keys.slice(0, limit).map((k) => k.id),
+      );
+    });
+
+    it("truncated is false when the page contains the full matching set", async () => {
+      const user = await createUser(`fullpage-${Date.now()}`);
+      await createTask({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          title: "Only one",
+          dueAt: "2027-02-10T12:00:00.000Z",
+        },
+      });
+      const page = await queryAcademicCalendar({
+        actorUserId: user.id,
+        userId: user.id,
+        query: {
+          from: "2027-02-01T00:00:00.000Z",
+          to: "2027-02-28T00:00:00.000Z",
+          limit: 10,
+          status: "TODO",
+        },
+      });
+      expect(page.items).toHaveLength(1);
+      expect(page.truncated).toBe(false);
+    });
   });
 
   describe("class date invariant on partial update", () => {
@@ -991,6 +1059,64 @@ describe("Phase 3 Academic Workspace Data Foundation", () => {
       expect(updated.instructorName).toBe("Dr. Preserved");
       expect(updated.startsAt?.toISOString()).toBe("2026-01-10T00:00:00.000Z");
       expect(updated.endsAt?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
+    });
+
+    it("rejects concurrent conflicting date updates without leaving invalid state", async () => {
+      const user = await createUser(`crace-${Date.now()}`);
+      const klass = await createClass({
+        actorUserId: user.id,
+        userId: user.id,
+        input: {
+          name: "Race Class",
+          term: "Fall 2026",
+          startsAt: "2026-01-10T00:00:00.000Z",
+          endsAt: "2026-01-20T00:00:00.000Z",
+        },
+      });
+
+      const results = await Promise.allSettled([
+        updateClass({
+          actorUserId: user.id,
+          userId: user.id,
+          classId: klass.id,
+          input: { startsAt: "2026-01-25T00:00:00.000Z" },
+        }),
+        updateClass({
+          actorUserId: user.id,
+          userId: user.id,
+          classId: klass.id,
+          input: { endsAt: "2026-01-05T00:00:00.000Z" },
+        }),
+      ]);
+
+      // At least one must fail; both may fail depending on lock order.
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(rejected.length).toBeGreaterThanOrEqual(1);
+
+      const final = await getClass({
+        actorUserId: user.id,
+        userId: user.id,
+        classId: klass.id,
+      });
+      if (final.startsAt && final.endsAt) {
+        expect(final.startsAt.getTime()).toBeLessThanOrEqual(
+          final.endsAt.getTime(),
+        );
+      }
+
+      // DB CHECK must also hold for any row.
+      const raw = await prisma.$queryRaw<
+        Array<{ ok: boolean }>
+      >`
+        SELECT (
+          "startsAt" IS NULL
+          OR "endsAt" IS NULL
+          OR "startsAt" <= "endsAt"
+        ) AS ok
+        FROM classes
+        WHERE id = ${klass.id}
+      `;
+      expect(raw[0]?.ok).toBe(true);
     });
   });
 });

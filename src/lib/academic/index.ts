@@ -47,6 +47,8 @@ export {
 
 export {
   queryAcademicCalendar,
+  fetchCalendarPageKeys,
+  calendarKeyFetchCap,
   compareCalendarItems,
   type CalendarItem,
   type CalendarQueryResult,

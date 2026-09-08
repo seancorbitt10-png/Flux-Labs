@@ -476,6 +476,8 @@ model Class {
 
   @@index([userId, status])
   @@index([userId, term])
+  // Temporal invariant (DB CHECK classes_starts_before_ends_check):
+  // startsAt IS NULL OR endsAt IS NULL OR startsAt <= endsAt
   @@map("classes")
 }
 

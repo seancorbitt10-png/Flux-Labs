@@ -96,48 +96,104 @@ export async function updateClass(args: {
 
   const data = parseOrThrow(updateClassInputSchema.safeParse(args.input));
 
-  // Load owned row first so date invariants use the effective next state,
-  // not only the fields present in this request.
-  const existing = await prisma.class.findFirst({
-    where: { id: args.classId, userId: args.userId },
-  });
-  if (!existing) {
-    throw new ValidationError("Class not found.");
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // Row lock prevents concurrent partial updates from racing past
+      // application-level date validation. DB CHECK is the final backstop.
+      const locked = await tx.$queryRaw<
+        Array<{
+          id: string;
+          userId: string;
+          name: string;
+          term: string;
+          status: ClassStatus;
+          courseCode: string | null;
+          instructorName: string | null;
+          description: string | null;
+          startsAt: Date | null;
+          endsAt: Date | null;
+          createdAt: Date;
+          updatedAt: Date;
+        }>
+      >`
+        SELECT *
+        FROM classes
+        WHERE id = ${args.classId} AND "userId" = ${args.userId}
+        FOR UPDATE
+      `;
+
+      const existing = locked[0];
+      if (!existing) {
+        throw new ValidationError("Class not found.");
+      }
+
+      const nextStartsAt =
+        data.startsAt !== undefined ? data.startsAt : existing.startsAt;
+      const nextEndsAt =
+        data.endsAt !== undefined ? data.endsAt : existing.endsAt;
+      if (nextStartsAt && nextEndsAt && nextStartsAt > nextEndsAt) {
+        throw new ValidationError("Class start must be on or before end.");
+      }
+
+      const updated = await tx.class.updateMany({
+        where: { id: args.classId, userId: args.userId },
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.term !== undefined ? { term: data.term } : {}),
+          ...(data.status !== undefined ? { status: data.status } : {}),
+          ...(data.courseCode !== undefined
+            ? { courseCode: data.courseCode }
+            : {}),
+          ...(data.instructorName !== undefined
+            ? { instructorName: data.instructorName }
+            : {}),
+          ...(data.description !== undefined
+            ? { description: data.description }
+            : {}),
+          ...(data.startsAt !== undefined ? { startsAt: data.startsAt } : {}),
+          ...(data.endsAt !== undefined ? { endsAt: data.endsAt } : {}),
+        },
+      });
+
+      if (updated.count !== 1) {
+        throw new ValidationError("Class not found.");
+      }
+
+      const row = await tx.class.findFirst({
+        where: { id: args.classId, userId: args.userId },
+      });
+      if (!row) {
+        throw new ValidationError("Class not found.");
+      }
+      return row;
+    });
+  } catch (error) {
+    if (isClassDateCheckViolation(error)) {
+      throw new ValidationError("Class start must be on or before end.");
+    }
+    throw error;
   }
+}
 
-  const nextStartsAt =
-    data.startsAt !== undefined ? data.startsAt : existing.startsAt;
-  const nextEndsAt = data.endsAt !== undefined ? data.endsAt : existing.endsAt;
-  if (nextStartsAt && nextEndsAt && nextStartsAt > nextEndsAt) {
-    throw new ValidationError("Class start must be on or before end.");
-  }
-
-  // Ownership-scoped update — never mutate by id alone.
-  const updated = await prisma.class.updateMany({
-    where: { id: args.classId, userId: args.userId },
-    data: {
-      ...(data.name !== undefined ? { name: data.name } : {}),
-      ...(data.term !== undefined ? { term: data.term } : {}),
-      ...(data.status !== undefined ? { status: data.status } : {}),
-      ...(data.courseCode !== undefined ? { courseCode: data.courseCode } : {}),
-      ...(data.instructorName !== undefined
-        ? { instructorName: data.instructorName }
-        : {}),
-      ...(data.description !== undefined ? { description: data.description } : {}),
-      ...(data.startsAt !== undefined ? { startsAt: data.startsAt } : {}),
-      ...(data.endsAt !== undefined ? { endsAt: data.endsAt } : {}),
-    },
-  });
-
-  if (updated.count !== 1) {
-    throw new ValidationError("Class not found.");
-  }
-
-  return getClass({
-    actorUserId: args.actorUserId,
-    userId: args.userId,
-    classId: args.classId,
-  });
+function isClassDateCheckViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message
+      : "";
+  const meta =
+    "meta" in error && error.meta && typeof error.meta === "object"
+      ? (error.meta as Record<string, unknown>)
+      : null;
+  const metaMessage =
+    meta && typeof meta.message === "string" ? meta.message : "";
+  const combined = `${message} ${metaMessage}`;
+  return (
+    combined.includes("classes_starts_before_ends_check") ||
+    (combined.includes("check constraint") &&
+      combined.includes("startsAt") &&
+      combined.includes("endsAt"))
+  );
 }
 
 export async function archiveClass(args: {
