@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/errors";
 import { assembleAIContext } from "./context-assembly";
 import { decideAssistancePolicy } from "./policy";
+import { ingestProposalsFromProviderReply } from "./proposals";
 import { buildOrchestrationMessages } from "./prompt";
 import { getAIProvider } from "./provider";
 import { validateProviderCompletion } from "./response-validation";
@@ -23,11 +24,12 @@ const MAX_USER_MESSAGE_CHARS = 4_000;
  * Central AI orchestration boundary.
  *
  * Auth (caller) → entitlement reserve → route → policy → assembleAIContext
- * → prompt hierarchy → provider → validate reply → usage log
+ * → prompt hierarchy → provider → validate reply → optional proposal ingest
+ * → usage log
  *
  * - Consumes assembleAIContext (read-only Student Model slice)
  * - Student content is DATA in the prompt fence, never instructions
- * - No Student Model writes / no AI proposal persistence in this layer
+ * - AI proposals are validated/persisted as PENDING only — never auto-written
  * - Clients never select models, providers, provenance, or confidence
  * - Stub provider remains the default until a later provider slice
  */
@@ -36,9 +38,8 @@ export async function runAIOrchestration(
 ): Promise<OrchestrationResult> {
   rejectClientAuthority(request);
 
-  if (typeof request.userId !== "string" || !request.userId) {
-    throw new ValidationError("userId is required.");
-  }
+  const actorUserId = resolveAuthenticatedActor(request);
+
   if (typeof request.userMessage !== "string") {
     throw new ValidationError("userMessage must be a string.");
   }
@@ -54,13 +55,13 @@ export async function runAIOrchestration(
   const route = routeAITask(userMessage);
   const capability = capabilityForRoute(route.taskType, route.modelKey);
 
-  await reserveCapability(request.userId, capability);
+  await reserveCapability(actorUserId, capability);
 
   const policy = decideAssistancePolicy(route.taskType, userMessage);
 
   const assembled = await assembleAIContext({
-    actorUserId: request.userId,
-    userId: request.userId,
+    actorUserId,
+    userId: actorUserId,
     taskType: route.taskType,
     conceptIds: request.conceptIds,
     userMessage,
@@ -84,7 +85,7 @@ export async function runAIOrchestration(
     });
   } catch (error) {
     await recordUsage({
-      userId: request.userId,
+      userId: actorUserId,
       capability,
       feature: "ai.orchestration",
       aiTaskType: route.taskType,
@@ -107,7 +108,7 @@ export async function runAIOrchestration(
     validated = validateProviderCompletion(completion);
   } catch (error) {
     await recordUsage({
-      userId: request.userId,
+      userId: actorUserId,
       capability,
       feature: "ai.orchestration",
       aiTaskType: route.taskType,
@@ -126,7 +127,7 @@ export async function runAIOrchestration(
   }
 
   await recordUsage({
-    userId: request.userId,
+    userId: actorUserId,
     capability,
     feature: "ai.orchestration",
     aiTaskType: route.taskType,
@@ -148,15 +149,22 @@ export async function runAIOrchestration(
   });
 
   // Operational interaction log only — not Student Model persistence.
-  await prisma.aIInteraction.create({
+  const interaction = await prisma.aIInteraction.create({
     data: {
-      userId: request.userId,
+      userId: actorUserId,
       taskType: route.taskType,
       assistanceMode: policy.mode,
       modelKey: completion.modelKey,
       requestSummary: redactRequestSummary(userMessage),
       success: true,
     },
+  });
+
+  // Controlled proposal ingest — PENDING only; never auto-mutates Student Model.
+  const ingested = await ingestProposalsFromProviderReply({
+    actorUserId,
+    reply: validated.text,
+    aiInteractionId: interaction.id,
   });
 
   return {
@@ -167,6 +175,16 @@ export async function runAIOrchestration(
     requiresStudentParticipation: policy.requiresStudentParticipation,
     replyTruncated: validated.truncated,
     contextVersion: assembled.version,
+    proposals: ingested.proposals
+      .filter((p) => p.status === "PENDING")
+      .map((p) => ({
+        id: p.id,
+        type: p.type,
+        status: p.status,
+        target: p.target,
+        proposedValue: p.proposedValue,
+        rationale: p.rationale,
+      })),
     usage: {
       inputTokens: completion.inputTokens,
       outputTokens: completion.outputTokens,
@@ -174,6 +192,25 @@ export async function runAIOrchestration(
       latencyMs: completion.latencyMs,
     },
   };
+}
+
+/**
+ * Bind orchestration to the authenticated actor.
+ * Rejects legacy/caller-supplied userId bags that disagree with actorUserId.
+ */
+function resolveAuthenticatedActor(request: OrchestrationRequest): string {
+  if (typeof request.actorUserId !== "string" || !request.actorUserId) {
+    throw new ValidationError("actorUserId is required.");
+  }
+
+  const bag = request as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(bag, "userId")) {
+    throw new ValidationError(
+      "Orchestration rejects caller-supplied userId; use authenticated actorUserId only.",
+    );
+  }
+
+  return request.actorUserId;
 }
 
 /**
@@ -198,6 +235,10 @@ function rejectClientAuthority(request: OrchestrationRequest): void {
     "goals",
     "extraContext",
     "messages",
+    "approved",
+    "authorized",
+    "entitlement",
+    "ownership",
   ] as const;
 
   for (const key of forbidden) {
@@ -216,6 +257,7 @@ function rejectClientAuthority(request: OrchestrationRequest): void {
       "source",
       "systemPrompt",
       "instructions",
+      "userId",
     ] as const) {
       if (Object.prototype.hasOwnProperty.call(ctx, key)) {
         throw new ValidationError(

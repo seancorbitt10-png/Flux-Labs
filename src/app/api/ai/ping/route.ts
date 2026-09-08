@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const result = await runAIOrchestration({
-      userId,
+      actorUserId: userId,
       userMessage: parsed.data.message,
     });
 
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       taskType: result.taskType,
       assistanceMode: result.assistanceMode,
       requiresStudentParticipation: result.requiresStudentParticipation,
+      proposals: result.proposals,
     });
   } catch (error) {
     const client = toClientError(error);

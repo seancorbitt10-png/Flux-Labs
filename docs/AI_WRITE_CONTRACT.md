@@ -1,14 +1,15 @@
 # AI Write / Proposal Contract
 
-**Status:** CONTRACT — design only; proposal pipeline not implemented
+**Status:** CONTRACT — Phase 2 Implementation #5 proposal pipeline implemented
 **Authority:** Subordinate to `docs/PHASE2_ARCHITECTURE.md` (human-approved)
 **Related:** `docs/AI_CONTEXT_CONTRACT.md`, `docs/ENGINEERING_NON_NEGOTIABLES.md`
+**Code:** `src/lib/ai/proposals/` (schema → parse → ingest → confirm → Student Model domain services)
 
 ---
 
 ## 1. Purpose
 
-Define how future AI-generated educational suggestions interact with persistence.
+Define how AI-generated educational suggestions interact with persistence.
 
 Core principle:
 
@@ -16,20 +17,20 @@ Core principle:
 > **AI PROPOSAL ≠ AUTOMATIC PERSISTENCE.**
 > **AI INFERENCE ≠ AUTHORITATIVE STUDENT FACT.**
 
-Conceptual pipeline (future):
+Implemented pipeline:
 
 ```
 AI response
-  → Structured proposal (parsed, typed)
+  → Structured proposal fence (parsed, typed)
   → Server validation (schema / allowlists)
-  → Authorization / ownership (authenticated actor)
-  → Provenance assignment (server only)
-  → Confidence assignment (server only)
-  → Persistence decision (accept / reject / defer)
-  → Student Model write via domain services
+  → Authorization / ownership (authenticated actorUserId)
+  → PENDING proposal row (minimal metadata)
+  → Authorized confirmation (proposalId only)
+  → Provenance / confidence assignment (server only, via domain services)
+  → Student Model write via existing domain services
 ```
 
-Do **not** implement this pipeline in the current documentation task.
+Material Student Model mutations require confirmation. Orchestration never auto-applies proposals.
 
 ---
 
