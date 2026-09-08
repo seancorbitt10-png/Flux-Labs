@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-05 18:44 UTC
+Updated: 2026-09-08 10:55 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -10,32 +10,28 @@ BOTTOM LINE
 
 Phase 1 complete on main.
 Phase 2 architecture HUMAN-APPROVED and on main.
-Phase 2 Implementation #1 (Student Model) MERGED to main.
+Phase 2 Implementations #1–#3 MERGED to main
+  (#1 Student Model; #2 AI context assembly; #3 AI orchestration).
 
-Phase 2 Implementation #2 (AI context assembly) + Implementation #3
-(AI orchestration boundary) are on PR #5.
+Phase 2 Implementation #5 (controlled AI proposal / write-back) is on
+DRAFT PR #7, awaiting independent review.
 
-Independent re-review of Implementation #3: CLEAR FOR MERGE
-- Critical: 0
-- High: 0
-- Medium: 3 (non-blocking)
-- Feature commit: 8aaa543
+Phase 2 Implementation #4 (onboarding product / UI) was NOT started —
+this agent was instructed to build Implementation #5 only.
 
-PR #5 remains DRAFT pending human merge.
 Phase 2 / pre-deploy product are NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              7c1fd66 (Phase 1 + Impl #1)
-Working branch:           cursor/phase2-ai-orchestration-boundary-399a
-Branch HEAD:              cf92aac
-Impl #3 feature:          8aaa543
-Includes:                 Impl #2 (assembleAIContext) + Impl #3 (orchestration)
+origin/main:              92f22f2 (Merge PR #5 — Impl #2 + #3)
+Working branch:           cursor/phase2-ai-proposal-writeback-399a
+Branch HEAD:              308fe68
+Impl #5 feature:          308fe68
 
-PR #5 (draft, CLEAR FOR MERGE):
-https://github.com/seancorbitt10-png/Flux-Labs/pull/5
+PR #7 (draft, awaiting independent review):
+https://github.com/seancorbitt10-png/Flux-Labs/pull/7
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -46,48 +42,78 @@ PHASE / IMPLEMENTATION STATUS
 Phase 0–1                         COMPLETE (main)
 Phase 2 Design                    COMPLETE — HUMAN-APPROVED
 Phase 2 Implementation #1         MERGED to main
-Phase 2 Implementation #2         On PR #5 (rebased onto main with #3)
-Phase 2 Implementation #3         CLEAR FOR MERGE (awaiting human merge)
-Phase 2 Implementation #4+        NOT STARTED (onboarding product next)
-Pre-deploy slices #5–#19          NOT STARTED
+Phase 2 Implementation #2         MERGED to main (via PR #5)
+Phase 2 Implementation #3         MERGED to main (via PR #5)
+Phase 2 Implementation #4         NOT STARTED (onboarding product / UI)
+Phase 2 Implementation #5         DRAFT PR #7 — awaiting independent review
+Pre-deploy slices #6–#19          NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #3 (REVIEWED)
+IMPLEMENTATION #5 (THIS SLICE)
 --------------------------------------------------------------------------------
 
-runAIOrchestration consumes assembleAIContext.
-Prompt hierarchy: policy → trusted focus → STUDENT_DATA fence → user message.
-Provider output validated; caller authority/routing rejected.
-No Student Model writes; no AI proposal persistence; stub provider remains.
-Session entrypoints bind userId from auth (sendStudyMessage, /api/ai/ping).
+Controlled AI proposal / write-back pipeline.
 
-Quality gates (re-verified in review):
-npm test                 71/71 pass
+Pipeline:
+  AI reply fence
+    → Zod parse (ai-proposal.v1)
+    → ingest PENDING AIProposal (minimal metadata)
+    → confirm({ proposalId }) only
+    → existing Student Model domain services
+
+Proposal types implemented:
+  - ATTRIBUTE_UPDATE
+  - GOAL_UPDATE
+  - CONCEPT_STATE_UPDATE  (MASTERED rejected; concept IDs server-validated)
+  - MISCONCEPTION_SIGNAL
+
+Authority:
+  - Orchestration binds actorUserId (rejects caller userId)
+  - AI/client cannot set provenance, confidence, ownership, identity
+  - Confirmation cannot rewrite authoritative fields
+  - No auto Student Model mutation from AI output
+  - No EXPLICIT minting by AI; confirm uses settings paths
+  - Evidence/misconception ≠ mastery
+
+Persistence:
+  Minimal AIProposal table + migration
+  20260908110000_phase2_ai_proposal_writeback
+  Justified for ownership, confirmation integrity, replay, audit.
+  Does not store raw AI context.
+
+Code: src/lib/ai/proposals/
+Contract doc updated: docs/AI_WRITE_CONTRACT.md
+
+Quality gates (local + CI verify SUCCESS on PR #7):
+npm test                 86/86 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
-prisma migrate status    up to date
+prisma migrate status    up to date (5 migrations)
 
 --------------------------------------------------------------------------------
-NON-BLOCKING FOLLOW-UPS (from Impl #3 re-review)
+DEFERRED / OUT OF SCOPE (BY DESIGN)
 --------------------------------------------------------------------------------
 
-Medium:
-- Domain trusts caller-supplied userId (HTTP binds session today; prefer
-  explicit authenticated-actor binding before more call sites)
-- Delimiter-based STUDENT_DATA fencing is soft against fence-token spoofing
-- Test gap: route-level assertion that client cannot supply userId
-
-Low/Info: truncate-vs-reject oversized replies; provider-throw test gap;
-  real provider / write-back still deferred by design
+- Implementation #4 onboarding product UI
+- Study Experience / full Study UI
+- Classes, Tasks, Calendar, Resources, Progress
+- Personalization / Proactive Agent
+- Real LLM providers
+- RAG / embeddings / concept resolvers
+- Billing, deployment, LMS integrations
+- Auto-accept of append-only observations/evidence
+- MASTERED via AI proposal path
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge decision for PR #5 (Impl #2 + #3 onto main)
-2. Do not start Implementation #4 until merge/review cadence allows
-3. Do not claim Phase 2 or pre-deploy product complete
+1. Independent review of PR #7 (Implementation #5)
+2. Human merge decision for PR #7 after CLEAR FOR MERGE
+3. Do not start Implementation #6 until review cadence allows
+4. Implementation #4 (onboarding product) remains available as a separate slice
+5. Do not claim Phase 2 or pre-deploy product complete
 
 ================================================================================
 END OF STATUS REPORT
