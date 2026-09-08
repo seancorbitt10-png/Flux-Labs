@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-08 11:35 UTC
+Updated: 2026-09-08 21:07 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -10,35 +10,24 @@ BOTTOM LINE
 
 Phase 1 complete on main.
 Phase 2 architecture HUMAN-APPROVED and on main.
-Phase 2 Implementations #1–#3 MERGED to main.
-Phase 2 Implementation #5 (AI proposal / write-back) MERGED to main (PR #7).
+Phase 2 Implementations #1–#5 MERGED to main
+  (#1 Student Model, #2 context, #3 orchestration, #4 onboarding, #5 proposals).
 
-Phase 2 Implementation #4 (Onboarding + Student Setup) — PR #8
-  Independent review: CLEAR FOR MERGE
-  - Critical: 0
-  - High: 0
-  - Medium: 6 (non-blocking follow-ups)
-  Rebased onto main after PR #7 merge (STATUS_REPORT.txt only conflict)
-  Feature commit: 2663b00
-  Branch tip:     b0d5bc3
-  CI verify:      SUCCESS
+Phase 2 Implementation #6 (Study Experience) is CLEAR FOR MERGE on DRAFT PR #9.
+Independent review: 0 Critical / 0 High (Medium/Low residuals non-blocking).
 
-PR #8 remains open pending human merge (not draft; MERGEABLE).
+PR #9 is not yet merged.
 Phase 2 / pre-deploy product are NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              2af903f (Merge PR #7 — Impl #5)
-
-Impl #4 branch:           cursor/phase2-onboarding-student-setup-399a
-Feature commit:           2663b00
-Branch tip:               b0d5bc3
-PR #8 (CLEAR FOR MERGE, awaiting human merge):
-https://github.com/seancorbitt10-png/Flux-Labs/pull/8
-
-Impl #5:                  MERGED via PR #7 (2026-09-08)
+origin/main:              a440a25 (Merge PR #8 — Impl #4)
+Working branch:           cursor/phase2-study-experience-399a
+Feature commit (reviewed): 7b5dbc0c8c140e4777432a030101ab4931ce96d7
+Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/9
+PR state:                 draft, open, mergeable
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -51,56 +40,60 @@ Phase 2 Design                    COMPLETE — HUMAN-APPROVED
 Phase 2 Implementation #1         MERGED to main
 Phase 2 Implementation #2         MERGED to main
 Phase 2 Implementation #3         MERGED to main
-Phase 2 Implementation #4         CLEAR FOR MERGE (PR #8; rebased onto main+Impl #5)
+Phase 2 Implementation #4         MERGED to main (PR #8)
 Phase 2 Implementation #5         MERGED to main (PR #7)
-Pre-deploy slices #6–#19          NOT STARTED
+Phase 2 Implementation #6         CLEAR FOR MERGE — draft PR #9
+Pre-deploy slices #7–#19          NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #4 (PR #8)
+IMPLEMENTATION #6 (THIS SLICE)
 --------------------------------------------------------------------------------
 
-Onboarding + student academic setup (not a personality quiz).
+Study Experience — academic workspace over existing AI orchestration.
 
-Catalog version:          2026-09-phase2
-Question count:           26
-Soft gate:                /start → /onboarding or /home; dismiss allowed
-Lifecycle:                start / answer / resume / skip / dismiss / complete
-Student Model writes:     existing domain services (onboarding writer/source)
-Mapped answer+SM:         shared Prisma interactive transaction (reviewed)
-Prisma schema (this PR):  unchanged (no onboarding migration)
+Features:
+- Authenticated /study workspace in app shell
+- Learning intents: ask / hint / check_work / explain / steps / attempt
+- Multi-turn session continuity via bounded priorTurns (no chat DB)
+- Optional focus label + server-validated concept IDs from concept states
+- Pending AI proposal confirm/reject via existing proposal boundary
+- Loading / error / empty / entitlement-aware behavior
+- Failed sends roll back optimistic turns (do not poison priorTurns)
+- Composed message capped to orchestration 4000-char limit
+- Stub provider unchanged
 
-Post-rebase quality gates (local):
-npm test                 109/109 pass (onboarding + proposal regressions)
+Boundaries preserved:
+- requireUserId session binding; client cannot set userId/provenance/etc.
+- No direct Student Model mutation from Study turns
+- Proposals remain PENDING until confirmed
+- Context assembly remains the only Student Model AI read path
+
+Database: no schema/migration changes
+
+Quality gates (on tip 7b5dbc0):
+npm test                 119/119 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
 prisma migrate status    up to date (5 migrations)
-CI verify                SUCCESS
 
-Non-blocking Medium follow-ups:
-- complete/dismiss not transactional under mid-flight failure
-- concurrent goal upsert race
-- skip-after-answer does not retract prior SM writes
-- complete/dismiss version re-check
-- concurrent start can mint multiple IN_PROGRESS sessions
-- related test gaps
+Independent review residuals (non-blocking):
+- Client-held priorTurns can forge assistant history (accepted Phase 2 tradeoff)
+- Proposal fence may appear in student-visible reply text
+- Study action-wrapper tests thinner than orchestration coverage
 
---------------------------------------------------------------------------------
-IMPLEMENTATION #5 (MERGED)
---------------------------------------------------------------------------------
-
-Controlled AI proposal / write-back on main.
-AIProposal migration 20260908110000_phase2_ai_proposal_writeback present.
-Confirmation-gated writes; AI/client cannot set provenance/confidence/identity.
+Limitations:
+- Conversation continuity is browser-session only (no StudySession table)
+- Stub provider remains (no real paid LLM)
+- Focus concepts only from existing concept states (no NL concept resolver)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge decision for PR #8 (CLEAR FOR MERGE; rebased onto main)
-2. Do not start Implementation #6 until merge cadence allows
-3. Optional post-merge: address Impl #4 Medium follow-ups
-4. Do not claim Phase 2 or pre-deploy product complete
+1. Mark PR #9 ready and merge when chosen
+2. Do not start later slices until after merge cadence
+3. Do not claim Phase 2 or product complete
 
 ================================================================================
 END OF STATUS REPORT

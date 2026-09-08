@@ -5,6 +5,7 @@ import { requireUserId } from "@/lib/auth/session";
 import { runAIOrchestration } from "@/lib/ai/orchestration";
 import { toClientError } from "@/lib/errors";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { assertNoClientStudyAuthority } from "@/lib/study/client-guards";
 
 const messageSchema = z
   .string()
@@ -22,6 +23,11 @@ export type StudyActionResult =
     }
   | { ok: false; message: string };
 
+/**
+ * Legacy one-shot Study message action (FormData).
+ * Prefer sendStudyTurnAction in src/lib/study for the Study Experience.
+ * Still binds identity from session and rejects authority fields.
+ */
 export async function sendStudyMessage(
   _prev: StudyActionResult | null,
   formData: FormData,
@@ -29,6 +35,12 @@ export async function sendStudyMessage(
   try {
     const userId = await requireUserId();
     assertRateLimit(`ai:${userId}`, { limit: 30, windowMs: 60_000 });
+
+    const bag = Object.fromEntries(formData.entries()) as Record<
+      string,
+      unknown
+    >;
+    assertNoClientStudyAuthority(bag);
 
     const parsed = messageSchema.safeParse(formData.get("message"));
     if (!parsed.success) {

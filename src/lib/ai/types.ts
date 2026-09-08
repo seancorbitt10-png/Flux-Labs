@@ -100,6 +100,14 @@ export type OrchestrationRequest = {
    */
   conceptIds?: string[];
   /**
+   * Optional bounded prior conversation turns for Study continuity.
+   * Server-validated; not a persistence model. User turns remain untrusted DATA.
+   */
+  priorTurns?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  /**
    * Optional server-only classification hint for tests/internal callers.
    * Never accept this from the client — orchestration ignores client-supplied routing.
    */

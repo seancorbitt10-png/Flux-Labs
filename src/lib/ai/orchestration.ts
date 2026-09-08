@@ -19,6 +19,8 @@ import type {
 } from "./types";
 
 const MAX_USER_MESSAGE_CHARS = 4_000;
+const MAX_PRIOR_TURNS = 8;
+const MAX_PRIOR_TURN_CHARS = 2_000;
 
 /**
  * Central AI orchestration boundary.
@@ -51,6 +53,8 @@ export async function runAIOrchestration(
     throw new ValidationError("userMessage exceeds maximum length.");
   }
 
+  const priorTurns = normalizePriorTurns(request.priorTurns);
+
   // Server-side classification only — never honor client routing.
   const route = routeAITask(userMessage);
   const capability = capabilityForRoute(route.taskType, route.modelKey);
@@ -73,6 +77,7 @@ export async function runAIOrchestration(
     systemDirective: policy.systemDirective,
     assembled,
     userMessage,
+    priorTurns,
   });
 
   const provider = getAIProvider();
@@ -211,6 +216,50 @@ function resolveAuthenticatedActor(request: OrchestrationRequest): string {
   }
 
   return request.actorUserId;
+}
+
+function normalizePriorTurns(
+  raw: OrchestrationRequest["priorTurns"],
+): Array<{ role: "user" | "assistant"; content: string }> {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) {
+    throw new ValidationError("priorTurns must be an array.");
+  }
+  if (raw.length > MAX_PRIOR_TURNS) {
+    throw new ValidationError(
+      `At most ${MAX_PRIOR_TURNS} prior conversation turns are allowed.`,
+    );
+  }
+
+  const out: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const turn of raw) {
+    if (turn == null || typeof turn !== "object" || Array.isArray(turn)) {
+      throw new ValidationError("Invalid prior conversation turn.");
+    }
+    const bag = turn as Record<string, unknown>;
+    for (const key of Object.keys(bag)) {
+      if (key !== "role" && key !== "content") {
+        throw new ValidationError(
+          "Prior turns may only include role and content.",
+        );
+      }
+    }
+    if (bag.role !== "user" && bag.role !== "assistant") {
+      throw new ValidationError("Invalid prior turn role.");
+    }
+    if (typeof bag.content !== "string") {
+      throw new ValidationError("Prior turn content must be a string.");
+    }
+    const content = bag.content.trim();
+    if (!content) {
+      throw new ValidationError("Prior turn content must not be empty.");
+    }
+    if (content.length > MAX_PRIOR_TURN_CHARS) {
+      throw new ValidationError("Prior turn content exceeds maximum length.");
+    }
+    out.push({ role: bag.role, content });
+  }
+  return out;
 }
 
 /**
