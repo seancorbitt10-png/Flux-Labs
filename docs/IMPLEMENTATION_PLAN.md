@@ -9,7 +9,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 0 | Inspect repository | **Done** |
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
-| 3 | Classes / tasks / calendar | **Next** |
+| 3 | Classes / tasks / calendar | **Architecture approved; Implementation #1 next** |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
@@ -68,29 +68,26 @@ All merged Phase 2 implementation slices passed their required quality gates at 
 
 ## Phase 3 — Classes / Tasks / Calendar
 
-Phase 3 is the next implementation phase. Before coding, produce and review a concrete architecture/design for:
+Phase 3 architecture is approved in `docs/PHASE3_ARCHITECTURE.md`.
 
-- Classes and class ownership
-- Tasks/assignments and their lifecycle/status
-- Due dates and calendar representation
-- Relationships between classes, tasks, concepts, and the Student Model
-- Study context derived from classes/tasks without bypassing AI context controls
-- Server-side authorization and IDOR protection
-- Validation, deletion/cascade semantics, and audit considerations
-- Mobile-first UI boundaries for Classes, Tasks, and Calendar
-- Testing and Definition of Done
+### Implementation sequence
+
+1. Academic workspace data foundation — schema, migration, domain services, validation, ownership, deletion semantics, calendar query contract, tests.
+2. Classes + Tasks UI — mobile-first CRUD, filtering, status lifecycle, class/task routes and IDOR coverage.
+3. Calendar UI — deadline calendar/agenda, date-range queries, timezone-aware rendering and filters.
+4. Academic context integration — authorized class/task context through `assembleAIContext`, server-validated Study focus, context budgets and prompt-contract tests.
 
 ### Phase 3 non-goals
 
-Do not introduce real LLM providers, LMS integrations, billing, a generalized recommendation engine, RAG/embeddings, teacher/admin/parent systems, or unrelated productivity features as part of Phase 3 unless the architecture review explicitly changes scope.
+Do not introduce real LLM providers, LMS integrations, billing, a generalized recommendation engine, RAG/embeddings, teacher/admin/parent systems, recurring class schedules, attendance, gradebook, notifications infrastructure, generic calendar events, or unrelated productivity features as part of Phase 3.
 
 ### Phase 3 process
 
 1. Architecture/design
 2. Independent review and corrections
-3. Implementation in small slices
+3. Small implementation slices
 4. Tests + typecheck + lint + build + migration checks
-5. Independent review of each slice
+5. Independent review each slice
 6. Merge only after review clearance
 
 ## Deferred roadmap
