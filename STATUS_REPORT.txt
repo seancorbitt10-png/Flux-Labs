@@ -2,32 +2,29 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-08 21:07 UTC
+Updated: 2026-09-08 21:57 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phase 1 complete on main.
-Phase 2 architecture HUMAN-APPROVED and on main.
-Phase 2 Implementations #1–#5 MERGED to main
-  (#1 Student Model, #2 context, #3 orchestration, #4 onboarding, #5 proposals).
+Phase 2 complete on main (Implementations #1–#6).
+Phase 3 architecture HUMAN-APPROVED on main.
 
-Phase 2 Implementation #6 (Study Experience) is CLEAR FOR MERGE on DRAFT PR #9.
-Independent review: 0 Critical / 0 High (Medium/Low residuals non-blocking).
+Phase 3 Implementation #1 (Academic Workspace Data Foundation) is on DRAFT PR #10,
+awaiting independent review.
 
-PR #9 is not yet merged.
-Phase 2 / pre-deploy product are NOT complete.
+Phase 3 / product are NOT complete.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              a440a25 (Merge PR #8 — Impl #4)
-Working branch:           cursor/phase2-study-experience-399a
-Feature commit (reviewed): 7b5dbc0c8c140e4777432a030101ab4931ce96d7
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/9
-PR state:                 draft, open, mergeable
+origin/main:              0b118cf (authorize Phase 3 implementation slice 1)
+Working branch:           cursor/phase3-academic-workspace-foundation-399a
+Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/10
+Final commit:             37c5e29c305cf7f2d7ffe557e69541631a00cd47
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -35,65 +32,49 @@ Repo: https://github.com/seancorbitt10-png/Flux-Labs
 PHASE / IMPLEMENTATION STATUS
 --------------------------------------------------------------------------------
 
-Phase 0–1                         COMPLETE (main)
-Phase 2 Design                    COMPLETE — HUMAN-APPROVED
-Phase 2 Implementation #1         MERGED to main
-Phase 2 Implementation #2         MERGED to main
-Phase 2 Implementation #3         MERGED to main
-Phase 2 Implementation #4         MERGED to main (PR #8)
-Phase 2 Implementation #5         MERGED to main (PR #7)
-Phase 2 Implementation #6         CLEAR FOR MERGE — draft PR #9
-Pre-deploy slices #7–#19          NOT STARTED
+Phase 0–2                         COMPLETE (main)
+Phase 3 Design                    COMPLETE — HUMAN-APPROVED
+Phase 3 Implementation #1         DRAFT — awaiting independent review
+Phase 3 Implementations #2–#4     NOT STARTED
+Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #6 (THIS SLICE)
+IMPLEMENTATION #1 (THIS SLICE)
 --------------------------------------------------------------------------------
 
-Study Experience — academic workspace over existing AI orchestration.
+Academic Workspace Data Foundation — Class / Task / TaskConcept + calendar query.
 
 Features:
-- Authenticated /study workspace in app shell
-- Learning intents: ask / hint / check_work / explain / steps / attempt
-- Multi-turn session continuity via bounded priorTurns (no chat DB)
-- Optional focus label + server-validated concept IDs from concept states
-- Pending AI proposal confirm/reject via existing proposal boundary
-- Loading / error / empty / entitlement-aware behavior
-- Failed sends roll back optimistic turns (do not poison priorTurns)
-- Composed message capped to orchestration 4000-char limit
-- Stub provider unchanged
+- Prisma Class, Task, TaskConcept models + enums + migration
+- Domain services: class/task CRUD, archive, status transitions, concept attach/detach
+- Ownership-scoped queries (id + userId); not-found for cross-user IDs
+- Server-owned userId / completedAt; Zod validation; status transition matrix
+- Class delete SET NULL on Task.classId (tasks preserved)
+- Deterministic calendar read query (no CalendarEvent table)
+- Educational wipe extended to Classes/Tasks
+- No UI, no assembleAIContext changes, stub provider unchanged
 
-Boundaries preserved:
-- requireUserId session binding; client cannot set userId/provenance/etc.
-- No direct Student Model mutation from Study turns
-- Proposals remain PENDING until confirmed
-- Context assembly remains the only Student Model AI read path
+Database: migration 20260908215328_phase3_academic_workspace_foundation
 
-Database: no schema/migration changes
-
-Quality gates (on tip 7b5dbc0):
-npm test                 119/119 pass
+Quality gates:
+npm test                 135/135 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
-prisma migrate status    up to date (5 migrations)
+prisma migrate status    up to date (6 migrations)
 
-Independent review residuals (non-blocking):
-- Client-held priorTurns can forge assistant history (accepted Phase 2 tradeoff)
-- Proposal fence may appear in student-visible reply text
-- Study action-wrapper tests thinner than orchestration coverage
-
-Limitations:
-- Conversation continuity is browser-session only (no StudySession table)
-- Stub provider remains (no real paid LLM)
-- Focus concepts only from existing concept states (no NL concept resolver)
+Intentionally deferred:
+- Classes / Tasks / Calendar UI
+- Academic AI context integration (Impl #4)
+- LMS / external calendar / notifications / gradebook / recurring schedules
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Mark PR #9 ready and merge when chosen
-2. Do not start later slices until after merge cadence
-3. Do not claim Phase 2 or product complete
+1. Independent review of Implementation #1 PR
+2. Do not merge until CLEAR FOR MERGE
+3. Do not start UI slices until review cadence allows
 
 ================================================================================
 END OF STATUS REPORT
