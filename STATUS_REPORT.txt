@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-08 11:30 UTC
+Updated: 2026-09-08 11:35 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -18,9 +18,12 @@ Phase 2 Implementation #4 (Onboarding + Student Setup) — PR #8
   - Critical: 0
   - High: 0
   - Medium: 6 (non-blocking follow-ups)
-  Rebased onto main after PR #7 merge.
+  Rebased onto main after PR #7 merge (STATUS_REPORT.txt only conflict)
+  Feature commit: 2663b00
+  Branch tip:     b0d5bc3
+  CI verify:      SUCCESS
 
-PR #8 remains open pending human merge.
+PR #8 remains open pending human merge (not draft; MERGEABLE).
 Phase 2 / pre-deploy product are NOT complete.
 
 --------------------------------------------------------------------------------
@@ -28,10 +31,14 @@ REPOSITORY
 --------------------------------------------------------------------------------
 
 origin/main:              2af903f (Merge PR #7 — Impl #5)
-Working branch:           cursor/phase2-onboarding-student-setup-399a
 
+Impl #4 branch:           cursor/phase2-onboarding-student-setup-399a
+Feature commit:           2663b00
+Branch tip:               b0d5bc3
 PR #8 (CLEAR FOR MERGE, awaiting human merge):
 https://github.com/seancorbitt10-png/Flux-Labs/pull/8
+
+Impl #5:                  MERGED via PR #7 (2026-09-08)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -49,7 +56,7 @@ Phase 2 Implementation #5         MERGED to main (PR #7)
 Pre-deploy slices #6–#19          NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #4 (PR #8 — THIS BRANCH)
+IMPLEMENTATION #4 (PR #8)
 --------------------------------------------------------------------------------
 
 Onboarding + student academic setup (not a personality quiz).
@@ -59,10 +66,18 @@ Question count:           26
 Soft gate:                /start → /onboarding or /home; dismiss allowed
 Lifecycle:                start / answer / resume / skip / dismiss / complete
 Student Model writes:     existing domain services (onboarding writer/source)
-Mapped answer+SM:         shared Prisma interactive transaction
+Mapped answer+SM:         shared Prisma interactive transaction (reviewed)
 Prisma schema (this PR):  unchanged (no onboarding migration)
 
-Non-blocking Medium follow-ups (from independent review):
+Post-rebase quality gates (local):
+npm test                 109/109 pass (onboarding + proposal regressions)
+npm run typecheck        pass
+npm run lint             pass
+npm run build            pass
+prisma migrate status    up to date (5 migrations)
+CI verify                SUCCESS
+
+Non-blocking Medium follow-ups:
 - complete/dismiss not transactional under mid-flight failure
 - concurrent goal upsert race
 - skip-after-answer does not retract prior SM writes
@@ -71,22 +86,19 @@ Non-blocking Medium follow-ups (from independent review):
 - related test gaps
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #5 (MERGED VIA PR #7)
+IMPLEMENTATION #5 (MERGED)
 --------------------------------------------------------------------------------
 
-Controlled AI proposal / write-back pipeline on main.
-
-Proposal types: ATTRIBUTE_UPDATE, GOAL_UPDATE, CONCEPT_STATE_UPDATE,
-                MISCONCEPTION_SIGNAL
-Confirmation-gated writes via Student Model domain services
-Minimal AIProposal table + migration 20260908110000_phase2_ai_proposal_writeback
+Controlled AI proposal / write-back on main.
+AIProposal migration 20260908110000_phase2_ai_proposal_writeback present.
+Confirmation-gated writes; AI/client cannot set provenance/confidence/identity.
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge decision for PR #8 (Impl #4 CLEAR FOR MERGE; rebased onto main)
-2. Do not start Implementation #6 until merge/review cadence allows
+1. Human merge decision for PR #8 (CLEAR FOR MERGE; rebased onto main)
+2. Do not start Implementation #6 until merge cadence allows
 3. Optional post-merge: address Impl #4 Medium follow-ups
 4. Do not claim Phase 2 or pre-deploy product complete
 
