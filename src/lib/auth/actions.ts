@@ -94,7 +94,7 @@ export async function registerAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/home",
+      redirectTo: "/start",
     });
 
     return { ok: true };
@@ -134,7 +134,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: formData.get("email"),
       password: formData.get("password"),
-      redirectTo: "/home",
+      redirectTo: "/start",
     });
     return { ok: true };
   } catch (error) {

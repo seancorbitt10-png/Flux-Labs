@@ -1,6 +1,6 @@
 # Onboarding Specification
 
-**Status:** DESIGN SPEC — UI not implemented; server catalog foundation may be a subset
+**Status:** SPEC + Phase 2 Implementation #4 UI/domain (catalog `2026-09-phase2`, 26 questions)
 **Authority:** Subordinate to `docs/PHASE2_ARCHITECTURE.md` (human-approved) §4 / Appendix A
 **Catalog version (target):** `2026-09-phase2`
 **Related:** `docs/ENGINEERING_NON_NEGOTIABLES.md`, attribute registry, onboarding domain services
@@ -20,9 +20,9 @@ Finalize onboarding **design** before UI implementation:
 
 ## 2. Scope
 
-**In scope:** Question catalog design, mappings, completion/skip/resume/edit rules, privacy boundaries.
+**In scope:** Question catalog design, mappings, completion/skip/resume/edit rules, privacy boundaries, and Implementation #4 student-facing setup UI.
 
-**Out of scope:** Building onboarding UI, legal consent/COPPA flows, LMS course import, psychometrics.
+**Out of scope:** Legal consent/COPPA flows, LMS course import, psychometrics, Study/Classes product surfaces.
 
 ---
 

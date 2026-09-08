@@ -8,7 +8,7 @@ import {
 } from "@/lib/provenance/policy";
 import { rejectClientAuthorityFields } from "./attribute-registry";
 
-const TITLE_MAX = 200;
+const TITLE_MAX = 300;
 const DESCRIPTION_MAX = 2000;
 const CATEGORY_MAX = 80;
 
@@ -32,8 +32,14 @@ const STUDENT_GOAL_SOURCES = new Set<StudentGoalSource>([
   "settings",
 ]);
 
+export type StudentGoalWriteOptions = {
+  /** Optional shared Prisma transaction for callers that need atomic multi-writes. */
+  db?: Prisma.TransactionClient;
+};
+
 export async function createStudentGoal(
   input: CreateGoalInput,
+  options?: StudentGoalWriteOptions,
 ): Promise<StudentGoal> {
   assertResourceOwner(input.userId, input.actorUserId);
 
@@ -65,7 +71,7 @@ export async function createStudentGoal(
 
   const title = input.title?.trim();
   if (!title || title.length > TITLE_MAX) {
-    throw new ValidationError("Goal title is required and must be under 200 characters.");
+    throw new ValidationError("Goal title is required and must be under 300 characters.");
   }
   if (input.description && input.description.length > DESCRIPTION_MAX) {
     throw new ValidationError("Goal description is too long.");
@@ -77,8 +83,9 @@ export async function createStudentGoal(
   // Server-controlled authority — EXPLICIT only for student-originated paths.
   const provenance = "EXPLICIT" as const;
   const confidence = clampConfidence(defaultConfidenceFor(provenance));
+  const db = options?.db ?? prisma;
 
-  return prisma.studentGoal.create({
+  return db.studentGoal.create({
     data: {
       userId: input.userId,
       title,
@@ -108,6 +115,65 @@ export async function listStudentGoals(args: {
     },
     orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
   });
+}
+
+/**
+ * Upsert an ACTIVE onboarding/settings goal by category.
+ * Re-answering onboarding updates the existing category goal instead of minting duplicates.
+ */
+export async function upsertStudentGoalByCategory(
+  input: CreateGoalInput & { category: string },
+  options?: StudentGoalWriteOptions,
+): Promise<StudentGoal> {
+  assertResourceOwner(input.userId, input.actorUserId);
+
+  if (!STUDENT_GOAL_SOURCES.has(input.source)) {
+    throw new ValidationError(
+      "Goals require an authorized student-originated path (onboarding/settings). System/AI cannot create EXPLICIT goals.",
+    );
+  }
+
+  const title = input.title?.trim();
+  if (!title || title.length > TITLE_MAX) {
+    throw new ValidationError("Goal title is required and must be under 300 characters.");
+  }
+  if (input.description && input.description.length > DESCRIPTION_MAX) {
+    throw new ValidationError("Goal description is too long.");
+  }
+  if (input.category.length > CATEGORY_MAX) {
+    throw new ValidationError("Goal category is too long.");
+  }
+
+  const db = options?.db ?? prisma;
+  const existing = await db.studentGoal.findFirst({
+    where: {
+      userId: input.userId,
+      category: input.category,
+      status: "ACTIVE",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const provenance = "EXPLICIT" as const;
+  const confidence = clampConfidence(defaultConfidenceFor(provenance));
+
+  if (existing) {
+    return db.studentGoal.update({
+      where: { id: existing.id },
+      data: {
+        title,
+        description: input.description?.trim() || null,
+        priority: input.priority ?? existing.priority,
+        targetDate: input.targetDate ?? existing.targetDate,
+        // Preserve EXPLICIT authority; refresh source to current student path.
+        provenance,
+        confidence,
+        source: input.source,
+      },
+    });
+  }
+
+  return createStudentGoal(input, options);
 }
 
 export async function updateStudentGoalStatus(args: {

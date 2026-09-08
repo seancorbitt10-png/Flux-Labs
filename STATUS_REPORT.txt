@@ -2,7 +2,11 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
+<<<<<<< HEAD
 Updated: 2026-09-08 10:55 UTC
+=======
+Updated: 2026-09-08 11:10 UTC
+>>>>>>> b0c79f9 (feat: Phase 2 onboarding and student academic setup)
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -10,6 +14,7 @@ BOTTOM LINE
 
 Phase 1 complete on main.
 Phase 2 architecture HUMAN-APPROVED and on main.
+<<<<<<< HEAD
 Phase 2 Implementations #1–#3 MERGED to main
   (#1 Student Model; #2 AI context assembly; #3 AI orchestration).
 
@@ -18,6 +23,14 @@ DRAFT PR #7, awaiting independent review.
 
 Phase 2 Implementation #4 (onboarding product / UI) was NOT started —
 this agent was instructed to build Implementation #5 only.
+=======
+Phase 2 Implementations #1–#3 MERGED to main.
+
+Phase 2 Implementation #4 (Onboarding + Student Setup) is on DRAFT PR
+(branch cursor/phase2-onboarding-student-setup-399a), awaiting independent review.
+
+Phase 2 Implementation #5 (AI proposal write-back) remains separate DRAFT PR #7.
+>>>>>>> b0c79f9 (feat: Phase 2 onboarding and student academic setup)
 
 Phase 2 / pre-deploy product are NOT complete.
 
@@ -26,12 +39,21 @@ REPOSITORY
 --------------------------------------------------------------------------------
 
 origin/main:              92f22f2 (Merge PR #5 — Impl #2 + #3)
+<<<<<<< HEAD
 Working branch:           cursor/phase2-ai-proposal-writeback-399a
 Branch HEAD:              308fe68
 Impl #5 feature:          308fe68
 
 PR #7 (draft, awaiting independent review):
 https://github.com/seancorbitt10-png/Flux-Labs/pull/7
+=======
+Working branch:           cursor/phase2-onboarding-student-setup-399a
+Base:                     92f22f2
+
+Older onboarding PR/branch (reference only, not merged blindly):
+  PR #6 / cursor/phase2-onboarding-student-setup-9de3
+  Sound catalog/UI/atomicity work was reviewed and reused on the new -399a branch.
+>>>>>>> b0c79f9 (feat: Phase 2 onboarding and student academic setup)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -42,6 +64,7 @@ PHASE / IMPLEMENTATION STATUS
 Phase 0–1                         COMPLETE (main)
 Phase 2 Design                    COMPLETE — HUMAN-APPROVED
 Phase 2 Implementation #1         MERGED to main
+<<<<<<< HEAD
 Phase 2 Implementation #2         MERGED to main (via PR #5)
 Phase 2 Implementation #3         MERGED to main (via PR #5)
 Phase 2 Implementation #4         NOT STARTED (onboarding product / UI)
@@ -104,15 +127,51 @@ DEFERRED / OUT OF SCOPE (BY DESIGN)
 - Billing, deployment, LMS integrations
 - Auto-accept of append-only observations/evidence
 - MASTERED via AI proposal path
+=======
+Phase 2 Implementation #2         MERGED to main
+Phase 2 Implementation #3         MERGED to main
+Phase 2 Implementation #4         DRAFT — awaiting independent review
+Phase 2 Implementation #5         DRAFT PR #7 — separate slice
+Pre-deploy slices #6–#19          NOT STARTED
+
+--------------------------------------------------------------------------------
+IMPLEMENTATION #4 (THIS SLICE)
+--------------------------------------------------------------------------------
+
+Onboarding + student academic setup (not a personality quiz).
+
+Catalog version: 2026-09-phase2
+Question count: 26 (within 22–26; ≤30 cap)
+Soft gate: /start → /onboarding or /home; dismiss allowed; Study still usable
+
+Lifecycle: start, answer, resume, skip, dismiss, complete
+Student Model writes: via existing domain services (onboarding writer/source)
+Answer+SM consistency: shared Prisma interactive transaction for mapped answers
+No Prisma schema change / no new migration
+
+Quality gates:
+npm test                 94/94 pass
+npm run typecheck        pass
+npm run lint             pass
+npm run build            pass
+prisma migrate status    up to date (4 migrations on this branch/main)
+>>>>>>> b0c79f9 (feat: Phase 2 onboarding and student academic setup)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
+<<<<<<< HEAD
 1. Independent review of PR #7 (Implementation #5)
 2. Human merge decision for PR #7 after CLEAR FOR MERGE
 3. Do not start Implementation #6 until review cadence allows
 4. Implementation #4 (onboarding product) remains available as a separate slice
+=======
+1. Independent review of Implementation #4 PR
+2. Independent review of Implementation #5 PR #7 (separate)
+3. Do not merge either until CLEAR FOR MERGE
+4. Do not start Implementation #6 until review cadence allows
+>>>>>>> b0c79f9 (feat: Phase 2 onboarding and student academic setup)
 5. Do not claim Phase 2 or pre-deploy product complete
 
 ================================================================================
