@@ -7,9 +7,9 @@ Develop incrementally. Do not build the entire product in one pass.
 | Phase | Focus | Status |
 |-------|-------|--------|
 | 0 | Inspect repository | **Done** |
-| 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** (merged to `main` @ `e1dc1d0`) |
-| 2 | Student model + onboarding + knowledge foundation | **Design finalized for review** (correction pass) — implementation not started |
-| 3 | Classes / tasks / calendar | Planned |
+| 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
+| 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
+| 3 | Classes / tasks / calendar | **Next** |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
@@ -18,7 +18,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 9 | Billing / controlled 7-day trial activation | Planned |
 | 10 | Production hardening | Planned |
 
-## Phase 1 (complete)
+## Phase 1 — complete
 
 Shipped and merged via PR #1:
 
@@ -28,39 +28,79 @@ Shipped and merged via PR #1:
 - Trial entitlement provisioning + atomic reservation
 - AI orchestration path with stub provider, router, academic policy
 - Study page wired end-to-end
-- Security hardening, CI, docs, tests (22 passing at merge)
+- Security hardening, CI, docs, tests
 
-## Phase 2
+## Phase 2 — complete
 
-### Design
+Phase 2 established the student-specific academic foundation and the first learning-first Study experience.
 
-Full design recorded in **[PHASE2_ARCHITECTURE.md](./PHASE2_ARCHITECTURE.md)** (final architecture-review correction pass; still documentation only).
+### Student model and knowledge foundation
 
-Includes: controlled StudentAttribute registry; one-active-key invariant; provenance/confidence semantics; conservative mastery contract; onboarding question registry (≤30 Q; no consent question); Knowledge Foundation; untrusted AI context assembly (no premature keyword intelligence); deletion/ownership semantics; testing requirements; non-goals; Definition of Done.
+- Controlled StudentAttribute registry with one-active-key invariant
+- Provenance and confidence semantics with server authority
+- Student goals, observations, learning evidence, concept state, and misconceptions
+- Subject → Topic → Concept knowledge foundation
+- User-owned versus shared/global data ownership and deletion semantics
+- Conservative mastery contract; no learning-style typology
 
-### Implementation
+### AI context and write boundary
 
-**Not started.** Awaiting **final** design approval / implementation prompt.
+- Controlled, read-only AI context assembly
+- Current state separated from historical evidence
+- Student content treated as untrusted data rather than instructions
+- AI outputs treated as proposals rather than authoritative Student Model writes
+- Confirmation-gated write-back boundary
+- No premature concept resolution, RAG, or real provider dependency
 
-Do not begin schema migrations or UI until explicitly approved.
+### Onboarding and Study experience
 
-When implementation is approved, Phase 2 **must define and test ownership/cascade behavior for user-owned educational data** — this is a requirement, not a TODO/stub:
+- Server-controlled onboarding catalog and session lifecycle
+- Session-bound student setup with authorized Student Model mapping
+- Skip/resume/dismiss behavior
+- Learning-first Study intents and multi-turn browser-session continuity
+- Server-validated focus concepts
+- Confirmation/rejection of AI proposals
+- Entitlement-aware and failure-safe Study behavior
 
-**User-owned (delete / cascade with ownership):**
-`StudentProfile`, `StudentAttribute`, `StudentGoal`, `OnboardingSession`, `OnboardingAnswer`, `StudentObservation`, `LearningEvidence`, `StudentConceptState`, `StudentMisconception`, and future student-owned relations.
+### Phase 2 quality status
 
-**Shared/global catalog (retain):**
-`Subject`, `Topic`, SYSTEM `Concept`, SYSTEM `ConceptRelation`.
+All merged Phase 2 implementation slices passed their required quality gates at merge, including automated tests, typecheck, lint, build, and migration checks. Phase 2 intentionally retains the stub AI provider; real model providers remain Phase 4 work.
 
-**Operational (separate policy):**
-`UsageRecord`, `AIInteraction`, `AuditLog` — final retention/anonymization subject to product/legal policy review; do not claim all operational records must be deleted.
+## Phase 3 — Classes / Tasks / Calendar
 
-See `docs/PHASE2_ARCHITECTURE.md` §9 / §11 layer 2.8 / §12 DELETION.
+Phase 3 is the next implementation phase. Before coding, produce and review a concrete architecture/design for:
 
-### Assumptions
+- Classes and class ownership
+- Tasks/assignments and their lifecycle/status
+- Due dates and calendar representation
+- Relationships between classes, tasks, concepts, and the Student Model
+- Study context derived from classes/tasks without bypassing AI context controls
+- Server-side authorization and IDOR protection
+- Validation, deletion/cascade semantics, and audit considerations
+- Mobile-first UI boundaries for Classes, Tasks, and Calendar
+- Testing and Definition of Done
 
-- Phase 2 extends Phase 1 relational foundation; does not replace auth/entitlements/orchestration.
-- Concepts are global catalog entities; classes join later (Phase 3).
-- No learning-style typology; evidence + provenance only; confidence is a reliability score, not probability.
-- Student context is untrusted data in prompts; policy outranks context.
-- Stub AI remains acceptable through Phase 2; real providers are Phase 4.
+### Phase 3 non-goals
+
+Do not introduce real LLM providers, LMS integrations, billing, a generalized recommendation engine, RAG/embeddings, teacher/admin/parent systems, or unrelated productivity features as part of Phase 3 unless the architecture review explicitly changes scope.
+
+### Phase 3 process
+
+1. Architecture/design
+2. Independent review and corrections
+3. Implementation in small slices
+4. Tests + typecheck + lint + build + migration checks
+5. Independent review of each slice
+6. Merge only after review clearance
+
+## Deferred roadmap
+
+Phase 4 introduces real AI providers and guided tutoring. Later phases cover resources/document intelligence, progress/mastery workflows, proactive agent behavior, integrations, billing/trial activation, and production hardening.
+
+## Core assumptions
+
+- Extend the existing relational foundation; do not replace it casually.
+- Student context remains untrusted data in AI prompts; policy outranks context.
+- Server owns identity, authorization, provenance, confidence, entitlements, and consequential writes.
+- Avoid premature intelligence: do not add embeddings, RAG, keyword concept matching, or extra model calls without an approved product need.
+- Build incrementally and keep deferred features out of implementation slices.
