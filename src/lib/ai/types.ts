@@ -79,8 +79,20 @@ export type UsageCapabilityName =
   | "ADVANCED_TUTORING"
   | "GENERAL";
 
-export type OrchestrationRequest = {
+/**
+ * Authenticated AI actor — must come from session/server, never AI/client bags.
+ * Phase 2: actor is the student owner (owner-only Student Model).
+ */
+export type AuthenticatedAIActor = {
   userId: string;
+};
+
+export type OrchestrationRequest = {
+  /**
+   * Authenticated actor from requireUserId()/session.
+   * Downstream proposal handling binds ownership to this identity.
+   */
+  actorUserId: string;
   userMessage: string;
   /**
    * Optional server-validated focus concept IDs.
@@ -99,6 +111,15 @@ export type OrchestrationRequest = {
   context?: AssembledContext;
 };
 
+export type OrchestrationProposalSummary = {
+  id: string;
+  type: string;
+  status: string;
+  target: unknown;
+  proposedValue: unknown;
+  rationale: string | null;
+};
+
 export type OrchestrationResult = {
   taskType: AITaskType;
   assistanceMode: AssistanceMode;
@@ -109,6 +130,11 @@ export type OrchestrationResult = {
   replyTruncated: boolean;
   /** Context assembly version consumed for this turn. */
   contextVersion: string;
+  /**
+   * Server-validated PENDING proposals extracted from the reply fence (if any).
+   * Never auto-applied — confirmation is required for Student Model mutation.
+   */
+  proposals: OrchestrationProposalSummary[];
   usage: {
     inputTokens?: number;
     outputTokens?: number;

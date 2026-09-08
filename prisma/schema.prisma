@@ -33,6 +33,7 @@ model User {
   trials               Trial[]
   auditLogs            AuditLog[]
   aiInteractions       AIInteraction[]
+  aiProposals          AIProposal[]
 
   // Phase 2 student-owned
   studentAttributes    StudentAttribute[]
@@ -536,6 +537,54 @@ model AIInteraction {
 
   @@index([userId, createdAt])
   @@map("ai_interactions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — AI proposal / write-back (confirmation-gated; not Student Model authority)
+// Minimal persistence justified for: ownership binding, replay protection,
+// confirmation integrity (client cannot rewrite proposal content), and audit.
+// Does NOT store raw AI context or full chat transcripts.
+// ---------------------------------------------------------------------------
+
+enum AIProposalStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  DEFERRED
+}
+
+model AIProposal {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  schemaVersion String @default("ai-proposal.v1")
+  type          String
+  status        AIProposalStatus @default(PENDING)
+
+  /// Server-validated target descriptor (e.g. attribute key, conceptId). No authority fields.
+  targetJson Json
+  /// Server-validated proposed content only. No provenance/confidence/userId.
+  proposedValueJson Json
+  rationale         String?
+  /// Opaque evidence reference string already known to the app — not ID arrays.
+  evidenceReference String?
+
+  validationOutcome String
+  validationReason  String?
+
+  confirmedAt DateTime?
+  rejectedAt  DateTime?
+
+  /// Optional operational link; not stuffed into Student Model metadata.
+  aiInteractionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("ai_proposals")
 }
 
 model AuditLog {

@@ -39,7 +39,7 @@ export async function sendStudyMessage(
     }
 
     const result = await runAIOrchestration({
-      userId,
+      actorUserId: userId,
       userMessage: parsed.data,
     });
 

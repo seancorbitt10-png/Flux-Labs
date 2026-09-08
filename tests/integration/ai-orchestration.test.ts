@@ -31,6 +31,7 @@ async function cleanup() {
   const ids = users.map((u) => u.id);
 
   if (ids.length) {
+    await prisma.aIProposal.deleteMany({ where: { userId: { in: ids } } });
     await prisma.learningEvidence.deleteMany({ where: { userId: { in: ids } } });
     await prisma.studentConceptState.deleteMany({
       where: { userId: { in: ids } },
@@ -157,7 +158,7 @@ describe("AI orchestration boundary", () => {
     });
 
     const result = await runAIOrchestration({
-      userId: user.id,
+      actorUserId: user.id,
       userMessage: "Can you explain stoichiometry?",
     });
 
@@ -166,6 +167,7 @@ describe("AI orchestration boundary", () => {
     expect(result.replyTruncated).toBe(false);
     expect(result.assistanceMode).toBeTruthy();
     expect(result.taskType).toBeTruthy();
+    expect(result.proposals).toEqual([]);
 
     expect(await prisma.studentGoal.count({ where: { userId: user.id } })).toBe(
       beforeGoals,
@@ -182,6 +184,9 @@ describe("AI orchestration boundary", () => {
     expect(
       await prisma.aIInteraction.count({ where: { userId: user.id } }),
     ).toBe(1);
+    expect(await prisma.aIProposal.count({ where: { userId: user.id } })).toBe(
+      0,
+    );
   });
 
   it("includes validated focus concepts and excludes another student's goals", async () => {
@@ -232,7 +237,7 @@ describe("AI orchestration boundary", () => {
     } satisfies AIProvider);
 
     const result = await runAIOrchestration({
-      userId: a.id,
+      actorUserId: a.id,
       userMessage: "Help me understand this concept",
       conceptIds: [concept.id],
     });
@@ -243,7 +248,7 @@ describe("AI orchestration boundary", () => {
 
     await expect(
       runAIOrchestration({
-        userId: a.id,
+        actorUserId: a.id,
         userMessage: "Help",
         conceptIds: ["missing-concept-id"],
       }),
@@ -298,7 +303,7 @@ describe("AI orchestration boundary", () => {
 
     await expect(
       runAIOrchestration({
-        userId: user.id,
+        actorUserId: user.id,
         userMessage: "Hello",
         provenance: "EXPLICIT",
       } as never),
@@ -306,7 +311,7 @@ describe("AI orchestration boundary", () => {
 
     await expect(
       runAIOrchestration({
-        userId: user.id,
+        actorUserId: user.id,
         userMessage: "Hello",
         modelKey: "flux-advanced",
       } as never),
@@ -314,9 +319,17 @@ describe("AI orchestration boundary", () => {
 
     await expect(
       runAIOrchestration({
-        userId: user.id,
+        actorUserId: user.id,
         userMessage: "Hello",
         context: { provenance: "EXPLICIT" },
+      } as never),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    await expect(
+      runAIOrchestration({
+        actorUserId: user.id,
+        userId: user.id,
+        userMessage: "Hello",
       } as never),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -339,7 +352,7 @@ describe("AI orchestration boundary", () => {
     } satisfies AIProvider);
 
     await runAIOrchestration({
-      userId: user.id,
+      actorUserId: user.id,
       userMessage: "Explain photosynthesis",
       context: {
         studentSummary: "CLIENT_INJECTED_SUMMARY_SHOULD_NOT_APPEAR",
@@ -400,7 +413,7 @@ describe("AI orchestration boundary", () => {
 
     await expect(
       runAIOrchestration({
-        userId: user.id,
+        actorUserId: user.id,
         userMessage: "Hello there",
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -409,7 +422,7 @@ describe("AI orchestration boundary", () => {
   it("does not honor taskTypeHint as client routing authority", async () => {
     const user = await createEntitledUser(`hint-${Date.now()}`);
     const result = await runAIOrchestration({
-      userId: user.id,
+      actorUserId: user.id,
       userMessage: "Explain the derivative",
       taskTypeHint: "administrative",
     });
