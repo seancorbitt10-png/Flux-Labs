@@ -2,32 +2,30 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-09 19:02 UTC
+Updated: 2026-09-09 19:20 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
-Phase 1 complete on main.
-Phase 2 complete on main (Implementations #1–#6).
-Phase 3 architecture HUMAN-APPROVED on main.
-Phase 3 Implementation #1 (data foundation) MERGED on main.
+Phase 1–2 complete on main.
+Phase 3 Implementation #1 MERGED (PR #10).
+Phase 3 Implementation #2 MERGED (PR #11).
 
-Phase 3 Implementation #2 (Classes + Tasks UI + UI design pass) is DRAFT PR #11.
+Phase 3 Implementation #3 (Calendar UI) is DRAFT PR (creating).
 NOT independently reviewed yet — NOT CLEAR FOR MERGE until review.
-Phase 3 / product are NOT complete.
+Phase 3 is NOT complete (AI context slice still pending).
 Do not merge until independent review clearance.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              6468e45 (PR #10 merged — academic workspace foundation)
-Working branch:           cursor/phase3-classes-tasks-ui-399a
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/11
-Branch tip:               8bc89e7ce0e187100836babcccd5a4127f0a94e7
-Feature commit:           973c39f (Classes + Tasks UI)
-Design commit:            bfbbdc2 (typography + dark tech visual polish)
+origin/main:              21c73f94f7b259ebc025e41756d734a72b8dd9a0
+Working branch:           cursor/phase3-calendar-ui-399a
+Draft PR:                 (see GitHub / ManagePullRequest)
+Branch tip:               9964d0349ee4e8496400b4daa79752ab2e978dbf
+Feature commit:           9964d03 (Calendar UI)
 PR state:                 draft, open, unmerged — awaiting independent review
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
@@ -38,34 +36,31 @@ PHASE / IMPLEMENTATION STATUS
 
 Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
-Phase 3 Implementation #1         MERGED (main)
-Phase 3 Implementation #2         DRAFT PR #11 — awaiting independent review
-Phase 3 Implementations #3–#4     NOT STARTED
+Phase 3 Implementation #1         MERGED (main) — PR #10
+Phase 3 Implementation #2         MERGED (main) — PR #11
+Phase 3 Implementation #3         DRAFT PR — Calendar UI awaiting review
+Phase 3 Implementation #4         NOT STARTED (Academic AI context)
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #2 + DESIGN PASS
+IMPLEMENTATION #3 SUMMARY
 --------------------------------------------------------------------------------
 
-Classes / Tasks UI:
-- Authenticated RSC bootstrap + client workspaces
-- Class create/edit/archive/unarchive/delete
-- Task create/edit/delete, status actions, class link, filters/sorts
-- Server actions bound to requireUserId (no client userId/completedAt)
+Calendar UI (/calendar):
+- Authenticated RSC bootstrap + client agenda workspace
+- Seven-day range with Previous / Today / Next
+- Day-grouped tasks + class periods from existing calendar query
+- Class filter + optional task-status filter
+- Profile-timezone display and range boundaries
+- Links to existing Classes / Tasks workflows (no duplicate editors)
+- Empty / loading / error states
+- Mobile-first agenda (no dense month grid)
 
-UI design pass (visual only):
-- Removed Newsreader serif; DM Sans only (400–700)
-- Dark canvas + restrained violet accent
-- Stronger type hierarchy; shell/nav, buttons, inputs, badges, cards
-- No schema/domain/authz/AI/calendar/product behavior changes
+No CalendarEvent table.
+No AI/LLM, LMS, external calendars, notifications, recurring, gradebook.
 
-Out of scope:
-- Calendar UI
-- AI/LLM / academic context
-- LMS / external calendar / notifications / gradebook / recurring
-
-Quality gates (at design tip):
-npm test                 161/161 pass
+Quality gates:
+npm test                 173/173 pass
 npm run typecheck        pass
 npm run lint             pass
 npm run build            pass
@@ -75,9 +70,9 @@ prisma migrate status    up to date (7 migrations)
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #11
+1. Independent review of Calendar UI draft PR
 2. Human merge only after CLEAR FOR MERGE
-3. Phase 3 Implementation #3 — Calendar UI
+3. Phase 3 Implementation #4 — Academic AI context integration
 
 ================================================================================
 END OF STATUS REPORT
