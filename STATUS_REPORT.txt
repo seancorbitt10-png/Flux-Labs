@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-09 18:43 UTC
+Updated: 2026-09-09 18:57 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,7 +13,9 @@ Phase 2 complete on main (Implementations #1–#6).
 Phase 3 architecture HUMAN-APPROVED on main.
 Phase 3 Implementation #1 (data foundation) MERGED on main.
 
-Phase 3 Implementation #2 (Classes + Tasks UI) is DRAFT PR #11.
+Phase 3 Implementation #2 (Classes + Tasks UI) is DRAFT PR #11,
+plus a UI design pass (typography + dark tech polish) on the same branch.
+
 NOT independently reviewed yet — NOT CLEAR FOR MERGE until review.
 Phase 3 / product are NOT complete.
 Do not merge until independent review clearance.
@@ -25,9 +27,10 @@ REPOSITORY
 origin/main:              6468e45 (PR #10 merged — academic workspace foundation)
 Working branch:           cursor/phase3-classes-tasks-ui-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/11
-Branch tip:               2d02a24aafd31fcce79fc75e7e8ee1f1aa9a0ac2
+Branch tip:               bfbbdc228dd4db77152155f5676e6fcd815d41ed
 Feature commit:           973c39f (Classes + Tasks UI)
-PR state:                 draft, open, mergeable, unmerged — awaiting independent review
+Design commit:            bfbbdc2 (typography + visual polish)
+PR state:                 draft, open, unmerged — awaiting independent review
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -43,32 +46,17 @@ Phase 3 Implementations #3–#4     NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #2 SUMMARY
+UI DESIGN PASS (this tip)
 --------------------------------------------------------------------------------
 
-Classes UI (/classes):
-- Authenticated RSC bootstrap + client workspace
-- Create / edit / archive / unarchive / delete (confirm)
-- Active vs archived views; empty states
+- Removed Newsreader serif; single font: DM Sans (400–700)
+- Dark canvas + restrained violet accent tokens
+- Stronger type hierarchy (bold titles, semibold controls)
+- Shell/sidebar active state uses accent soft, not IDE look
+- Classes/Tasks cards, badges, buttons, inputs polished
+- No schema/domain/authz/AI/calendar/product changes
 
-Tasks UI (/tasks):
-- Authenticated RSC bootstrap + client workspace
-- Create / edit / delete (confirm)
-- Status: start, complete, cancel, reopen/restore
-- Class assign/remove; priority; due/start; estimated minutes
-- Filters: All / Active / Completed / Cancelled
-- Sort: Due soon / Recently created
-
-Server boundary:
-- src/lib/academic/actions.ts — requireUserId; no client userId/completedAt
-- Domain services remain authoritative for ownership/validation
-
-Out of scope (not implemented):
-- Calendar UI
-- AI/LLM / academic context
-- LMS / external calendar / notifications / gradebook / recurring
-
-Quality gates (at feature tip):
+Quality gates:
 npm test                 161/161 pass
 npm run typecheck        pass
 npm run lint             pass
@@ -79,7 +67,7 @@ prisma migrate status    up to date (7 migrations)
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #11
+1. Independent review of PR #11 (feature + design pass)
 2. Human merge only after CLEAR FOR MERGE
 3. Phase 3 Implementation #3 — Calendar UI
 
