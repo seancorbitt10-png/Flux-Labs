@@ -10,14 +10,17 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border-b border-foreground/10 lg:hidden">
+    <div className="border-b border-foreground/10 bg-surface/60 backdrop-blur-sm lg:hidden">
       <div className="flex items-center justify-between px-4 py-3">
-        <Link href="/home" className="font-display text-xl tracking-tight">
+        <Link
+          href="/home"
+          className="text-base font-bold tracking-tight text-foreground"
+        >
           Flux Labs
         </Link>
         <button
           type="button"
-          className="rounded-md border border-foreground/15 px-3 py-1.5 text-sm"
+          className="min-h-10 rounded-lg border border-foreground/15 bg-surface px-3 py-1.5 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="mobile-nav"
@@ -28,7 +31,7 @@ export function MobileNav() {
       {open ? (
         <nav
           id="mobile-nav"
-          className="flex flex-col gap-1 px-3 pb-3"
+          className="flex flex-col gap-0.5 px-3 pb-3"
           aria-label="Mobile primary"
         >
           {navItems.map((item) => {
@@ -40,9 +43,9 @@ export function MobileNav() {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={[
-                  "rounded-md px-3 py-2 text-sm",
+                  "rounded-lg px-3 py-2.5 text-sm font-semibold",
                   active
-                    ? "bg-foreground text-background"
+                    ? "bg-accent-soft text-accent"
                     : "text-foreground/70",
                 ].join(" ")}
               >

@@ -1,10 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafafa;
-  --foreground: #0a0a0a;
-  --canvas: #f4f4f5;
-  --muted: #71717a;
+  --background: #121214;
+  --foreground: #f4f4f5;
+  --canvas: #0b0b0d;
+  --muted: #a1a1aa;
+  --surface: #18181b;
+  --surface-elevated: #1f1f23;
+  --border: rgba(244, 244, 245, 0.12);
+  --border-strong: rgba(244, 244, 245, 0.2);
+  --accent: #8b5cf6;
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-foreground: #f5f3ff;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
 }
 
 @theme inline {
@@ -12,26 +23,38 @@
   --color-foreground: var(--foreground);
   --color-canvas: var(--canvas);
   --color-muted: var(--muted);
-  --font-sans: var(--font-body);
-  --font-display: var(--font-display);
-  --font-mono: var(--font-mono);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --font-sans: var(--font-sans);
 }
 
 body {
   background: var(--canvas);
   color: var(--foreground);
-  font-family: var(--font-body), ui-sans-serif, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
+/* Display = same sans, stronger weight — never serif */
 .font-display {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .bg-atmosphere {
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(0, 0, 0, 0.04), transparent 50%),
-    linear-gradient(180deg, #f7f7f8 0%, #efeff1 100%);
+    radial-gradient(1000px 520px at 8% -8%, rgba(139, 92, 246, 0.14), transparent 55%),
+    radial-gradient(800px 480px at 100% 0%, rgba(96, 165, 250, 0.06), transparent 50%),
+    linear-gradient(180deg, #0d0d10 0%, #0b0b0d 100%);
 }
 
 @keyframes fade-up {
@@ -51,4 +74,39 @@ body {
 
 .animate-fade-up-delay {
   animation: fade-up 560ms ease-out 120ms both;
+}
+
+/* Shared control surface for selects matching inputs */
+.flux-select {
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+}
+
+.flux-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flux-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.flux-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }

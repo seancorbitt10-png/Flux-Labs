@@ -192,7 +192,7 @@ export function StudyWorkspace({
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-foreground/45">
               Study
             </p>
-            <h1 className="text-xl font-medium tracking-tight sm:text-2xl">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
               Academic workspace
             </h1>
           </div>
@@ -374,7 +374,7 @@ export function StudyWorkspace({
             </div>
 
             {error ? (
-              <p className="mt-2 text-sm text-red-600" role="alert">
+              <p className="mt-2 text-sm text-danger" role="alert">
                 {error}
               </p>
             ) : null}
@@ -427,7 +427,7 @@ export function StudyWorkspace({
                       Status: {p.statusLocal ?? p.status}
                     </p>
                     {p.error ? (
-                      <p className="mt-1 text-red-600" role="alert">
+                      <p className="mt-1 text-danger" role="alert">
                         {p.error}
                       </p>
                     ) : null}

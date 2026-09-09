@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-09 13:38 UTC
+Updated: 2026-09-09 19:02 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,23 +11,24 @@ BOTTOM LINE
 Phase 1 complete on main.
 Phase 2 complete on main (Implementations #1–#6).
 Phase 3 architecture HUMAN-APPROVED on main.
+Phase 3 Implementation #1 (data foundation) MERGED on main.
 
-Phase 3 Implementation #1 (Academic Workspace Data Foundation) is on DRAFT PR #10.
-Independent security/correctness review of tip a494217: CLEAR FOR MERGE.
-
-PR #10 remains draft / unmerged (human merge only).
-Phase 3 product is NOT complete (UI + AI context slices still pending).
+Phase 3 Implementation #2 (Classes + Tasks UI + UI design pass) is DRAFT PR #11.
+NOT independently reviewed yet — NOT CLEAR FOR MERGE until review.
+Phase 3 / product are NOT complete.
+Do not merge until independent review clearance.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              0b118cf (authorize Phase 3 implementation slice 1)
-Working branch:           cursor/phase3-academic-workspace-foundation-399a
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/10
-Branch tip:               f93750e149d0c41ce279c09ab29acb55f0481385 (STATUS_REPORT only)
-Reviewed feature tip:     a494217 / remediation 3c00c4f
-PR state:                 draft, open, unmerged — CLEAR FOR MERGE (awaiting human merge)
+origin/main:              6468e45 (PR #10 merged — academic workspace foundation)
+Working branch:           cursor/phase3-classes-tasks-ui-399a
+Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/11
+Branch tip:               8bc89e7ce0e187100836babcccd5a4127f0a94e7
+Feature commit:           973c39f (Classes + Tasks UI)
+Design commit:            bfbbdc2 (typography + dark tech visual polish)
+PR state:                 draft, open, unmerged — awaiting independent review
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -37,63 +38,46 @@ PHASE / IMPLEMENTATION STATUS
 
 Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
-Phase 3 Implementation #1         DRAFT PR #10 — CLEAR FOR MERGE
-Phase 3 Implementations #2–#4     NOT STARTED
+Phase 3 Implementation #1         MERGED (main)
+Phase 3 Implementation #2         DRAFT PR #11 — awaiting independent review
+Phase 3 Implementations #3–#4     NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-INDEPENDENT REVIEW (tip a494217) — SUMMARY
+IMPLEMENTATION #2 + DESIGN PASS
 --------------------------------------------------------------------------------
 
-VERDICT: CLEAR FOR MERGE
+Classes / Tasks UI:
+- Authenticated RSC bootstrap + client workspaces
+- Class create/edit/archive/unarchive/delete
+- Task create/edit/delete, status actions, class link, filters/sorts
+- Server actions bound to requireUserId (no client userId/completedAt)
 
-Previously reported findings:
-  1. Calendar per-source take / non-global order     FIXED
-  2. Unbounded calendar candidate app fetch          FIXED
-  3. Class partial date update breaks invariant      FIXED
-  4. Class date race without row lock                FIXED
+UI design pass (visual only):
+- Removed Newsreader serif; DM Sans only (400–700)
+- Dark canvas + restrained violet accent
+- Stronger type hierarchy; shell/nav, buttons, inputs, badges, cards
+- No schema/domain/authz/AI/calendar/product behavior changes
 
-High severity findings:     none
-Medium severity findings:   none
-Merge blockers:             none
+Out of scope:
+- Calendar UI
+- AI/LLM / academic context
+- LMS / external calendar / notifications / gradebook / recurring
 
-Verified:
-  - Parameterized SQL UNION ORDER BY sortAt, kind, id LIMIT limit+1
-  - Task sortAt = dueAt ?? startsAt; Class = startsAt ?? endsAt
-  - Hydration by page IDs preserves order; ownership filters server-side
-  - updateClass: effective-date validation + SELECT FOR UPDATE in same tx
-  - DB CHECK classes_starts_before_ends_check present and enforced
-  - Class/Task/TaskConcept ownership/IDOR; no client userId/completedAt
-  - Deletion: class SET NULL tasks; task cascades TaskConcept; user wipe
-  - No CalendarEvent, AI/LLM, LMS, notifications, gradebook, recurring UI
-  - Tests cover global order, limit/truncated, ties, filters, ownership,
-    partial/concurrent class dates, IDOR, deletion
-
-Low / informational (non-blocking):
-  - Inclusion can use any in-range date while sortAt prefers another field
-    (architecture-specified; sortAt may fall outside [from, to])
-  - Concurrent delete during hydrate can yield short page with truncated=true
-  - No expression indexes on COALESCE sortAt (DB may scan before LIMIT)
-
-Quality gates (last remediation tip):
-  npm test                 145/145 pass
-  npm run typecheck        pass
-  npm run lint             pass
-  npm run build            pass
-  prisma migrate status    up to date (7 migrations)
-
-Intentionally deferred (out of slice #1):
-  - Classes / Tasks / Calendar UI
-  - Academic AI context integration
-  - LMS / external calendar / notifications / gradebook / recurring schedules
+Quality gates (at design tip):
+npm test                 161/161 pass
+npm run typecheck        pass
+npm run lint             pass
+npm run build            pass
+prisma migrate status    up to date (7 migrations)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Human merge of PR #10 when ready (do not auto-merge)
-2. Phase 3 Implementation #2 — Classes + Tasks UI
-3. Then Calendar UI (#3) and academic AI context (#4)
+1. Independent review of PR #11
+2. Human merge only after CLEAR FOR MERGE
+3. Phase 3 Implementation #3 — Calendar UI
 
 ================================================================================
 END OF STATUS REPORT

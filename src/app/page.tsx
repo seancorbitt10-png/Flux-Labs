@@ -13,7 +13,7 @@ export default async function LandingPage() {
     <div className="relative min-h-screen overflow-hidden bg-canvas text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-atmosphere" />
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-        <p className="font-display text-2xl tracking-tight">Flux Labs</p>
+        <p className="text-lg font-bold tracking-tight">Flux Labs</p>
         <div className="flex items-center gap-2">
           <Link href="/login">
             <Button variant="ghost">Sign in</Button>
@@ -25,10 +25,10 @@ export default async function LandingPage() {
       </header>
 
       <main className="relative mx-auto flex max-w-6xl flex-col px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
-        <p className="animate-fade-up font-display text-5xl leading-[1.05] tracking-tight sm:text-7xl">
+        <p className="animate-fade-up text-5xl font-bold leading-[1.05] tracking-tight sm:text-7xl">
           Flux Labs
         </p>
-        <h1 className="animate-fade-up-delay mt-6 max-w-2xl text-xl leading-relaxed text-foreground/75 sm:text-2xl">
+        <h1 className="animate-fade-up-delay mt-6 max-w-2xl text-lg font-medium leading-relaxed text-muted sm:text-2xl">
           Your persistent academic intelligence layer — learn, plan, and
           improve with AI that guides instead of doing the work.
         </h1>

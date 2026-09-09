@@ -254,7 +254,7 @@ export function OnboardingFlow({ initial }: Props) {
       <div className="max-w-xl space-y-3">
         <p className="text-sm text-foreground/65">Loading academic setup…</p>
         {error ? (
-          <p className="text-sm text-red-600" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {error}
           </p>
         ) : null}
@@ -466,7 +466,7 @@ export function OnboardingFlow({ initial }: Props) {
       </section>
 
       {error ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {error}
         </p>
       ) : null}

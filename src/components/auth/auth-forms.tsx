@@ -32,7 +32,7 @@ export function LoginForm() {
         required
       />
       {state && !state.ok ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm font-medium text-danger" role="alert">
           {state.message}
         </p>
       ) : null}
@@ -78,7 +78,7 @@ export function RegisterForm() {
         }
       />
       {state && !state.ok && !state.fieldErrors ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm font-medium text-danger" role="alert">
           {state.message}
         </p>
       ) : null}
