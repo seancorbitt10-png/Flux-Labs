@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
-import { DM_Sans, Newsreader, IBM_Plex_Mono } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 
-const body = DM_Sans({
-  variable: "--font-body",
+const sans = DM_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
-});
-
-const display = Newsreader({
-  variable: "--font-display",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-});
-
-const mono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -35,9 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${body.variable} ${display.variable} ${mono.variable} antialiased`}
-      >
+      <body className={`${sans.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

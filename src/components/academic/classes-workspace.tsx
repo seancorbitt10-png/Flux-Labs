@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -228,13 +229,13 @@ export function ClassesWorkspace({
       {error ? (
         <p
           role="alert"
-          className="rounded-md border border-red-500/30 bg-red-50 px-3 py-2 text-sm text-red-800"
+          className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger"
         >
           {error}
         </p>
       ) : null}
       {statusMessage ? (
-        <p className="text-sm text-foreground/65" aria-live="polite">
+        <p className="text-sm font-medium text-muted" aria-live="polite">
           {statusMessage}
         </p>
       ) : null}
@@ -242,9 +243,9 @@ export function ClassesWorkspace({
       {mode !== "list" ? (
         <form
           onSubmit={onSubmit}
-          className="space-y-3 rounded-lg border border-foreground/15 bg-background/70 p-4"
+          className="flux-card space-y-3 p-4 sm:p-5"
         >
-          <h2 className="font-display text-xl tracking-tight">
+          <h2 className="text-lg font-bold tracking-tight">
             {mode === "edit" ? "Edit class" : "Create class"}
           </h2>
           <Input
@@ -283,7 +284,9 @@ export function ClassesWorkspace({
             }
           />
           <label className="block space-y-1.5">
-            <span className="text-sm text-foreground/70">Description</span>
+            <span className="text-sm font-medium text-foreground/75">
+              Description
+            </span>
             <textarea
               name="description"
               maxLength={5000}
@@ -292,7 +295,7 @@ export function ClassesWorkspace({
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
-              className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none transition focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+              className="w-full rounded-lg border border-foreground/12 bg-surface px-3 py-2 text-sm font-medium outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/25"
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -348,35 +351,37 @@ export function ClassesWorkspace({
           }
         />
       ) : (
-        <ul className="divide-y divide-foreground/10 border-y border-foreground/10">
+        <ul className="space-y-3">
           {visible.map((row) => (
-            <li key={row.id} className="py-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <h3 className="truncate text-base font-medium">
+            <li key={row.id} className="flux-card p-4 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-base font-semibold tracking-tight sm:text-lg">
                       {row.name}
                     </h3>
                     {row.courseCode ? (
-                      <span className="font-mono text-xs text-foreground/55">
+                      <span className="text-xs font-semibold text-muted">
                         {row.courseCode}
                       </span>
                     ) : null}
-                    <span className="text-xs uppercase tracking-wide text-foreground/45">
-                      {row.status.toLowerCase()}
-                    </span>
+                    <Badge
+                      tone={row.status === "ACTIVE" ? "accent" : "neutral"}
+                    >
+                      {row.status === "ACTIVE" ? "Active" : "Archived"}
+                    </Badge>
                   </div>
-                  <p className="text-sm text-foreground/65">
+                  <p className="text-sm font-medium text-muted">
                     {row.term}
                     {row.instructorName ? ` · ${row.instructorName}` : ""}
                   </p>
                   {row.description ? (
-                    <p className="text-sm leading-relaxed text-foreground/60">
+                    <p className="text-sm font-medium leading-relaxed text-foreground/70">
                       {row.description}
                     </p>
                   ) : null}
                   {(row.startsAt || row.endsAt) && (
-                    <p className="text-xs text-foreground/50">
+                    <p className="text-xs font-medium text-foreground/45">
                       {row.startsAt
                         ? formatAcademicInstant(row.startsAt, timezone)
                         : "—"}
@@ -446,7 +451,7 @@ export function ClassesWorkspace({
                 </div>
               </div>
               {confirmDeleteId === row.id ? (
-                <p className="mt-2 text-xs text-foreground/55">
+                <p className="mt-3 text-xs font-medium text-muted">
                   Deleting removes the class. Tasks stay and lose this class
                   link.
                 </p>

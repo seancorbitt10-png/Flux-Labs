@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,30 @@ function statusLabel(status: TaskStatus): string {
     default:
       return "To do";
   }
+}
+
+function statusTone(
+  status: TaskStatus,
+): "neutral" | "accent" | "success" | "warning" | "danger" | "info" {
+  switch (status) {
+    case "IN_PROGRESS":
+      return "info";
+    case "COMPLETED":
+      return "success";
+    case "CANCELLED":
+      return "neutral";
+    default:
+      return "accent";
+  }
+}
+
+function priorityTone(
+  priority: number | null,
+): "neutral" | "warning" | "danger" {
+  if (priority == null) return "neutral";
+  if (priority <= 2) return "danger";
+  if (priority === 3) return "warning";
+  return "neutral";
 }
 
 export function TasksWorkspace({
@@ -242,10 +267,10 @@ export function TasksWorkspace({
         >
           New task
         </Button>
-        <label className="flex items-center gap-2 text-sm text-foreground/70">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted">
           <span className="sr-only">Filter</span>
           <select
-            className="min-h-10 rounded-md border border-foreground/15 bg-background/80 px-2 text-sm"
+            className="flux-select"
             value={filter}
             onChange={(e) => setFilter(e.target.value as TaskListFilter)}
             disabled={pending}
@@ -256,10 +281,10 @@ export function TasksWorkspace({
             <option value="cancelled">Cancelled</option>
           </select>
         </label>
-        <label className="flex items-center gap-2 text-sm text-foreground/70">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted">
           <span className="sr-only">Sort</span>
           <select
-            className="min-h-10 rounded-md border border-foreground/15 bg-background/80 px-2 text-sm"
+            className="flux-select"
             value={sort}
             onChange={(e) => setSort(e.target.value as TaskListSort)}
             disabled={pending}
@@ -281,13 +306,13 @@ export function TasksWorkspace({
       {error ? (
         <p
           role="alert"
-          className="rounded-md border border-red-500/30 bg-red-50 px-3 py-2 text-sm text-red-800"
+          className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger"
         >
           {error}
         </p>
       ) : null}
       {statusMessage ? (
-        <p className="text-sm text-foreground/65" aria-live="polite">
+        <p className="text-sm font-medium text-muted" aria-live="polite">
           {statusMessage}
         </p>
       ) : null}
@@ -295,9 +320,9 @@ export function TasksWorkspace({
       {mode !== "list" ? (
         <form
           onSubmit={onSubmit}
-          className="space-y-3 rounded-lg border border-foreground/15 bg-background/70 p-4"
+          className="flux-card space-y-3 p-4 sm:p-5"
         >
-          <h2 className="font-display text-xl tracking-tight">
+          <h2 className="text-lg font-bold tracking-tight">
             {mode === "edit" ? "Edit task" : "Create task"}
           </h2>
           <Input
@@ -309,7 +334,9 @@ export function TasksWorkspace({
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           />
           <label className="block space-y-1.5">
-            <span className="text-sm text-foreground/70">Description</span>
+            <span className="text-sm font-medium text-foreground/75">
+              Description
+            </span>
             <textarea
               name="description"
               maxLength={5000}
@@ -318,18 +345,18 @@ export function TasksWorkspace({
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
-              className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none transition focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+              className="w-full rounded-lg border border-foreground/12 bg-surface px-3 py-2 text-sm font-medium outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/25"
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-sm text-foreground/70">Class</span>
+            <span className="text-sm font-medium text-foreground/75">Class</span>
             <select
               name="classId"
               value={form.classId}
               onChange={(e) =>
                 setForm((f) => ({ ...f, classId: e.target.value }))
               }
-              className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+              className="flux-select w-full"
             >
               <option value="">No class</option>
               {activeClassOptions.map((c) => (
@@ -349,7 +376,9 @@ export function TasksWorkspace({
           </label>
           {mode === "edit" ? (
             <label className="block space-y-1.5">
-              <span className="text-sm text-foreground/70">Status</span>
+              <span className="text-sm font-medium text-foreground/75">
+                Status
+              </span>
               <select
                 name="status"
                 value={form.status}
@@ -359,7 +388,7 @@ export function TasksWorkspace({
                     status: e.target.value as TaskStatus,
                   }))
                 }
-                className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                className="flux-select w-full"
               >
                 <option value="TODO">To do</option>
                 <option value="IN_PROGRESS">In progress</option>
@@ -369,7 +398,9 @@ export function TasksWorkspace({
             </label>
           ) : (
             <label className="block space-y-1.5">
-              <span className="text-sm text-foreground/70">Starting status</span>
+              <span className="text-sm font-medium text-foreground/75">
+                Starting status
+              </span>
               <select
                 name="status"
                 value={form.status}
@@ -379,7 +410,7 @@ export function TasksWorkspace({
                     status: e.target.value as TaskStatus,
                   }))
                 }
-                className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                className="flux-select w-full"
               >
                 <option value="TODO">To do</option>
                 <option value="IN_PROGRESS">In progress</option>
@@ -388,14 +419,16 @@ export function TasksWorkspace({
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5">
-              <span className="text-sm text-foreground/70">Priority (1–5)</span>
+              <span className="text-sm font-medium text-foreground/75">
+                Priority (1–5)
+              </span>
               <select
                 name="priority"
                 value={form.priority}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, priority: e.target.value }))
                 }
-                className="w-full rounded-md border border-foreground/15 bg-background/80 px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                className="flux-select w-full"
               >
                 <option value="">None</option>
                 <option value="1">1 · Highest</option>
@@ -478,50 +511,55 @@ export function TasksWorkspace({
           }
         />
       ) : (
-        <ul className="divide-y divide-foreground/10 border-y border-foreground/10">
+        <ul className="space-y-3">
           {visible.map((row) => {
             const muted =
               row.status === "COMPLETED" || row.status === "CANCELLED";
             return (
               <li
                 key={row.id}
-                className={`py-4 ${muted ? "opacity-70" : ""}`}
+                className={`flux-card p-4 sm:p-5 ${muted ? "opacity-80" : ""}`}
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3
-                        className={`text-base font-medium ${
-                          row.status === "COMPLETED" ? "line-through" : ""
+                        className={`text-base font-semibold tracking-tight sm:text-lg ${
+                          row.status === "COMPLETED"
+                            ? "text-foreground/70 line-through"
+                            : ""
                         }`}
                       >
                         {row.title}
                       </h3>
-                      <span className="text-xs uppercase tracking-wide text-foreground/45">
+                      <Badge tone={statusTone(row.status)}>
                         {statusLabel(row.status)}
-                      </span>
+                      </Badge>
                       {row.priority != null ? (
-                        <span className="font-mono text-xs text-foreground/50">
+                        <Badge tone={priorityTone(row.priority)}>
                           P{row.priority}
-                        </span>
+                        </Badge>
                       ) : null}
                     </div>
-                    <p className="text-sm text-foreground/65">
-                      {row.className ? row.className : "No class"}
-                      {row.dueAt
-                        ? ` · Due ${formatAcademicInstant(row.dueAt, timezone)}`
-                        : ""}
+                    <p className="text-sm font-medium text-muted">
+                      <span>{row.className ? row.className : "No class"}</span>
+                      {row.dueAt ? (
+                        <span className="text-foreground/85">
+                          {" · Due "}
+                          {formatAcademicInstant(row.dueAt, timezone)}
+                        </span>
+                      ) : null}
                       {row.estimatedMinutes
                         ? ` · ${row.estimatedMinutes} min`
                         : ""}
                     </p>
                     {row.description ? (
-                      <p className="text-sm leading-relaxed text-foreground/60">
+                      <p className="text-sm font-medium leading-relaxed text-foreground/70">
                         {row.description}
                       </p>
                     ) : null}
                     {row.completedAt ? (
-                      <p className="text-xs text-foreground/45">
+                      <p className="text-xs font-medium text-foreground/45">
                         Completed{" "}
                         {formatAcademicInstant(row.completedAt, timezone)}
                       </p>
