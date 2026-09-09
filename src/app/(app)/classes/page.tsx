@@ -1,19 +1,31 @@
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
+import { ClassesWorkspace } from "@/components/academic/classes-workspace";
+import { requireUserId } from "@/lib/auth/session";
+import { getClassesWorkspaceBootstrap } from "@/lib/academic/workspace";
 
 export const metadata = { title: "Classes" };
 
-export default function ClassesPage() {
+export default async function ClassesPage() {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch {
+    redirect("/login?callbackUrl=/classes");
+  }
+
+  const bootstrap = await getClassesWorkspaceBootstrap({
+    actorUserId: userId,
+    userId,
+  });
+
   return (
     <div className="animate-fade-up">
       <PageHeader
         title="Classes"
-        description="Each class becomes an AI-aware context boundary — assignments, materials, topics, and mastery."
+        description="The courses you are taking — organize tasks by class without losing uncategorized work."
       />
-      <EmptyState
-        title="No classes yet"
-        body="Class management ships in Phase 3. The schema and navigation are ready for enrollments, assignments, and class-scoped AI context."
-      />
+      <ClassesWorkspace initial={bootstrap} />
     </div>
   );
 }

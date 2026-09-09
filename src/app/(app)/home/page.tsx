@@ -51,7 +51,7 @@ export default async function HomePage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <EmptyState
           title="Today's priorities"
-          body="Classes, tasks, and calendar arrive in Phase 3. For now, open Study to try guided AI assistance."
+          body="Manage Classes and Tasks from the nav. Calendar arrives next; Study remains available for guided help."
         />
         <EmptyState
           title="Your plan"
