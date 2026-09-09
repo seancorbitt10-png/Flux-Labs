@@ -26,6 +26,8 @@ export type DeleteEducationalDataResult = {
     studentConceptStates: number;
     studentMisconceptions: number;
     userConcepts: number;
+    tasks: number;
+    classes: number;
   };
 };
 
@@ -57,6 +59,11 @@ async function deleteUserOwnedConcepts(
     data: { conceptId: null },
   });
   await tx.studentConceptState.deleteMany({
+    where: { conceptId: { in: userConceptIds } },
+  });
+  // TaskConcept rows for USER concepts cascade when concepts are deleted,
+  // but clear explicitly first for deterministic educational wipe ordering.
+  await tx.taskConcept.deleteMany({
     where: { conceptId: { in: userConceptIds } },
   });
   await tx.concept.deleteMany({
@@ -95,6 +102,10 @@ export async function deleteUserEducationalData(args: {
     const onboardingSessions = await tx.onboardingSession.deleteMany({
       where: { userId },
     });
+    // Tasks before Classes so TaskConcept cascades with tasks;
+    // classId SetNull is irrelevant once tasks are gone.
+    const tasks = await tx.task.deleteMany({ where: { userId } });
+    const classes = await tx.class.deleteMany({ where: { userId } });
     const studentProfile = await tx.studentProfile.deleteMany({
       where: { userId },
     });
@@ -122,6 +133,8 @@ export async function deleteUserEducationalData(args: {
         studentConceptStates: studentConceptStates.count,
         studentMisconceptions: studentMisconceptions.count,
         userConcepts,
+        tasks: tasks.count,
+        classes: classes.count,
       },
     };
   });

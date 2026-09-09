@@ -1,6 +1,7 @@
-// Flux Labs — Phase 1 + Phase 2 foundation schema
+// Flux Labs — Phase 1 + Phase 2 + Phase 3 foundation schema
 // Phase 2 Student Model + Knowledge Foundation.
-// See docs/PHASE2_ARCHITECTURE.md (approved) and docs/STUDENT_MODEL.md.
+// Phase 3 Academic Workspace (Class / Task / TaskConcept).
+// See docs/PHASE2_ARCHITECTURE.md, docs/PHASE3_ARCHITECTURE.md, docs/STUDENT_MODEL.md.
 
 generator client {
   provider = "prisma-client-js"
@@ -44,6 +45,10 @@ model User {
   studentConceptStates StudentConceptState[]
   studentMisconceptions StudentMisconception[]
   userConcepts         Concept[] @relation("UserCreatedConcepts")
+
+  // Phase 3 academic workspace
+  classes              Class[]
+  tasks                Task[]
 
   @@map("users")
 }
@@ -406,6 +411,7 @@ model Concept {
   conceptStates StudentConceptState[]
   misconceptions StudentMisconception[]
   learningEvidence LearningEvidence[]
+  taskConcepts  TaskConcept[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -430,6 +436,90 @@ model ConceptRelation {
   @@index([fromConceptId])
   @@index([toConceptId])
   @@map("concept_relations")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Academic workspace (Classes / Tasks / TaskConcept)
+// See docs/PHASE3_ARCHITECTURE.md
+// ---------------------------------------------------------------------------
+
+enum ClassStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Class {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name           String
+  term           String
+  status         ClassStatus @default(ACTIVE)
+  courseCode     String?
+  instructorName String?
+  description    String?     @db.Text
+  startsAt       DateTime?
+  endsAt         DateTime?
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, term])
+  // Temporal invariant (DB CHECK classes_starts_before_ends_check):
+  // startsAt IS NULL OR endsAt IS NULL OR startsAt <= endsAt
+  @@map("classes")
+}
+
+model Task {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  title            String
+  description      String?     @db.Text
+  status           TaskStatus  @default(TODO)
+  dueAt            DateTime?
+  startsAt         DateTime?
+  priority         Int?
+  estimatedMinutes Int?
+  completedAt      DateTime?
+
+  taskConcepts TaskConcept[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, dueAt])
+  @@index([userId, classId, dueAt])
+  @@map("tasks")
+}
+
+model TaskConcept {
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  conceptId String
+  concept   Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([taskId, conceptId])
+  @@index([conceptId])
+  @@map("task_concepts")
 }
 
 // ---------------------------------------------------------------------------
