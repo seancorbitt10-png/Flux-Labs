@@ -1,19 +1,31 @@
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
+import { CalendarWorkspace } from "@/components/academic/calendar-workspace";
+import { requireUserId } from "@/lib/auth/session";
+import { getCalendarWorkspaceBootstrap } from "@/lib/academic/workspace";
 
 export const metadata = { title: "Calendar" };
 
-export default function CalendarPage() {
+export default async function CalendarPage() {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch {
+    redirect("/login?callbackUrl=/calendar");
+  }
+
+  const bootstrap = await getCalendarWorkspaceBootstrap({
+    actorUserId: userId,
+    userId,
+  });
+
   return (
     <div className="animate-fade-up">
       <PageHeader
         title="Calendar"
-        description="Deadlines, assessments, and study sessions in one academic timeline Flux can reason over."
+        description="Your academic week — deadlines and class periods from Classes and Tasks, not a separate calendar."
       />
-      <EmptyState
-        title="Calendar arrives in Phase 3"
-        body="External calendar integrations remain modular and optional — Flux will never assume unauthorized access."
-      />
+      <CalendarWorkspace initial={bootstrap} />
     </div>
   );
 }
