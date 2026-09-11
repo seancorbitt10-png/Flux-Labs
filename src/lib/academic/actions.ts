@@ -6,6 +6,12 @@ import { toClientError } from "@/lib/errors";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 import { assertNoClientAcademicAuthority } from "./authority";
 import {
+  addDaysYmd,
+  formatYmd,
+  parseYmd,
+  todayYmd,
+} from "./calendar-range";
+import {
   archiveClass,
   createClass,
   deleteClass,
@@ -21,8 +27,10 @@ import {
 } from "./tasks";
 import { toClassView, toTaskView } from "./views";
 import {
+  getCalendarWorkspaceBootstrap,
   getClassesWorkspaceBootstrap,
   getTasksWorkspaceBootstrap,
+  type CalendarWorkspaceBootstrap,
   type ClassesWorkspaceBootstrap,
   type TasksWorkspaceBootstrap,
 } from "./workspace";
@@ -273,6 +281,75 @@ export async function getTaskAction(args: {
     });
     const className = await classNameFor(userId, row.classId);
     return { ok: true, data: { task: toTaskView(row, className) } };
+  } catch (error) {
+    return { ok: false, message: toClientError(error).message };
+  }
+}
+
+export async function loadCalendarWorkspaceAction(args?: {
+  anchorDate?: string | null;
+  classId?: string | null;
+  status?: TaskStatus | null;
+}): Promise<AcademicActionResult<CalendarWorkspaceBootstrap>> {
+  try {
+    const userId = await requireUserId();
+    rate(userId, "calendar:load");
+    const bag = {
+      ...(args?.anchorDate != null ? { anchorDate: args.anchorDate } : {}),
+      ...(args?.classId != null ? { classId: args.classId } : {}),
+      ...(args?.status != null ? { status: args.status } : {}),
+    };
+    assertNoClientAcademicAuthority(bag as Record<string, unknown>);
+
+    const data = await getCalendarWorkspaceBootstrap({
+      actorUserId: userId,
+      userId,
+      anchorDate: args?.anchorDate ?? null,
+      classId: args?.classId ?? null,
+      status: args?.status ?? null,
+    });
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, message: toClientError(error).message };
+  }
+}
+
+/** Shift the seven-day agenda window by ±7 days (or reset to today). */
+export async function navigateCalendarAction(args: {
+  direction: "prev" | "next" | "today";
+  anchorDate?: string | null;
+  classId?: string | null;
+  status?: TaskStatus | null;
+}): Promise<AcademicActionResult<CalendarWorkspaceBootstrap>> {
+  try {
+    const userId = await requireUserId();
+    rate(userId, "calendar:nav");
+
+    const profile = await prisma.studentProfile.findUnique({
+      where: { userId },
+      select: { timezone: true },
+    });
+    const timezone = profile?.timezone?.trim() || "UTC";
+
+    let anchor =
+      args.direction === "today"
+        ? todayYmd(timezone)
+        : parseYmd(args.anchorDate ?? "") ?? todayYmd(timezone);
+
+    if (args.direction === "prev") {
+      anchor = addDaysYmd(anchor, -7);
+    } else if (args.direction === "next") {
+      anchor = addDaysYmd(anchor, 7);
+    }
+
+    const data = await getCalendarWorkspaceBootstrap({
+      actorUserId: userId,
+      userId,
+      anchorDate: formatYmd(anchor),
+      classId: args.classId ?? null,
+      status: args.status ?? null,
+    });
+    return { ok: true, data };
   } catch (error) {
     return { ok: false, message: toClientError(error).message };
   }
