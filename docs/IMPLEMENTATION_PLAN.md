@@ -9,7 +9,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 0 | Inspect repository | **Done** |
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
-| 3 | Classes / tasks / calendar | **Architecture approved; Implementation #1 next** |
+| 3 | Classes / tasks / calendar | **Impl #1–#3 merged; Impl #4 (AI context) draft PR** |
 | 4 | Core AI tutoring (real providers, guided flows) | Planned |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
@@ -72,10 +72,10 @@ Phase 3 architecture is approved in `docs/PHASE3_ARCHITECTURE.md`.
 
 ### Implementation sequence
 
-1. Academic workspace data foundation — schema, migration, domain services, validation, ownership, deletion semantics, calendar query contract, tests.
-2. Classes + Tasks UI — mobile-first CRUD, filtering, status lifecycle, class/task routes and IDOR coverage.
-3. Calendar UI — deadline calendar/agenda, date-range queries, timezone-aware rendering and filters.
-4. Academic context integration — authorized class/task context through `assembleAIContext`, server-validated Study focus, context budgets and prompt-contract tests.
+1. Academic workspace data foundation — schema, migration, domain services, validation, ownership, deletion semantics, calendar query contract, tests. **Merged (PR #10).**
+2. Classes + Tasks UI — mobile-first CRUD, filtering, status lifecycle, class/task routes and IDOR coverage. **Merged (PR #11).**
+3. Calendar UI — deadline calendar/agenda, date-range queries, timezone-aware rendering and filters. **Merged (PR #12).**
+4. Academic context integration — authorized class/task/calendar context through `assembleAIContext`, server-validated Study focus (`classId`/`taskId`), context budgets and prompt-contract tests. **Draft PR — awaiting independent review.**
 
 ### Phase 3 non-goals
 
