@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-11 23:31 UTC
+Updated: 2026-09-11 23:45 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,6 +11,7 @@ BOTTOM LINE
 Phases 0–3 COMPLETE on main (including PR #13 Academic AI Context Integration).
 
 Phase 4 architecture / product planning: DRAFT PR #14 (docs only).
+Independent review of PR #14: NOT CLEAR FOR MERGE.
 Phase 4 implementation: NOT STARTED.
 No production feature code. No database migration.
 
@@ -21,7 +22,7 @@ REPOSITORY
 origin/main:              0b3b0af514df72f92c6284d7385e69a7f9b48ca3
                           (includes merged PR #13 Academic AI Context Integration)
 Working branch:           cursor/phase4-architecture-399a
-Planning commit:          branch tip (docs Phase 4 architecture)
+Planning commit:          edd8cd2f219304bcb4fea7c9e0740689788d1726
 Base:                     main @ 0b3b0af
 PR #13 in ancestry:       YES (merge commit 0b3b0af)
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/14
@@ -39,7 +40,7 @@ Phase 3 Implementation #1         MERGED (main) — PR #10
 Phase 3 Implementation #2         MERGED (main) — PR #11
 Phase 3 Implementation #3         MERGED (main) — PR #12
 Phase 3 Implementation #4         MERGED (main) — PR #13
-Phase 4 Architecture/Planning     DRAFT PR #14 — awaiting independent review
+Phase 4 Architecture/Planning     DRAFT PR #14 — NOT CLEAR FOR MERGE
 Phase 4 Implementation            NOT STARTED
 Later phases                      NOT STARTED
 
@@ -71,13 +72,45 @@ Files changed (planning only):
   - STATUS_REPORT.txt (this file)
 
 --------------------------------------------------------------------------------
+INDEPENDENT REVIEW (PR #14)
+--------------------------------------------------------------------------------
+
+Verdict: NOT CLEAR FOR MERGE
+
+HIGH:   0
+
+MEDIUM: 4
+  1. Proposal types overstated — doc cites Observations/LearningEvidence;
+     live schema only ATTRIBUTE_UPDATE, GOAL_UPDATE,
+     CONCEPT_STATE_UPDATE, MISCONCEPTION_SIGNAL
+  2. Learning-first policy overstated — refuse_direct_completion /
+     limited_answer exist as types but are never selected by policy today
+  3. PR #13 unbounded listClasses/listTasks hardening marked optional;
+     should be required before production real-AI enablement
+  4. Concept context claim inaccurate (conceptIds already assembled when
+     sent); Phase 4 DoD should separate MVP thesis (slices 0–2/+3) from
+     full package (4–5)
+
+LOW:    5
+  - Fail-accounting decision still open (Slice 1 entry criteria)
+  - Study concept focus under-documented vs class/task gap
+  - Stale AI write-contract “hooks off” wording (pre-existing)
+  - Slice 4 may be post-MVP polish given existing Study intents
+  - Status tip SHA pinning
+
+Product direction (production AI → guided Study) remains correct.
+Do not merge PR #14 until MEDIUM findings are corrected and re-reviewed.
+Do not start Phase 4 feature code until architecture is approved.
+
+--------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 architecture draft PR #14 (do not merge without review)
-2. After clearance: human merge of planning PR if desired
-3. Begin Phase 4 implementation slices as separate PRs only after architecture approval
-4. Do not start Phase 4 feature code until architecture is approved
+1. Revise docs/PHASE4_ARCHITECTURE.md for the four MEDIUM findings
+2. Update IMPLEMENTATION_PLAN.md / this STATUS_REPORT as needed
+3. Re-submit draft PR #14 for independent re-review
+4. Merge planning PR only after CLEAR FOR MERGE
+5. Begin Phase 4 implementation slices as separate PRs only after approval
 
 ================================================================================
 END OF STATUS REPORT
