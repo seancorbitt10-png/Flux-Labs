@@ -1,9 +1,11 @@
 # Phase 4 Architecture — Production AI + Guided Study Intelligence
 
-**Status:** ARCHITECTURE / PRODUCT PLANNING — implementation NOT STARTED  
+**Status:** ARCHITECTURE / PRODUCT PLANNING — remediation after PR #14 independent review (NOT CLEAR FOR MERGE); awaiting re-review — implementation NOT STARTED  
 **Baseline:** `main` after PR #13 merge (Academic AI Context Integration)  
-**Date:** 2026-09-11  
+**Date:** 2026-09-11 (remediated)  
 **Scope of this document:** planning only — no production feature code, no migrations
+
+**Review remediation note:** This revision corrects four MEDIUM findings from the PR #14 independent review: live proposal-type inventory, current vs target learning-first policy, required bounded Class/Task retrieval before production AI, and concept-context / MVP vs fuller DoD clarity. Product direction is unchanged.
 
 ---
 
@@ -14,7 +16,7 @@ Phases 0–3 delivered an authenticated academic product shell: Student Model, c
 **Phase 4 objective:** enable the first *real* learning-first Study experience by:
 
 1. Plugging a **production LLM provider** into the existing `AIProvider` abstraction (minimum safe foundation), then  
-2. Delivering **guided Study intelligence** — hints, stepwise guidance, check-work loops — that uses existing academic + Student Model context and writes evidence only through the existing proposal/confirmation boundary.
+2. Delivering **guided Study intelligence** — hints, stepwise guidance, check-work / attempt loops — that uses existing academic + Student Model context and may emit **confirmation-gated proposals** only for types the live contract already supports (see §11).
 
 **Production AI is not Phase 4 by itself.** It is the **first prerequisite slice** of Phase 4. The product outcome of Phase 4 is measurable guided tutoring on Study, not an AI platform.
 
@@ -50,14 +52,14 @@ Phase 4 intentionally excludes RAG, embeddings, vector DBs, LMS integrations, bi
 - Session-bound authorization (no client-controlled `userId`)
 - `AIProvider` interface + DI swap (`getAIProvider` / `setAIProvider`)
 - Task routing → internal model keys (`flux-fast` / `standard` / `advanced`)
-- Academic assistance policy (learning-first modes; refuse direct completion)
-- Budgeted `assembleAIContext` (profile, Student Model slices, academic workspace)
+- Academic assistance policy with learning-first *intent* (see §9.3 for **current vs target** mode selection — `refuse_direct_completion` / `limited_answer` exist as types but are **not** selected by today’s policy)
+- Budgeted `assembleAIContext` (profile, Student Model slices, academic workspace, optional validated `conceptIds`)
 - Prompt fencing: student/workspace text as **DATA**, not instructions
-- Response validation + proposal extraction path
+- Response validation + proposal extraction path for the **four live proposal types** (see §11)
 - Confirmation-gated write contracts (`docs/AI_WRITE_CONTRACT.md`)
 - Usage records + AI interaction summaries (truncated)
 - In-memory rate limiting (single-instance assumption)
-- Knowledge Subject → Topic → Concept schema (thin catalog; little seed data; concepts **not** assembled into AI context today)
+- Knowledge Subject → Topic → Concept schema (thin catalog; little seed data). **When Study sends server-validated `conceptIds`, those concepts and related concept-state slices are assembled today.** Ambient keyword concept discovery is not implemented.
 
 ### What a student can accomplish today
 
@@ -76,10 +78,11 @@ The largest product gap is not missing Classes UI polish or missing Stripe — i
 
 Secondary gaps (important but not Phase 4 primary):
 
-- Study UI does not pass `classId` / `taskId` focus → academic context is ambient, not task-grounded in the UX.
-- Knowledge concepts are schema-ready but underused in Study and AI context.
-- Chat history is browser-session only (acceptable for Phase 4; durable chat is not required to prove thesis).
+- Study UI can send `conceptIds` (assembled when valid) but does **not** yet pass `classId` / `taskId` focus → class/task academic grounding is ambient/server-default rather than task-selected in the UX.
+- Knowledge catalog remains thin; concept focus is explicit-ID only (no search/resolution).
+- Chat history is browser-session only (acceptable for Phase 4 MVP; durable chat is not required to prove thesis).
 - No document grounding (acceptable to defer; premature RAG would dominate cost/complexity).
+- `listClasses` / `listTasks` used by academic AI assembly remain **unbounded at the domain query** (in-memory truncation after fetch) — **must be bounded before production real-AI enablement** (see §19 Slice 6).
 
 Without real AI, further academic surface area (more widgets, more integrations) does not increase learning value.
 
@@ -101,8 +104,8 @@ Acquire → Understand → Organize → Connect → Retrieve → Apply → Evalu
 | Connect | Concept links on tasks (explicit); no AI graph | Light: server-validated focus concepts only; no RAG |
 | Retrieve | Not built | Out of scope as a practice engine |
 | Apply | Check-work / homework-guidance intents exist | **Primary:** real check-work / stepwise apply loops |
-| Evaluate | LearningEvidence / ConceptState / proposals exist | **Secondary:** proposals from real tutoring signals |
-| Refine | Misconceptions + proposal confirm path | **Secondary:** confirmation-gated misconception/evidence proposals |
+| Evaluate | LearningEvidence tables + ConceptState + proposals exist | **Secondary (post-MVP ok):** proposals from live types only (see §11) |
+| Refine | Misconceptions + proposal confirm path | **Secondary:** confirmation-gated `MISCONCEPTION_SIGNAL` / cautious `CONCEPT_STATE_UPDATE` |
 
 Phase 4 should **materially improve Understand / Apply / Evaluate** via real guided Study — not invent Acquire (docs) or full Retrieve (spaced practice) yet.
 
@@ -138,7 +141,7 @@ Phase 4 should **materially improve Understand / Apply / Evaluate** via real gui
 | Cost | Controllable via maxTokens + entitlements + model routing |
 | Validate | Easy A/B: stub vs real guided sessions |
 | Thesis | **Core** — guide reasoning, don’t complete work |
-| Unlocks | Evidence/misconception proposals become meaningful |
+| Unlocks | Live proposal types (`MISCONCEPTION_SIGNAL`, etc.) become meaningful under real tutoring |
 
 **Verdict:** **Primary Phase 4 product objective** after A.
 
@@ -212,9 +215,10 @@ Deliver:
 
 1. **Minimum production AI infrastructure** behind the existing `AIProvider` interface.  
 2. **First meaningful learning experience:** learning-first **guided tutoring** on Study (hints, steps, check-work, teach/explain under policy).  
-3. **Student Model feedback (bounded):** real tutoring may emit **proposals** (observations, learning evidence, misconceptions) through the existing confirmation-gated write-back path — no silent mutations.  
-4. **Study focus UX:** wire optional `classId` / `taskId` from Study UI so academic context is task-grounded.  
-5. **Cost / entitlement hardening** under real token spend.
+3. **Student Model feedback (bounded):** real tutoring may emit **PENDING proposals** only for the **four live proposal types** (`ATTRIBUTE_UPDATE`, `GOAL_UPDATE`, `CONCEPT_STATE_UPDATE`, `MISCONCEPTION_SIGNAL`) through the existing confirmation-gated write-back path — no silent mutations; no Observation/LearningEvidence proposal types today (see §11).  
+4. **Study focus UX:** wire optional `classId` / `taskId` from Study UI so academic context is task-grounded (concept `conceptIds` focus already works when the UI sends them).  
+5. **Cost / entitlement hardening** under real token spend.  
+6. **Required bounded Class/Task retrieval** before production real-AI enablement (see §19 Slice 6).
 
 ### Critical question answers
 
@@ -302,22 +306,48 @@ Requirements:
 
 **Do not** require multi-provider routing, cascading fallbacks across vendors, or a model marketplace in Phase 4.
 
-### 9.3 Study intelligence layer
+### 9.3 Study intelligence layer — current vs Phase 4 target
 
-Stay inside existing Study intents and `AssistanceMode` policy:
+**Product thesis (unchanged):** guide student reasoning; do not simply complete academic work.
 
-- Prefer hint / break-into-steps / ask-question / check-work / identify-misconception.  
-- Use refuse-direct-completion / limited-answer when the student asks for completed homework.  
-- Strengthen prompt contracts so real models honor learning-first behavior (tests + golden prompt fixtures).  
-- Optional: structured tutoring turns (e.g. “question → student attempt → feedback”) **without** a new multi-agent runtime — single completion calls, UI-orchestrated loops.
+**Current policy behavior (`decideAssistancePolicy` in `src/lib/ai/policy.ts`):**
+
+Modes actually returned today:
+
+- `explain`
+- `check_work`
+- `hint`
+- `break_into_steps` (including when the student asks for a direct answer / homework completion — current default for those asks)
+- `teach`
+
+**Not selected today (types exist on `AssistanceMode` but policy never returns them):**
+
+- `refuse_direct_completion`
+- `limited_answer`
+- also unused today: `ask_question`, `identify_misconception`, `analogous_example`, `partial_assistance`
+
+So learning-first behavior today is primarily **prompt directive + mode `break_into_steps` / `hint` / `check_work`**, not an active refuse/limited-answer selector. That is **insufficient to claim** refuse/limited-answer enforcement is operational.
+
+**Phase 4 target (Slice 2 — required for MVP learning-first claim):**
+
+- Prefer `hint` / `break_into_steps` / `ask_question` / `check_work` / `identify_misconception` for tutoring turns.
+- When the student asks for completed homework / final answers, policy must select `refuse_direct_completion` or `limited_answer` (with golden tests).
+- Strengthen prompt contracts so real models honor learning-first behavior (tests + golden prompt fixtures).
+- Optional UX: structured tutoring turns (question → attempt → feedback) **without** a new multi-agent runtime — single completion calls, UI-orchestrated loops.
+
+**Do not claim** learning-first tutoring is fully operational until Slice 2 lands against a real (or fixture-backed) model path.
 
 ### 9.4 Focus wiring
 
 Study client may send optional `classId` / `taskId` already accepted by the server. Phase 4 includes UI affordances to set focus from Classes/Tasks context. Server remains source of truth for ownership validation (PR #13 behavior).
 
-### 9.5 Knowledge
+### 9.5 Knowledge / concepts
 
-No new mastery algorithm. Optional bounded inclusion of **already-linked** task concepts or server-validated focus concepts if product review finds tutoring quality needs it — still allowlisted fields only, still DATA-fenced. No keyword concept resolution.
+No new mastery algorithm.
+
+**Already live:** when the client sends server-validated `conceptIds`, `assembleAIContext` includes those catalog concepts and related concept-state slices (allowlisted, DATA-fenced). Study UI already supports sending concept focus.
+
+**Phase 4 optional deepening (not MVP-blocking):** include already-linked task concepts when `taskId` focus is set, if product review finds tutoring quality needs it — still allowlisted fields only, still DATA-fenced. No keyword concept resolution. No Observation/LearningEvidence proposal types.
 
 ---
 
@@ -345,17 +375,41 @@ No new mastery algorithm. Optional bounded inclusion of **already-linked** task 
 
 ## 11. Student Model Interaction
 
+### 11.1 Live AI proposal types (source of truth: `src/lib/ai/proposals/schema.ts`)
+
+| Type | Status |
+|------|--------|
+| `ATTRIBUTE_UPDATE` | Implemented — PENDING → confirm/reject |
+| `GOAL_UPDATE` | Implemented — PENDING → confirm/reject |
+| `CONCEPT_STATE_UPDATE` | Implemented — PENDING → confirm/reject (mastery caps apply; AI cannot mint MASTERED) |
+| `MISCONCEPTION_SIGNAL` | Implemented — PENDING → confirm/reject |
+
+There are **no** AI proposal types named Observation or LearningEvidence today. Phase 4 must not invent them to match older planning language.
+
+### 11.2 Distinctions
+
+| Category | What it is | Phase 4 rule |
+|----------|------------|--------------|
+| **A. Live proposal types** | The four types above | Only these may be emitted/ingested as AI proposals |
+| **B. Student Model evidence/observation stores** | Domain tables/services for observations, learning evidence, etc. (read path / non-AI writers) | May be **read** into context under budgets; AI does **not** write them via proposals unless/until a future contract adds types |
+| **C. Future / out of Phase 4 MVP** | New proposal kinds, automated mastery, RAG-grounded evidence | Explicit future work — not implied by this architecture |
+
+### 11.3 Phase 4 write rules
+
 | Path | Phase 4 rule |
 |------|----------------|
 | Read | Existing `assembleAIContext` budgets; minimize PII; no raw dumps |
-| Write from AI | **Proposals only** → student confirm/reject |
+| Write from AI | **Proposals only** (live four types) → student confirm/reject |
 | Provenance | AI-derived proposals remain non-EXPLICIT; confidence is internal |
-| Observations / LearningEvidence / Misconceptions | Allowed proposal types when validation passes |
-| Attributes / Goals | No silent overwrite; high-impact changes stay confirmation-gated |
-| ConceptState / mastery | No automated mastery engine; any concept state change remains proposal + rules from Phase 2 |
+| Attributes / Goals | Confirmation-gated; tutoring should prefer not to spam these initially |
+| Concept state / mastery | No automated mastery engine; only via `CONCEPT_STATE_UPDATE` + Phase 2 rules |
+| Misconceptions | Via `MISCONCEPTION_SIGNAL` only |
+| Observations / LearningEvidence | **Not** AI-writable via proposals today |
 | Classes / Tasks | **No AI writes** in Phase 4 |
 
 Historical evidence remains distinct from current state (Phase 2 invariant).
+
+**Slice 5 default preference:** emit `MISCONCEPTION_SIGNAL` (and optionally cautious `CONCEPT_STATE_UPDATE`) before Attribute/Goal updates. Do not add Observation/LearningEvidence proposal types in Phase 4 unless a separate approved contract change lands.
 
 ---
 
@@ -558,17 +612,17 @@ Do **not** implement these now. Prefer small PRs.
 
 ### Slice 2 — Learning-first prompt & policy hardening for real models
 
-- **Responsibility:** Ensure real models follow guidance-not-completion.  
-- **Scope:** Prompt/policy revisions; refusal fixtures; assistance-mode reinforcement.  
+- **Responsibility:** Ensure real models follow guidance-not-completion; wire currently unused refuse/limited modes.  
+- **Scope:** Prompt/policy revisions so `decideAssistancePolicy` selects `refuse_direct_completion` or `limited_answer` when the student asks for completed work; refusal fixtures; assistance-mode reinforcement.  
 - **Deps:** Slice 0 (can develop against stub + recorded fixtures).  
 - **Security:** Injection regression suite.  
-- **Tests:** Golden cases for cheat-request refusals; DATA fence invariants.  
-- **DoD:** Documented behaviors with automated tests; no “dump full essay” on default homework asks.  
+- **Tests:** Golden cases proving cheat-request paths select refuse/limited modes (not only `break_into_steps`); DATA fence invariants.  
+- **DoD:** Documented current-vs-target behavior; automated tests that refuse/limited modes are selected for direct-completion asks; no “dump full essay” on default homework asks.  
 - **User-visible:** Study replies feel like tutoring, not answer keys.
 
 ### Slice 3 — Study focus UX (`classId` / `taskId`)
 
-- **Responsibility:** Let students ground Study in a class/task.  
+- **Responsibility:** Let students ground Study in a class/task (concept `conceptIds` focus already works).  
 - **Scope:** UI to pass focus IDs; deep-link from task pages; display focus chip.  
 - **Deps:** PR #13 server path (already on main).  
 - **Security:** No client context blobs; server ownership only.  
@@ -576,53 +630,78 @@ Do **not** implement these now. Prefer small PRs.
 - **DoD:** Selecting a task focuses Study; AI context includes that task when authorized.  
 - **User-visible:** Task-aware Study sessions.
 
-### Slice 4 — Guided tutoring loop UX (single-completion turns)
+### Slice 4 — Guided tutoring loop UX (single-completion turns) — post-MVP polish ok
 
 - **Responsibility:** Make Understand/Apply loops obvious (attempt → hint → check-work).  
-- **Scope:** Study UI patterns for stepwise intents; not a new agent runtime.  
+- **Scope:** Study UI patterns for stepwise intents; not a new agent runtime. Existing intents (`hint` / `steps` / `attempt` / `check_work`) already support a thin loop.  
 - **Deps:** Slices 0–2 (3 strongly recommended).  
 - **Security:** Same orchestration path only.  
 - **Tests:** Intent routing; mode selection; session continuity caps.  
 - **DoD:** Student can complete a guided problem-solving session without leaving Study.  
-- **User-visible:** Clear tutoring flow.
+- **User-visible:** Clear tutoring flow.  
+- **MVP note:** Not required to prove thesis if intents + Slice 2 already deliver guided behavior; valuable UX polish.
 
-### Slice 5 — Meaningful proposal generation from tutoring
+### Slice 5 — Meaningful proposal generation from tutoring (post-MVP ok)
 
-- **Responsibility:** Emit high-quality PENDING proposals (evidence/misconception/observation) from real sessions.  
-- **Scope:** Tighten extraction/validation; no new write tables required unless review demands.  
+- **Responsibility:** Emit high-quality PENDING proposals from real sessions using **only live types**: prefer `MISCONCEPTION_SIGNAL`, optionally cautious `CONCEPT_STATE_UPDATE`; avoid Attribute/Goal spam.  
+- **Scope:** Tighten extraction/validation for existing four types; **do not** add Observation/LearningEvidence proposal types.  
 - **Deps:** Slices 0–2.  
 - **Security:** Proposal validators resist malformed/injected assistant JSON.  
-- **Tests:** Confirm/reject; forged proposal IDs; provenance checks.  
+- **Tests:** Confirm/reject; forged proposal IDs; provenance checks; reject unknown proposal types.  
 - **DoD:** Students see confirmable learning insights after sessions; nothing auto-writes.  
 - **User-visible:** “Save to your learning profile?” style confirmations.
 
-### Slice 6 — PR #13 follow-up hardening (optional parallel)
+### Slice 6 — Bounded Class/Task retrieval (**REQUIRED before production real-AI enablement**)
 
-- **Responsibility:** Bounded AI context queries + further data minimization.  
-- **Scope:** Domain `take/limit` for listQueries used by assembly; trim redundant IDs.  
-- **Deps:** None beyond main.  
-- **Security:** Reduces over-fetch; least privilege data to provider.  
-- **Tests:** Budget/unit tests for list limits.  
-- **DoD:** MEDIUM review items from PR #13 addressed.  
-- **User-visible:** None required (quality/cost).
+- **Responsibility:** Server-side bounded Class/Task retrieval for AI context assembly (addresses PR #13 MEDIUM).  
+- **Scope:** Domain `take`/`limit` (or equivalent) on `listClasses` / `listTasks` paths used by academic AI assembly; deterministic ordering; explicit maximum result sizes; no client-controlled arbitrary expansion; predictable AI context budgets; protect against unexpectedly large academic workspace payloads. Further data minimization (trim redundant IDs) as needed.  
+- **Deps:** None beyond main; **may land before or in parallel with Slice 0**, but is a **hard gate** for enabling real AI against academic workspace data in production.  
+- **Security / cost:** Reduces over-fetch, memory pressure, and least-privilege data to provider.  
+- **Tests:** Budget/unit tests for list limits; assembly still returns deterministic slices.  
+- **DoD:** AI assembly cannot pull unbounded Class/Task sets from the database; production real-AI flag/env must not be enabled without this.  
+- **User-visible:** None required (quality/cost/safety).  
+- **Not optional:** Do not treat this as deferrable polish after production AI launch.
 
 ---
 
-## 20. Definition of Done (Phase 4 overall)
-
-Phase 4 is done when:
-
-1. Production provider works behind `AIProvider` with stub retained for CI.  
-2. Study delivers real guided tutoring under learning-first policy.  
-3. Entitlements/budgets enforce real cost envelopes.  
-4. Focus class/task can be selected in Study UX.  
-5. Proposals from tutoring remain confirmation-gated with tests.  
-6. Security regressions (IDOR, injection fences, entitlement) pass.  
-7. No RAG/embeddings/billing/LMS/teacher systems shipped.  
-8. Docs (`IMPLEMENTATION_PLAN`, this file, STATUS) accurately say implementation slices’ merge state.  
-9. Independent review clears each implementation slice before merge.
+## 20. Definition of Done
 
 Architecture/planning alone (this PR) is **not** Phase 4 complete.
+
+### 20.1 Phase 4 MVP / first real AI package (thesis proof)
+
+MVP is complete when:
+
+1. Production provider works behind `AIProvider` with stub retained for CI (Slice 0).  
+2. Entitlements/budgets enforce real cost envelopes; fail-accounting policy decided (Slice 1).  
+3. Learning-first policy **actually selects** `refuse_direct_completion` / `limited_answer` (or equivalent tested refuse path) for direct-completion asks; guided Study on existing authenticated Study flow delivers real tutoring (Slice 2).  
+4. Bounded Class/Task retrieval is in place — **required gate** before production real-AI enablement (Slice 6).  
+5. Required academic context continues to flow through `assembleAIContext` (workspace + Student Model + existing `conceptIds` focus when provided).  
+6. Security regressions (IDOR, injection fences, entitlement) pass; no unpaid provider calls.  
+7. No RAG/embeddings/billing/LMS/teacher systems shipped.  
+8. Docs accurately reflect slice merge state.
+
+**Strongly recommended with MVP (not blocking thesis if delayed briefly):** Study `classId`/`taskId` focus UX (Slice 3).
+
+**Not required for MVP thesis proof:** Slice 4 UX polish; Slice 5 proposal-quality work (existing confirm path may remain quiet initially).
+
+### 20.2 Fuller Phase 4 package (after MVP)
+
+Additional Phase 4 slices that deepen the product but are **not** prerequisites for claiming first real AI value:
+
+- Slice 3 class/task focus UX (if not already shipped)  
+- Slice 4 guided-loop UX polish  
+- Slice 5 high-quality live-type proposal generation  
+
+### 20.3 Explicitly later (not Phase 4 DoD)
+
+- RAG / embeddings / vector DB / document systems  
+- Advanced mastery / spaced-repetition intelligence  
+- Broader adaptive engines  
+- Proactive agent behavior  
+- LMS / Stripe / teacher-parent-admin  
+
+Independent review must clear each implementation slice before merge.
 
 ---
 
@@ -642,13 +721,13 @@ Architecture/planning alone (this PR) is **not** Phase 4 complete.
 ## 22. Open Decisions
 
 1. **Which single production vendor** for first adapter (OpenAI vs Anthropic vs other) — choose at Slice 0 with current pricing/DPA, not in this planning PR.  
-2. **Entitlement accounting on provider failure** after reserve (consume vs release).  
-3. **Feature flag** strategy for enabling real AI in production vs staging.  
+2. **Entitlement accounting on provider failure** after reserve (consume vs release) — decide as Slice 1 entry criteria.  
+3. **Feature flag** strategy for enabling real AI in production vs staging — must also gate on Slice 6 completion.  
 4. **Durable rate limiting** timeline (before multi-instance).  
-5. Whether Slice 5 proposals include ConceptState changes or only evidence/misconceptions/observations initially.  
+5. Whether Slice 5 initially emits only `MISCONCEPTION_SIGNAL` or also `CONCEPT_STATE_UPDATE` (Attribute/Goal updates discouraged early). Observation/LearningEvidence proposal types are **out of scope** unless a separate contract change is approved.  
 6. Exact `maxTokens` / context budget tightening under measured token use.  
 7. Age-gate / consent timing relative to first production AI cohort (legal + product).  
-8. Whether to address PR #13 MEDIUM items in Slice 6 before or after Slice 0.
+8. **Ordering only:** Slice 6 may land before or parallel to Slice 0, but production real-AI enablement is blocked until Slice 6 is done (not optional).
 
 ---
 
@@ -677,7 +756,7 @@ Phase 5 should still **not** start until Phase 4 guided Study is validated. Docu
 5. **Most learning value next?** Real guided Study tutoring.  
 6. **Prerequisites for later?** Production provider + cost/safety posture.  
 7. **Not now?** RAG, LMS, billing, parents/teachers, agents, mastery engines.  
-8. **Debt before expansion?** Prompt-injection hardening under real models; entitlement/cost correctness; optional PR #13 query bounds; rate-limit durability before scale.
+8. **Debt before expansion?** Prompt-injection hardening under real models; entitlement/cost correctness; **required** PR #13 query bounds (Slice 6) before production real AI; rate-limit durability before scale.
 
 ## Appendix B — Relationship to older plan text
 
