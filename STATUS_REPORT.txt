@@ -23,8 +23,10 @@ REPOSITORY
 
 origin/main:              58969c19c77e1bbfbb2d5e12f2bb4d30a266f19d
                           (includes merged PR #12 Calendar UI)
+Feature commit:           4cc6e82
+Branch tip:               4cc6e82707bf8506608348047a563bed7f63b81e
 Working branch:           cursor/phase3-academic-ai-context-399a
-Draft PR:                 (created after this status commit — see PR link)
+Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/13
 Base:                     main @ 58969c1
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
