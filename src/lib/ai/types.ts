@@ -100,6 +100,16 @@ export type OrchestrationRequest = {
    */
   conceptIds?: string[];
   /**
+   * Optional server-validated Class focus ID.
+   * Ownership checked inside assembleAIContext — never a client context blob.
+   */
+  classId?: string;
+  /**
+   * Optional server-validated Task focus ID.
+   * Ownership checked inside assembleAIContext — never a client context blob.
+   */
+  taskId?: string;
+  /**
    * Optional bounded prior conversation turns for Study continuity.
    * Server-validated; not a persistence model. User turns remain untrusted DATA.
    */

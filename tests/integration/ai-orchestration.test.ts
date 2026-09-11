@@ -31,6 +31,11 @@ async function cleanup() {
   const ids = users.map((u) => u.id);
 
   if (ids.length) {
+    await prisma.taskConcept.deleteMany({
+      where: { task: { userId: { in: ids } } },
+    });
+    await prisma.task.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.class.deleteMany({ where: { userId: { in: ids } } });
     await prisma.aIProposal.deleteMany({ where: { userId: { in: ids } } });
     await prisma.learningEvidence.deleteMany({ where: { userId: { in: ids } } });
     await prisma.studentConceptState.deleteMany({

@@ -28,6 +28,11 @@ async function cleanupTestUsers() {
   const ids = users.map((u) => u.id);
 
   if (ids.length) {
+    await prisma.taskConcept.deleteMany({
+      where: { task: { userId: { in: ids } } },
+    });
+    await prisma.task.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.class.deleteMany({ where: { userId: { in: ids } } });
     await prisma.learningEvidence.deleteMany({ where: { userId: { in: ids } } });
     await prisma.studentConceptState.deleteMany({ where: { userId: { in: ids } } });
     await prisma.studentMisconception.deleteMany({ where: { userId: { in: ids } } });
@@ -430,8 +435,18 @@ describe("Phase 2 AI context assembly", () => {
         actorUserId: user.id,
         userId: user.id,
         taskType: "tutoring",
-        classId: "fake",
+        academicWorkspace: { classes: [] },
       } as never),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    // Invalid focus IDs are ownership-validated (not accepted as context blobs).
+    await expect(
+      assembleAIContext({
+        actorUserId: user.id,
+        userId: user.id,
+        taskType: "tutoring",
+        classId: "fake",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -488,7 +503,13 @@ describe("Phase 2 AI context assembly", () => {
     expect(ctx.historicalEvidence.observations).toEqual([]);
     expect(ctx.knowledge.concepts).toEqual([]);
     expect(ctx.focus.conceptIds).toEqual([]);
+    expect(ctx.focus.classId).toBeNull();
+    expect(ctx.focus.taskId).toBeNull();
+    expect(ctx.academicWorkspace.classes).toEqual([]);
+    expect(ctx.academicWorkspace.tasks).toEqual([]);
+    expect(ctx.academicWorkspace.calendar.items).toEqual([]);
     expect(ctx.budgets.maxGoals).toBe(3);
+    expect(ctx.budgets.maxClasses).toBeGreaterThan(0);
   });
 
   it("includes misconceptions for focus concepts with preserved provenance", async () => {

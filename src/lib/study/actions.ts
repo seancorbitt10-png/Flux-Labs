@@ -63,6 +63,8 @@ const studyTurnSchema = z
     intent: z.string().trim().min(1).max(40),
     focusLabel: z.string().trim().max(MAX_FOCUS_LABEL).optional().nullable(),
     conceptIds: z.array(z.string().trim().min(1).max(64)).max(MAX_CONCEPT_IDS).optional(),
+    classId: z.string().trim().min(1).max(64).optional(),
+    taskId: z.string().trim().min(1).max(64).optional(),
     priorTurns: z.array(priorTurnSchema).max(MAX_PRIOR_TURNS).optional(),
   })
   .strict();
@@ -124,6 +126,8 @@ export async function sendStudyTurnAction(
       actorUserId: userId,
       userMessage: composedMessage,
       conceptIds: parsed.data.conceptIds,
+      classId: parsed.data.classId,
+      taskId: parsed.data.taskId,
       priorTurns: parsed.data.priorTurns,
     });
 

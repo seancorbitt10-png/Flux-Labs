@@ -68,6 +68,8 @@ export async function runAIOrchestration(
     userId: actorUserId,
     taskType: route.taskType,
     conceptIds: request.conceptIds,
+    classId: request.classId,
+    taskId: request.taskId,
     userMessage,
   });
 
