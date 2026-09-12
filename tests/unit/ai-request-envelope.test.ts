@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getEncoding } from "js-tiktoken";
+import { encode as independentO200kEncode } from "gpt-tokenizer/encoding/o200k_base";
 import {
   AI_REQUEST_ENVELOPE,
   assertCompletionRequestWithinEnvelope,
@@ -34,20 +34,19 @@ const MODEL: InternalModelKey = "flux-standard";
 
 /** Independent o200k encode — does NOT go through production helpers. */
 function independentEncodeLength(text: string): number {
-  return getEncoding(PRODUCTION_OPENAI_ENCODING).encode(text).length;
+  return independentO200kEncode(text).length;
 }
 
 /**
- * Independently reconstruct billable input tokens with js-tiktoken directly.
+ * Independently reconstruct billable input tokens with gpt-tokenizer o200k_base.
  * Must NOT call countBillableInputTokens / reservation helpers for the proof side.
  */
 function independentBillableInputTokens(request: AICompletionRequest): number {
-  const enc = getEncoding(PRODUCTION_OPENAI_ENCODING);
   let total = CHAT_REPLY_PRIMING_TOKENS;
   for (const message of request.messages) {
     total += CHAT_TOKENS_PER_MESSAGE;
-    total += enc.encode(message.role).length;
-    total += enc.encode(message.content).length;
+    total += independentO200kEncode(message.role).length;
+    total += independentO200kEncode(message.content).length;
   }
   return total;
 }
@@ -63,16 +62,11 @@ function requestWithContent(content: string): AICompletionRequest {
 }
 
 function growUntilOverCeiling(): AICompletionRequest {
-  let content = "漢".repeat(200);
-  let req = requestWithContent(content);
-  let guard = 0;
-  while (
-    independentBillableInputTokens(req) <= AI_REQUEST_ENVELOPE.maxInputTokens &&
-    guard < 800
-  ) {
-    content += "漢".repeat(80);
-    req = requestWithContent(content);
-    guard += 1;
+  // 漢 is 1 o200k token; overshoot the envelope without iterative re-encoding.
+  const content = "漢".repeat(AI_REQUEST_ENVELOPE.maxInputTokens + 500);
+  const req = requestWithContent(content);
+  if (independentBillableInputTokens(req) <= AI_REQUEST_ENVELOPE.maxInputTokens) {
+    throw new Error("fixture failed to exceed token ceiling");
   }
   return req;
 }
@@ -156,7 +150,7 @@ describe("AI request envelope — tokenizer-backed reservation safety", () => {
       const req = requestWithContent(fixture.text);
       expect(() => assertCompletionRequestWithinEnvelope(req)).not.toThrow();
 
-      // Left side: independent js-tiktoken encode (not reservationInputTokenCeiling,
+      // Left side: independent o200k encode (not reservationInputTokenCeiling,
       // and not the same helper used to derive reservedCostMicros).
       const independentBillable = independentBillableInputTokens(req);
       const rawContent = independentEncodeLength(fixture.text);
@@ -200,19 +194,27 @@ describe("AI request envelope — tokenizer-backed reservation safety", () => {
 
   it("accepts near-ceiling input and rejects clearly oversize Unicode input", () => {
     const over = growUntilOverCeiling();
-    // Trim content until just under the ceiling.
-    let content = over.messages[1]!.content;
-    while (
-      independentBillableInputTokens(requestWithContent(content)) >
-        AI_REQUEST_ENVELOPE.maxInputTokens &&
-      content.length > 0
-    ) {
-      content = content.slice(0, Math.floor(content.length * 0.9));
+    // Binary-search a CJK payload that sits just under the billable ceiling.
+    let lo = 1;
+    let hi = AI_REQUEST_ENVELOPE.maxInputTokens + 200;
+    let best = "";
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const candidate = "漢".repeat(mid);
+      const req = requestWithContent(candidate);
+      const tokens = independentBillableInputTokens(req);
+      if (tokens <= AI_REQUEST_ENVELOPE.maxInputTokens) {
+        best = candidate;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-    const under = requestWithContent(content);
+    const under = requestWithContent(best);
     expect(independentBillableInputTokens(under)).toBeLessThanOrEqual(
       AI_REQUEST_ENVELOPE.maxInputTokens,
     );
+    expect(best.length).toBeGreaterThan(0);
     expect(() => assertCompletionRequestWithinEnvelope(under)).not.toThrow();
     expect(() => assertCompletionRequestWithinEnvelope(over)).toThrow(
       AIProviderLimitError,

@@ -50,7 +50,7 @@ provider, model, API key, endpoint, temperature, or token limits.
 Provider acceptance limits and reservation-cost ceilings share one server-side
 source of truth (`AI_REQUEST_ENVELOPE` in `src/lib/ai/request-envelope.ts`):
 
-- max billable input tokens: **8000** (measured with production `o200k_base` via `js-tiktoken`, plus documented chat-framing overhead)
+- max billable input tokens: **8000** (measured with production `o200k_base` via `gpt-tokenizer`, plus documented chat-framing overhead)
 - max output tokens: **800**
 - UTF-16 unit prefilter: **64000** (DoS only — **not** a token or cost bound; JS `.length` is never treated as a tokenizer)
 - reservation cost = server cost table at `(maxInputTokens, maxOutputTokens)` from the same envelope the tokenizer gate enforces before dispatch

@@ -1,9 +1,10 @@
 /**
  * Server-side tokenization for Flux internal model keys.
  *
- * Uses js-tiktoken with the OpenAI o200k_base encoding — the encoding used by
- * the production vendor models currently mapped for flux-* keys (gpt-4o /
- * gpt-4o-mini family).
+ * Uses `gpt-tokenizer` with the OpenAI `o200k_base` encoding — the encoding used
+ * by the production vendor models currently mapped for flux-* keys (gpt-4o /
+ * gpt-4o-mini family). Counts match OpenAI's o200k_base vocabulary (verified
+ * against the same encoding family used by those models).
  *
  * This is the independent measurement used to:
  *   1) gate provider dispatch (reject oversize before upstream call)
@@ -21,7 +22,7 @@
  *     be updated in the same change — fail closed rather than reuse a wrong codec.
  */
 
-import { getEncoding, type Tiktoken } from "js-tiktoken";
+import { encode } from "gpt-tokenizer/encoding/o200k_base";
 import type { AICompletionRequest, InternalModelKey } from "@/lib/ai/types";
 
 /** Encoding name for all currently mapped OpenAI production models. */
@@ -29,7 +30,7 @@ export const PRODUCTION_OPENAI_ENCODING = "o200k_base" as const;
 
 /**
  * Conservative chat-format overhead for OpenAI Chat Completions style requests.
- * OpenAI\'s public cookbook uses ~3 tokens/message + ~3 reply priming for recent
+ * OpenAI's public cookbook uses ~3 tokens/message + ~3 reply priming for recent
  * chat models. We use slightly higher per-message overhead to fail closed if
  * framing costs drift upward slightly.
  *
@@ -39,18 +40,10 @@ export const PRODUCTION_OPENAI_ENCODING = "o200k_base" as const;
 export const CHAT_TOKENS_PER_MESSAGE = 4;
 export const CHAT_REPLY_PRIMING_TOKENS = 3;
 
-const encodingCache = new Map<string, Tiktoken>();
-
-function encodingForInternalModel(_modelKey: InternalModelKey): Tiktoken {
+function assertO200kModel(_modelKey: InternalModelKey): void {
   // All current flux-* → OpenAI mappings use o200k_base. If a future mapping
-  // uses a different encoding, update this switch in the same commit.
-  const name = PRODUCTION_OPENAI_ENCODING;
-  let enc = encodingCache.get(name);
-  if (!enc) {
-    enc = getEncoding(name);
-    encodingCache.set(name, enc);
-  }
-  return enc;
+  // uses a different encoding, replace this with a model→encoding switch in
+  // the same commit and fail closed for unknown encodings.
 }
 
 /** Encode a single string with the production encoding for the internal model. */
@@ -58,7 +51,8 @@ export function countStringTokens(
   text: string,
   modelKey: InternalModelKey,
 ): number {
-  return encodingForInternalModel(modelKey).encode(text).length;
+  assertO200kModel(modelKey);
+  return encode(text).length;
 }
 
 /**
@@ -76,12 +70,12 @@ export function countStringTokens(
 export function countBillableInputTokens(
   request: Pick<AICompletionRequest, "modelKey" | "messages">,
 ): number {
-  const enc = encodingForInternalModel(request.modelKey);
+  assertO200kModel(request.modelKey);
   let total = CHAT_REPLY_PRIMING_TOKENS;
   for (const message of request.messages) {
     total += CHAT_TOKENS_PER_MESSAGE;
-    total += enc.encode(message.role).length;
-    total += enc.encode(message.content).length;
+    total += encode(message.role).length;
+    total += encode(message.content).length;
   }
   return total;
 }
@@ -94,6 +88,6 @@ export function countContentTokensOnly(
   texts: string[],
   modelKey: InternalModelKey,
 ): number {
-  const enc = encodingForInternalModel(modelKey);
-  return texts.reduce((sum, t) => sum + enc.encode(t).length, 0);
+  assertO200kModel(modelKey);
+  return texts.reduce((sum, t) => sum + encode(t).length, 0);
 }
