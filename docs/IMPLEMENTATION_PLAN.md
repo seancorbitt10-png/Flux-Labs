@@ -10,7 +10,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
 | 3 | Classes / tasks / calendar + academic AI context | **Done** |
-| 4 | Production AI foundation + guided Study intelligence | **Architecture merged (PR #14). Implementation #1 (provider adapter) in progress — production AI still OFF** |
+| 4 | Production AI foundation + guided Study intelligence | **Architecture + Impl #1 merged. Impl #2 (entitlement/cost hardening) in progress — production AI still OFF**|
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
 | 7 | Proactive agent | Planned |
@@ -100,8 +100,8 @@ Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTUR
 
 | Slice | Name | Status |
 |-------|------|--------|
-| 0 | Production AI provider adapter | **Implementation #1 — this PR** |
-| 1 | Entitlement & cost hardening under real spend | NOT STARTED |
+| 0 | Production AI provider adapter | MERGED (PR #15) |
+| 1 | Entitlement & cost hardening under real spend | **Implementation #2 — this PR** |
 | 2 | Learning-first prompt & policy hardening | NOT STARTED |
 | 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
 | 4 | Guided tutoring loop UX | NOT STARTED |

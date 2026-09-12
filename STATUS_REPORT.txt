@@ -2,31 +2,30 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-12 11:54 EDT
+Updated: 2026-09-12 13:19 EDT
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 architecture (PR #14) HUMAN-MERGED into main.
+Phase 4 architecture (PR #14) MERGED.
+Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
-Phase 4 Implementation #1 (Slice 0 — Production AI Provider Adapter):
-  DRAFT PR #15 — ready for independent review (NOT MERGED)
-  Production AI abstraction + gated OpenAI adapter shipped.
-  Production AI remains DISABLED by default (stub path).
-  Stub provider remains available for CI/dev.
-  No billing, RAG, Slice 6, or later Phase 4 slices in this work.
+Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
+  IN PROGRESS on branch cursor/phase4-impl2-entitlement-hardening-399a
+  Server-side reservation / settlement ledger added.
+  Concurrent over-allocation prevented; settlement idempotent.
+  Production AI remains DISABLED by default.
+  No Stripe/billing, RAG, Slice 6, or later Phase 4 slices in this work.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              e2e94dc (includes merged PR #14 Phase 4 architecture)
-Working branch:           cursor/phase4-impl1-provider-adapter-399a
-Branch tip:               3f49ac8
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/15
-PR state:                 draft, open, unmerged
+origin/main:              includes merged PR #14 + PR #15
+Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
+Draft PR:                 (opening)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -38,42 +37,41 @@ Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
 Phase 3 Implementation #1–#4      MERGED (main) — PRs #10–#13
 Phase 4 Architecture/Planning     MERGED (main) — PR #14
-Phase 4 Implementation #1         DRAFT PR #15 — provider adapter (Slice 0)
-Phase 4 Implementation #2+        NOT STARTED
+Phase 4 Implementation #1         MERGED (main) — PR #15 (provider adapter)
+Phase 4 Implementation #2         IN PROGRESS — entitlement/cost hardening
+Phase 4 Implementation #3+        NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 SUMMARY
+IMPLEMENTATION #2 SUMMARY
 --------------------------------------------------------------------------------
 
-Delivered:
-  - Server-side AIProvider factory with explicit AI_PRODUCTION_ENABLED gate
-  - StubAIProvider retained as default
-  - Isolated OpenAI Chat Completions adapter (fetch-based; no SDK)
-  - Normalized provider errors (config / timeout / upstream / rate-limit /
-    invalid response / limits)
-  - Server-enforced timeout + input/output bounds
-  - Client still cannot select provider/model/key/endpoint/limits
-  - Production AI OFF unless AI_PRODUCTION_ENABLED=true + AI_PROVIDER=openai
-    + OPENAI_API_KEY
-  - Tests / typecheck / lint / build passing on this branch
-    (201 tests passed)
+Delivered / in this PR:
+  - AiUsageOperation ledger (RESERVED → SETTLED | RELEASED)
+  - beginUsageReservation / finalizeUsageReservation server API
+  - Atomic trial counter reserve + paid-plan FOR UPDATE + held-op counting
+  - Idempotent settlement/release; ownership checks (no IDOR)
+  - Provider failure releases capacity; invalid output keeps capacity consumed
+  - Server-side conservative cost table (not client-authoritative)
+  - Orchestration wired to reserve → provider → finalize
+  - Production AI remains OFF unless explicitly gated
+  - Stub provider remains default
 
 NOT delivered (intentionally later):
-  - Real production AI rollout / enablement
-  - Entitlement cost hardening (Slice 1)
-  - Learning-first refuse/limited mode wiring (Slice 2)
+  - Real production AI enablement
+  - Stripe / billing / subscriptions
+  - Exact vendor invoice reconciliation
+  - Learning-first policy hardening (Slice 2)
   - Study focus UX (Slice 3)
   - Bounded Class/Task retrieval (Slice 6 — required before real-AI enablement)
-  - Billing, RAG, LMS, agents, mastery engine
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #1 PR #15 (do not merge until review)
+1. Independent review of Phase 4 Implementation #2 PR (do not merge until review)
 2. Do NOT enable production real AI until Slice 6 is complete
-3. Later: Implementation #2+ as separate slice PRs
+3. Later: Implementation #3+ as separate slice PRs
 4. Status reports: provide only when explicitly requested
 
 ================================================================================

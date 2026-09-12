@@ -46,6 +46,9 @@ describe("entitlement reservation", () => {
   });
 
   beforeEach(async () => {
+    await prisma.aiUsageOperation.deleteMany({
+      where: { user: { email: { endsWith: "@fluxlabs.test" } } },
+    });
     await prisma.usageRecord.deleteMany({
       where: { user: { email: { endsWith: "@fluxlabs.test" } } },
     });

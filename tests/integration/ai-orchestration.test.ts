@@ -60,6 +60,7 @@ async function cleanup() {
     });
   }
 
+  await prisma.aiUsageOperation.deleteMany({ where: { user: where } });
   await prisma.usageRecord.deleteMany({ where: { user: where } });
   await prisma.aIInteraction.deleteMany({ where: { user: where } });
   await prisma.auditLog.deleteMany({ where: { user: where } });

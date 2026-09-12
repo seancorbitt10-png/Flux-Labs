@@ -20,6 +20,11 @@ export type ActiveEntitlement = {
   plan: PlanDefinition;
 };
 
+/** Reservation includes a server-generated operation id for settlement. */
+export type UsageReservation = ActiveEntitlement & {
+  operationId: string;
+};
+
 export async function getActiveEntitlement(
   userId: string,
 ): Promise<ActiveEntitlement | null> {
@@ -48,12 +53,21 @@ export async function getActiveEntitlement(
 
 /**
  * Atomically reserve one unit of a capability before running expensive work.
+ * Creates a RESERVED AiUsageOperation ledger row for later settlement/release.
  * Prevents TOCTOU overshoot under concurrent requests.
  */
 export async function reserveCapability(
   userId: string,
   capability: UsageCapability,
-): Promise<ActiveEntitlement> {
+  feature = "ai.unspecified",
+): Promise<UsageReservation> {
+  if (!userId || typeof userId !== "string") {
+    throw new EntitlementError(
+      "Missing authenticated user for reservation",
+      "You must be signed in to use AI features.",
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     const now = new Date();
 
@@ -73,15 +87,29 @@ export async function reserveCapability(
       );
     }
 
+    // Serialize concurrent reservations for this entitlement row.
+    await tx.$executeRaw`SELECT id FROM entitlements WHERE id = ${entitlement.id} FOR UPDATE`;
+
     const plan = getPlanDefinition(entitlement.plan);
 
+    let trial: Trial | null = null;
     if (entitlement.plan === "FREE_TRIAL") {
-      const trial = await reserveTrialCapability(tx, userId, capability, plan);
-      return { entitlement, trial, plan };
+      trial = await reserveTrialCapability(tx, userId, capability, plan);
+    } else {
+      await assertPaidPlanAllowance(tx, userId, entitlement, capability, plan);
     }
 
-    await assertPaidPlanAllowance(tx, userId, entitlement, capability, plan);
-    return { entitlement, trial: null, plan };
+    const operation = await tx.aiUsageOperation.create({
+      data: {
+        userId,
+        entitlementId: entitlement.id,
+        capability,
+        feature,
+        status: "RESERVED",
+      },
+    });
+
+    return { entitlement, trial, plan, operationId: operation.id };
   });
 }
 
@@ -179,15 +207,16 @@ async function assertPaidPlanAllowance(
   const limit = limitKey ? plan.limits[limitKey] : null;
 
   if (typeof limit === "number") {
-    const used = await tx.usageRecord.count({
+    // Count held + consumed operations so concurrent reserves cannot overshoot.
+    const heldOrSettled = await tx.aiUsageOperation.count({
       where: {
         userId,
         capability,
-        success: true,
+        status: { in: ["RESERVED", "SETTLED"] },
         createdAt: { gte: periodStart },
       },
     });
-    if (used >= limit) {
+    if (heldOrSettled >= limit) {
       throw new EntitlementError(
         `${capability} limit reached`,
         `You have reached your ${plan.label} limit for this feature.`,

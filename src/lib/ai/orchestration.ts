@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
-import { reserveCapability } from "@/lib/entitlements/check";
-import { recordUsage } from "@/lib/entitlements/usage";
+import {
+  beginUsageReservation,
+  finalizeUsageReservation,
+} from "@/lib/entitlements/operations";
+import { AIProviderError } from "@/lib/ai/provider-errors";
 import { prisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/errors";
 import { assembleAIContext } from "./context-assembly";
@@ -59,7 +62,11 @@ export async function runAIOrchestration(
   const route = routeAITask(userMessage);
   const capability = capabilityForRoute(route.taskType, route.modelKey);
 
-  await reserveCapability(actorUserId, capability);
+  const reservation = await beginUsageReservation({
+    userId: actorUserId,
+    capability,
+    feature: "ai.orchestration",
+  });
 
   const policy = decideAssistancePolicy(route.taskType, userMessage);
 
@@ -91,15 +98,15 @@ export async function runAIOrchestration(
       maxTokens: 800,
     });
   } catch (error) {
-    await recordUsage({
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
       userId: actorUserId,
-      capability,
+      outcome: "failed_released",
       feature: "ai.orchestration",
       aiTaskType: route.taskType,
       modelKey: route.modelKey,
-      success: false,
-      errorCode: "PROVIDER_ERROR",
-      capabilityReserved: true,
+      errorCode:
+        error instanceof AIProviderError ? error.code : "PROVIDER_ERROR",
       metadata: {
         assistanceMode: policy.mode,
         routeReason: route.reason,
@@ -114,15 +121,18 @@ export async function runAIOrchestration(
   try {
     validated = validateProviderCompletion(completion);
   } catch (error) {
-    await recordUsage({
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
       userId: actorUserId,
-      capability,
+      outcome: "failed_consumed",
       feature: "ai.orchestration",
       aiTaskType: route.taskType,
       modelKey: route.modelKey,
-      success: false,
+      inputTokens: completion.inputTokens,
+      outputTokens: completion.outputTokens,
+      providerEstimateMicros: completion.estimatedCostMicros,
+      latencyMs: completion.latencyMs,
       errorCode: "PROVIDER_OUTPUT_INVALID",
-      capabilityReserved: true,
       metadata: {
         assistanceMode: policy.mode,
         routeReason: route.reason,
@@ -133,18 +143,17 @@ export async function runAIOrchestration(
     throw error;
   }
 
-  await recordUsage({
+  await finalizeUsageReservation({
+    operationId: reservation.operationId,
     userId: actorUserId,
-    capability,
+    outcome: "success",
     feature: "ai.orchestration",
     aiTaskType: route.taskType,
     modelKey: completion.modelKey,
     inputTokens: completion.inputTokens,
     outputTokens: completion.outputTokens,
-    estimatedCostMicros: completion.estimatedCostMicros,
+    providerEstimateMicros: completion.estimatedCostMicros,
     latencyMs: completion.latencyMs,
-    success: true,
-    capabilityReserved: true,
     metadata: {
       provider: completion.provider,
       assistanceMode: policy.mode,

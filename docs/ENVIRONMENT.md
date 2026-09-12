@@ -43,3 +43,11 @@ Presence of an API key alone does **not** enable production AI.
 Never commit `.env` / `.env.local`. Never ship provider API keys to the browser.
 Provider configuration and credentials are server-side only. Clients cannot select
 provider, model, API key, endpoint, temperature, or token limits.
+
+## AI usage accounting (Phase 4 Implementation #2)
+
+Server-side only:
+
+- `AiUsageOperation` tracks RESERVED → SETTLED | RELEASED
+- Clients cannot supply plan, remaining usage, reservation amount, cost, or settlement state
+- Production AI remains gated by `AI_PRODUCTION_ENABLED` (default off)

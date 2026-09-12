@@ -1,6 +1,6 @@
 # Phase 4 Architecture — Production AI + Guided Study Intelligence
 
-**Status:** ARCHITECTURE MERGED (PR #14). Implementation #1 (Slice 0 — Production AI provider adapter) in progress — production AI remains **DISABLED**; stub remains default.  
+**Status:** ARCHITECTURE MERGED (PR #14). Implementation #1 MERGED (PR #15). Implementation #2 (entitlement/cost hardening) in progress — production AI remains **DISABLED**.
 **Baseline:** `main` after PR #14 merge (Phase 4 architecture)  
 **Date:** 2026-09-12  
 **Scope of this document:** planning reference — feature code lands in separate implementation PRs
@@ -602,6 +602,8 @@ Do **not** implement these now. Prefer small PRs.
 - **Implementation status:** **Implementation #1** — provider abstraction + gated OpenAI adapter + stub default. Production AI remains **OFF** unless explicitly configured (`AI_PRODUCTION_ENABLED=true`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`).
 
 ### Slice 1 — Entitlement & cost hardening under real spend
+
+- **Implementation status:** **Implementation #2** — reservation/settlement ledger (`AiUsageOperation`), atomic reserve, idempotent finalize, paid-plan concurrency lock. Production AI remains **OFF**.
 
 - **Responsibility:** Correct reserve/consume/failure accounting with real `estimatedCostMicros`.  
 - **Scope:** Budget enforcement, conservative cost tables, exhausted-trial UX copy.  
