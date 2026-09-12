@@ -33,7 +33,7 @@ const MAX_PRIOR_TURN_CHARS = 2_000;
  * - Student content is DATA in the prompt fence, never instructions
  * - AI proposals are validated/persisted as PENDING only — never auto-written
  * - Clients never select models, providers, provenance, or confidence
- * - Stub provider remains the default until a later provider slice
+ * - Provider selected server-side (stub by default; production gated)
  */
 export async function runAIOrchestration(
   request: OrchestrationRequest,
@@ -277,6 +277,11 @@ function rejectClientAuthority(request: OrchestrationRequest): void {
     "modelKey",
     "provider",
     "providerId",
+    "apiKey",
+    "endpoint",
+    "baseUrl",
+    "temperature",
+    "maxTokens",
     "systemPrompt",
     "instructions",
     "systemDirective",
