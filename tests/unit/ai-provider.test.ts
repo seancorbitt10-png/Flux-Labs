@@ -4,6 +4,7 @@ import {
   isProductionAIEnabled,
   resolveAIProviderConfig,
 } from "@/lib/ai/provider-config";
+import { AI_REQUEST_ENVELOPE } from "@/lib/ai/request-envelope";
 import {
   AIProviderConfigError,
   AIProviderInvalidResponseError,
@@ -136,14 +137,14 @@ describe("OpenAIChatProvider", () => {
   function makeProvider(fetchImpl: typeof fetch, overrides?: Partial<{
     timeoutMs: number;
     maxOutputTokens: number;
-    maxInputChars: number;
+    maxInputTokens: number;
   }>) {
     return new OpenAIChatProvider({
       apiKey: "sk-test",
       baseUrl: "https://api.openai.com/v1",
       timeoutMs: overrides?.timeoutMs ?? 5_000,
       maxOutputTokens: overrides?.maxOutputTokens ?? 800,
-      maxInputChars: overrides?.maxInputChars ?? 100_000,
+      maxInputTokens: overrides?.maxInputTokens ?? AI_PROVIDER_DEFAULTS.maxInputTokens,
       modelIds: AI_PROVIDER_DEFAULTS.modelIds,
       fetchImpl,
     });
@@ -207,12 +208,12 @@ describe("OpenAIChatProvider", () => {
 
   it("rejects oversized input", async () => {
     const provider = makeProvider(vi.fn() as unknown as typeof fetch, {
-      maxInputChars: 20,
+      maxInputTokens: 20,
     });
     await expect(
       provider.complete({
         ...baseRequest,
-        messages: [{ role: "user", content: "x".repeat(50) }],
+        messages: [{ role: "user", content: "x".repeat(200) }],
       }),
     ).rejects.toBeInstanceOf(AIProviderLimitError);
   });
@@ -331,7 +332,7 @@ describe("OpenAIChatProvider", () => {
           baseUrl: "https://api.openai.com/v1",
           timeoutMs: 1000,
           maxOutputTokens: 100,
-          maxInputChars: 1000,
+          maxInputTokens: 1000,
           modelIds: AI_PROVIDER_DEFAULTS.modelIds,
         }),
     ).toThrow(AIProviderConfigError);
@@ -356,4 +357,29 @@ describe("client cannot select provider/model", () => {
       assertNoClientStudyAuthority({ maxTokens: 99999 }),
     ).toThrow(/cannot supply maxTokens/i);
   });
+
+  it("clamps env input/output limits to the authoritative request envelope", () => {
+    const raised = resolveAIProviderConfig({
+      AI_MAX_INPUT_TOKENS: "500000",
+      AI_MAX_OUTPUT_TOKENS: "4096",
+    });
+    expect(raised.maxInputTokens).toBe(AI_REQUEST_ENVELOPE.maxInputTokens);
+    expect(raised.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+
+    const lowered = resolveAIProviderConfig({
+      AI_MAX_INPUT_TOKENS: "2000",
+      AI_MAX_OUTPUT_TOKENS: "100",
+    });
+    expect(lowered.maxInputTokens).toBe(2000);
+    expect(lowered.maxOutputTokens).toBe(100);
+  });
+
+  it("defaults provider limits to the authoritative request envelope", () => {
+    expect(AI_PROVIDER_DEFAULTS.maxInputTokens).toBe(AI_REQUEST_ENVELOPE.maxInputTokens);
+    expect(AI_PROVIDER_DEFAULTS.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+    const config = resolveAIProviderConfig({});
+    expect(config.maxInputTokens).toBe(AI_REQUEST_ENVELOPE.maxInputTokens);
+    expect(config.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+  });
+
 });

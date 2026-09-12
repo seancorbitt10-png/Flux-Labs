@@ -20,7 +20,10 @@ export function createAIProviderFromConfig(
   const config = resolveAIProviderConfig(env);
 
   if (config.kind === "stub") {
-    return new StubAIProvider();
+    return new StubAIProvider({
+      maxInputTokens: config.maxInputTokens,
+      maxOutputTokens: config.maxOutputTokens,
+    });
   }
 
   if (config.kind === "openai") {
@@ -35,5 +38,8 @@ export function createAIProviderFromConfig(
   }
 
   // Exhaustiveness fallback — treat unknown as stub.
-  return new StubAIProvider();
+  return new StubAIProvider({
+      maxInputTokens: config.maxInputTokens,
+      maxOutputTokens: config.maxOutputTokens,
+    });
 }

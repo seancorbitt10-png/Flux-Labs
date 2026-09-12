@@ -4,16 +4,41 @@ import type {
   AIProvider,
   InternalModelKey,
 } from "@/lib/ai/types";
+import {
+  AI_REQUEST_ENVELOPE,
+  assertCompletionRequestWithinEnvelope,
+  clampToRequestEnvelope,
+  type AIRequestEnvelopeLimits,
+} from "@/lib/ai/request-envelope";
 
 /**
  * Stub provider for tests, local development, and the default runtime.
  * No real model calls — validates the orchestration path end-to-end.
+ *
+ * Enforces the same authoritative token envelope as production providers
+ * (o200k_base gate) so reservation cost and acceptance limits cannot diverge.
  */
 export class StubAIProvider implements AIProvider {
   readonly id = "stub";
 
+  private readonly limits: Required<AIRequestEnvelopeLimits>;
+
+  constructor(limits: Partial<AIRequestEnvelopeLimits> = {}) {
+    this.limits = clampToRequestEnvelope({
+      maxInputTokens:
+        limits.maxInputTokens ?? AI_REQUEST_ENVELOPE.maxInputTokens,
+      maxOutputTokens:
+        limits.maxOutputTokens ?? AI_REQUEST_ENVELOPE.maxOutputTokens,
+      maxInputUtf16Units:
+        limits.maxInputUtf16Units ?? AI_REQUEST_ENVELOPE.maxInputUtf16Units,
+    });
+  }
+
   async complete(request: AICompletionRequest): Promise<AICompletionResult> {
     const started = Date.now();
+    // Same pre-dispatch envelope check as OpenAI — oversize => not_dispatched.
+    assertCompletionRequestWithinEnvelope(request, this.limits);
+
     const lastUser = [...request.messages]
       .reverse()
       .find((m) => m.role === "user");
@@ -46,9 +71,9 @@ function buildStubReply(
     "I'm Flux — your academic learning companion.",
     "",
     "In this foundation build I can confirm the AI orchestration path is wired:",
-    `• Request received`,
+    "• Request received",
     `• Model route: ${modelKey} (internal)`,
-    `• Learning-first policy: I'll guide rather than dump answers`,
+    "• Learning-first policy: I'll guide rather than dump answers",
     "",
     `You asked: “${truncate(userMessage, 160)}”`,
     "",

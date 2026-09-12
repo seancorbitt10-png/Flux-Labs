@@ -32,6 +32,7 @@ model User {
   entitlements         Entitlement[]
   usageRecords         UsageRecord[]
   trials               Trial[]
+  aiUsageOperations    AiUsageOperation[]
   auditLogs            AuditLog[]
   aiInteractions       AIInteraction[]
   aiProposals          AIProposal[]
@@ -606,10 +607,58 @@ model UsageRecord {
 
   createdAt DateTime @default(now())
 
+  aiUsageOperation AiUsageOperation?
+
   @@index([userId, createdAt])
   @@index([userId, capability, createdAt])
   @@index([feature, createdAt])
   @@map("usage_records")
+}
+
+enum AiUsageOperationStatus {
+  RESERVED
+  SETTLED
+  RELEASED
+}
+
+/// Server-side AI usage reservation/settlement ledger.
+/// Clients never create or transition these rows.
+model AiUsageOperation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  entitlementId String?
+  capability    UsageCapability
+  feature       String
+  status        AiUsageOperationStatus @default(RESERVED)
+
+  /// Conservative cost ceiling held at reservation time (micros). Not a client input.
+  /// Distinct from settled estimatedCostMicros / vendor invoice amounts.
+  reservedCostMicros Int @default(0)
+
+  /// Estimated financial cost applied at settlement (micros). Not a client input.
+  estimatedCostMicros Int @default(0)
+  inputTokens         Int?
+  outputTokens        Int?
+  modelKey            String?
+  errorCode           String?
+  releaseReason       String?
+
+  reservedAt DateTime @default(now())
+  settledAt  DateTime?
+  releasedAt DateTime?
+
+  usageRecordId String?      @unique
+  usageRecord   UsageRecord? @relation(fields: [usageRecordId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status, capability])
+  @@index([userId, createdAt])
+  @@index([status, reservedAt])
+  @@map("ai_usage_operations")
 }
 
 model AIInteraction {
