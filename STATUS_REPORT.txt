@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-12 13:21 EDT
+Updated: 2026-09-12 13:26 EDT
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,7 +13,7 @@ Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
 Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
-  DRAFT PR #16 — ready for independent review
+  DRAFT PR #16 — ready for independent review (NOT MERGED)
   Server-side reservation / settlement ledger added.
   Concurrent over-allocation prevented; settlement idempotent.
   Production AI remains DISABLED by default.
@@ -23,9 +23,11 @@ Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              includes merged PR #14 + PR #15
+origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
+Branch tip:               2a9e7cd
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
+PR state:                 draft, open, unmerged
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -46,7 +48,7 @@ Later phases                      NOT STARTED
 IMPLEMENTATION #2 SUMMARY
 --------------------------------------------------------------------------------
 
-Delivered / in this PR:
+Delivered:
   - AiUsageOperation ledger (RESERVED → SETTLED | RELEASED)
   - beginUsageReservation / finalizeUsageReservation server API
   - Atomic trial counter reserve + paid-plan FOR UPDATE + held-op counting
@@ -56,6 +58,8 @@ Delivered / in this PR:
   - Orchestration wired to reserve → provider → finalize
   - Production AI remains OFF unless explicitly gated
   - Stub provider remains default
+  - Tests / typecheck / lint / build / migration passing on this branch
+    (218 tests passed)
 
 NOT delivered (intentionally later):
   - Real production AI enablement
@@ -64,12 +68,13 @@ NOT delivered (intentionally later):
   - Learning-first policy hardening (Slice 2)
   - Study focus UX (Slice 3)
   - Bounded Class/Task retrieval (Slice 6 — required before real-AI enablement)
+  - RAG, LMS, agents, mastery engine, admin systems
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #2 PR (do not merge until review)
+1. Independent review of Phase 4 Implementation #2 PR #16 (do not merge until review)
 2. Do NOT enable production real AI until Slice 6 is complete
 3. Later: Implementation #3+ as separate slice PRs
 4. Status reports: provide only when explicitly requested
