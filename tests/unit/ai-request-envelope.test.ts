@@ -324,6 +324,59 @@ describe("AI request envelope — tokenizer-backed reservation safety", () => {
     );
   });
 
+  it("reservedCostMicros covers independently measured cost for permitted Unicode traffic", () => {
+    const fixtures = [
+      "ASCII review session notes.",
+      "café naïve résumé",
+      "光合作用と量子力学",
+      "📚🎓🚀",
+      "cafe\u0301 combining marks",
+    ];
+    const reserved = reservationCostCeilingMicros({
+      capability: "AI_SESSION",
+      modelKey: MODEL,
+    });
+    for (const text of fixtures) {
+      const req = requestWithContent(text);
+      expect(() => assertCompletionRequestWithinEnvelope(req)).not.toThrow();
+      const independentBillable = independentBillableInputTokens(req);
+      const estimated = estimateCostMicros({
+        modelKey: MODEL,
+        inputTokens: independentBillable,
+        outputTokens: AI_REQUEST_ENVELOPE.maxOutputTokens,
+      });
+      expect(independentBillable).toBeLessThanOrEqual(reservationInputTokenCeiling());
+      expect(reserved).toBeGreaterThanOrEqual(estimated);
+    }
+  });
+
+  it("reservation amount is not reduced by client-like env overrides", () => {
+    const baseline = reservationCostCeilingMicros({
+      capability: "AI_SESSION",
+      modelKey: MODEL,
+    });
+    // Env may lower provider limits, but reservation ceiling stays at the
+    // authoritative envelope (server-controlled; cannot be client-reduced).
+    const lowered = resolveAIProviderConfig({
+      AI_MAX_INPUT_TOKENS: "500",
+      AI_MAX_OUTPUT_TOKENS: "50",
+    });
+    expect(lowered.maxInputTokens).toBe(500);
+    expect(
+      reservationCostCeilingMicros({
+        capability: "AI_SESSION",
+        modelKey: MODEL,
+      }),
+    ).toBe(baseline);
+    expect(baseline).toBe(
+      estimateCostMicros({
+        modelKey: MODEL,
+        inputTokens: AI_REQUEST_ENVELOPE.maxInputTokens,
+        outputTokens: AI_REQUEST_ENVELOPE.maxOutputTokens,
+      }),
+    );
+  });
+
   it("UTF-16 length is not used as the token-cost bound (emoji illustration)", () => {
     const rockets = "🚀".repeat(10);
     expect(rockets.length).toBe(20); // UTF-16 units

@@ -40,10 +40,11 @@ export const PRODUCTION_OPENAI_ENCODING = "o200k_base" as const;
 export const CHAT_TOKENS_PER_MESSAGE = 4;
 export const CHAT_REPLY_PRIMING_TOKENS = 3;
 
-function assertO200kModel(_modelKey: InternalModelKey): void {
+function assertO200kModel(modelKey: InternalModelKey): void {
   // All current flux-* → OpenAI mappings use o200k_base. If a future mapping
   // uses a different encoding, replace this with a model→encoding switch in
   // the same commit and fail closed for unknown encodings.
+  void modelKey;
 }
 
 /** Encode a single string with the production encoding for the internal model. */
