@@ -1,11 +1,11 @@
 # Phase 4 Architecture — Production AI + Guided Study Intelligence
 
-**Status:** ARCHITECTURE / PRODUCT PLANNING — remediation after PR #14 independent review (NOT CLEAR FOR MERGE); awaiting re-review — implementation NOT STARTED  
-**Baseline:** `main` after PR #13 merge (Academic AI Context Integration)  
-**Date:** 2026-09-11 (remediated)  
-**Scope of this document:** planning only — no production feature code, no migrations
+**Status:** ARCHITECTURE MERGED (PR #14). Implementation #1 (Slice 0 — Production AI provider adapter) in progress — production AI remains **DISABLED**; stub remains default.  
+**Baseline:** `main` after PR #14 merge (Phase 4 architecture)  
+**Date:** 2026-09-12  
+**Scope of this document:** planning reference — feature code lands in separate implementation PRs
 
-**Review remediation note:** This revision corrects four MEDIUM findings from the PR #14 independent review: live proposal-type inventory, current vs target learning-first policy, required bounded Class/Task retrieval before production AI, and concept-context / MVP vs fuller DoD clarity. Product direction is unchanged.
+**Implementation note:** Slice 0 establishes the gated OpenAI adapter + stub default. It does **not** enable production AI. Slice 6 remains a hard gate before real-AI enablement.
 
 ---
 
@@ -593,12 +593,13 @@ Do **not** implement these now. Prefer small PRs.
 ### Slice 0 — Production AI provider adapter (prerequisite)
 
 - **Responsibility:** Real `AIProvider` implementation + factory; stub default for CI.  
-- **Scope:** Env config, model-key mapping, timeout, retry policy, token/cost fill-in, error mapping.  
+- **Scope:** Env config, model-key mapping, timeout, token/cost fill-in, error mapping.  
 - **Deps:** None (uses existing interface).  
 - **Security:** Secrets server-only; no key leakage to client; log redaction.  
 - **Tests:** Adapter unit tests with mocked HTTP; factory selection; CI remains stub.  
 - **DoD:** Orchestration can complete a Study turn via real provider in a controlled env; stub path unchanged for CI.  
-- **User-visible:** Still feature-flag/env gated until Slice 1 UX polish — may be internal-only initially.
+- **User-visible:** Still feature-flag/env gated until Slice 1 UX polish — may be internal-only initially.  
+- **Implementation status:** **Implementation #1** — provider abstraction + gated OpenAI adapter + stub default. Production AI remains **OFF** unless explicitly configured (`AI_PRODUCTION_ENABLED=true`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`).
 
 ### Slice 1 — Entitlement & cost hardening under real spend
 

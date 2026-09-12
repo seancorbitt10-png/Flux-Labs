@@ -1,69 +1,45 @@
-import type {
-  AICompletionRequest,
-  AICompletionResult,
-  AIProvider,
-  InternalModelKey,
-} from "./types";
+/**
+ * AI provider resolution entrypoint.
+ *
+ * - StubAIProvider: default for CI, local, and production until explicitly gated
+ * - setAIProvider / resetAIProvider: test/DI hooks
+ * - getAIProvider: resolves override → env-gated factory (stub by default)
+ *
+ * Never import provider-config secrets into client components.
+ */
+
+import { createAIProviderFromConfig } from "./provider-factory";
+import { StubAIProvider } from "./providers/stub";
+import type { AIProvider } from "./types";
+
+export { StubAIProvider };
 
 /**
- * Stub provider for Phase 1.
- * No real model calls yet — validates the orchestration path end-to-end.
- * Phase 4 will plug in real providers behind this interface.
+ * Provider resolution:
+ * - Test/DI override via setAIProvider wins when set.
+ * - Otherwise resolve from server env (stub by default; production gated).
  */
-export class StubAIProvider implements AIProvider {
-  readonly id = "stub";
-
-  async complete(request: AICompletionRequest): Promise<AICompletionResult> {
-    const started = Date.now();
-    const lastUser = [...request.messages]
-      .reverse()
-      .find((m) => m.role === "user");
-
-    const content = buildStubReply(lastUser?.content ?? "", request.modelKey);
-
-    return {
-      content,
-      modelKey: request.modelKey,
-      provider: this.id,
-      inputTokens: estimateTokens(request.messages.map((m) => m.content).join(" ")),
-      outputTokens: estimateTokens(content),
-      estimatedCostMicros: 50, // negligible stub cost for accounting path
-      latencyMs: Date.now() - started,
-    };
-  }
-}
-
-function estimateTokens(text: string): number {
-  return Math.max(1, Math.ceil(text.length / 4));
-}
-
-function buildStubReply(userMessage: string, modelKey: InternalModelKey): string {
-  return [
-    "I'm Flux — your academic learning companion.",
-    "",
-    "In this foundation build I can confirm the AI orchestration path is wired:",
-    `• Request received`,
-    `• Model route: ${modelKey} (internal)`,
-    `• Learning-first policy: I'll guide rather than dump answers`,
-    "",
-    `You asked: “${truncate(userMessage, 160)}”`,
-    "",
-    "Before I help further, what have you already tried on this?",
-  ].join("\n");
-}
-
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
-}
-
-let provider: AIProvider = new StubAIProvider();
+let overrideProvider: AIProvider | null = null;
+let cachedProvider: AIProvider | null = null;
 
 export function getAIProvider(): AIProvider {
-  return provider;
+  if (overrideProvider) return overrideProvider;
+  if (!cachedProvider) {
+    cachedProvider = createAIProviderFromConfig();
+  }
+  return cachedProvider;
 }
 
-/** Test/DI hook — swap providers without changing call sites */
+/** Test/DI hook — swap providers without changing call sites. */
 export function setAIProvider(next: AIProvider): void {
-  provider = next;
+  overrideProvider = next;
+}
+
+/**
+ * Clear DI override and cached env-resolved provider.
+ * Used by tests when mutating process.env provider gates.
+ */
+export function resetAIProvider(): void {
+  overrideProvider = null;
+  cachedProvider = null;
 }

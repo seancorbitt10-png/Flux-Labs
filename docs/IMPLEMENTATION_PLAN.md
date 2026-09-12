@@ -10,7 +10,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
 | 3 | Classes / tasks / calendar + academic AI context | **Done** |
-| 4 | Production AI foundation + guided Study intelligence | **Architecture remediated for PR #14 re-review — implementation NOT STARTED** |
+| 4 | Production AI foundation + guided Study intelligence | **Architecture merged (PR #14). Implementation #1 (provider adapter) in progress — production AI still OFF** |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
 | 7 | Proactive agent | Planned |
@@ -88,41 +88,38 @@ Phase 3 architecture is in `docs/PHASE3_ARCHITECTURE.md`. All implementation sli
 
 Did not introduce real LLM providers, LMS integrations, billing, a generalized recommendation engine, RAG/embeddings, teacher/admin/parent systems, recurring class schedules, attendance, gradebook, notifications infrastructure, generic calendar events, or unrelated productivity features.
 
-## Phase 4 — architecture remediation for PR #14 re-review; implementation NOT STARTED
+## Phase 4 — Production AI + Guided Study Intelligence
 
-Phase 4 architecture is in `docs/PHASE4_ARCHITECTURE.md`.
+Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
 ### Chosen objective
 
 **Production AI foundation (prerequisite slice) + guided Study intelligence** — the first real learning-first tutoring experience on the existing Study path (hints, steps, check-work, attempt-oriented interactions).
 
-### Explicit status
+### Implementation status
 
-- Architecture / product planning: **remediated after independent review (NOT CLEAR FOR MERGE)** — awaiting independent **re-review**
-- Implementation slices: **NOT STARTED**
-- Production AI: **NOT enabled**
-- No production feature code for Phase 4 yet
-- No Phase 4 database migration yet
-- Stub AI provider remains the runtime default until implementation slices ship
+| Slice | Name | Status |
+|-------|------|--------|
+| 0 | Production AI provider adapter | **Implementation #1 — this PR** |
+| 1 | Entitlement & cost hardening under real spend | NOT STARTED |
+| 2 | Learning-first prompt & policy hardening | NOT STARTED |
+| 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
+| 4 | Guided tutoring loop UX | NOT STARTED |
+| 5 | Meaningful proposal generation | NOT STARTED |
+| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | NOT STARTED |
 
-### PR #14 Medium findings addressed in architecture docs
+### Implementation #1 completed (Slice 0)
 
-1. **Proposal types:** Documented live contract only — `ATTRIBUTE_UPDATE`, `GOAL_UPDATE`, `CONCEPT_STATE_UPDATE`, `MISCONCEPTION_SIGNAL`. Observation/LearningEvidence are **not** AI proposal types today.
-2. **Learning-first policy:** Documented current vs target — `refuse_direct_completion` / `limited_answer` exist as types but are **not** selected by today’s policy; Slice 2 must wire them before claiming enforcement.
-3. **Bounded Class/Task retrieval:** Slice 6 is **REQUIRED** before production real-AI enablement (not optional).
-4. **Concept context / MVP DoD:** Documented that validated `conceptIds` are already assembled when sent; MVP DoD separated from fuller Phase 4 / later packages.
+- Production-grade `AIProvider` abstraction remains the orchestration dependency
+- Server-only config gate: `AI_PRODUCTION_ENABLED` + `AI_PROVIDER` + secrets
+- Stub provider remains default for CI/dev; production AI **disabled** by default
+- Isolated OpenAI Chat Completions adapter (fetch; no vendor SDK app-wide)
+- Normalized failures, timeouts, and input/output bounds
+- Clients cannot select provider/model/key/endpoint/temperature/token limits
 
-### Planned implementation slices (not started)
+Production AI is **not** enabled. Presence of an API key alone does not activate it.
 
-0. Production AI provider adapter (prerequisite)
-1. Entitlement & cost hardening under real spend
-2. Learning-first prompt & policy hardening for real models (including refuse/limited mode selection)
-3. Study focus UX (`classId` / `taskId`) — concept focus already works
-4. Guided tutoring loop UX (post-MVP polish ok)
-5. Meaningful proposal generation from tutoring (live types only; post-MVP ok)
-6. **Required** bounded Class/Task retrieval before production real-AI enablement
-
-See `docs/PHASE4_ARCHITECTURE.md` §19–§20 for scope, deps, security, tests, MVP vs fuller DoD.
+See `docs/PHASE4_ARCHITECTURE.md` §19–§20 and `docs/ENVIRONMENT.md` for gates and remaining slices.
 
 ### Phase 4 non-goals
 
@@ -130,14 +127,13 @@ Do not add RAG/embeddings/vector DBs, spaced-repetition engines, multi-agent/aut
 
 ### Phase 4 process
 
-1. Architecture/design (this document set)
-2. Independent review and corrections ← **current step (remediation complete; re-review pending)**
-3. Small implementation slices (separate PRs) — only after architecture clearance
+1. Architecture/design — **done** (PR #14 merged)
+2. Independent review and corrections — **done**
+3. Small implementation slices (separate PRs) ← **current**
 4. Tests + typecheck + lint + build (+ migration checks only if a slice introduces schema)
 5. Independent review each slice
 6. Merge only after review clearance
 
-Do **not** treat PR #14 as approved or merged. Do **not** start Phase 4 implementation until architecture is cleared.
 ## Deferred roadmap
 
 Later phases cover resources/document intelligence, progress/mastery workflows, proactive agent behavior, integrations, billing/trial activation, and production hardening. Those remain planned and are not started.
