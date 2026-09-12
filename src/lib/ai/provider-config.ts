@@ -9,6 +9,8 @@
 
 import type { InternalModelKey } from "./types";
 
+export type AIProviderEnv = Record<string, string | undefined>;
+
 export type AIProviderKind = "stub" | "openai";
 
 export type AIProviderRuntimeConfig = {
@@ -43,7 +45,7 @@ const DEFAULT_MODEL_IDS: Record<InternalModelKey, string> = {
   "flux-advanced": "gpt-4o",
 };
 
-function readFrom(env: NodeJS.ProcessEnv, name: string): string | null {
+function readFrom(env: AIProviderEnv, name: string): string | null {
   const value = env[name];
   if (value == null) return null;
   const trimmed = value.trim();
@@ -73,7 +75,7 @@ function parseProviderKind(raw: string | undefined): AIProviderKind {
  * non-stub providers. Presence of API keys alone does NOT enable production AI.
  */
 export function isProductionAIEnabled(
-  env: NodeJS.ProcessEnv = process.env,
+  env: AIProviderEnv = process.env,
 ): boolean {
   return (env.AI_PRODUCTION_ENABLED ?? "").trim().toLowerCase() === "true";
 }
@@ -83,7 +85,7 @@ export function isProductionAIEnabled(
  * Safe default: stub. Production path requires AI_PRODUCTION_ENABLED=true.
  */
 export function resolveAIProviderConfig(
-  env: NodeJS.ProcessEnv = process.env,
+  env: AIProviderEnv = process.env,
 ): AIProviderRuntimeConfig {
   const productionEnabled = isProductionAIEnabled(env);
   const requestedKind = parseProviderKind(env.AI_PROVIDER);

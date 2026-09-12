@@ -3,7 +3,7 @@
  * Default is always the stub unless production AI is explicitly enabled.
  */
 
-import { resolveAIProviderConfig } from "./provider-config";
+import { resolveAIProviderConfig, type AIProviderEnv } from "./provider-config";
 import { AIProviderConfigError } from "./provider-errors";
 import { OpenAIChatProvider } from "./providers/openai-chat";
 import { StubAIProvider } from "./providers/stub";
@@ -15,7 +15,7 @@ import type { AIProvider } from "./types";
  * production openai is selected but misconfigured.
  */
 export function createAIProviderFromConfig(
-  env: NodeJS.ProcessEnv = process.env,
+  env: AIProviderEnv = process.env,
 ): AIProvider {
   const config = resolveAIProviderConfig(env);
 

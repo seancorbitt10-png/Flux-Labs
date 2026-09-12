@@ -150,7 +150,9 @@ describe("OpenAIChatProvider", () => {
   }
 
   it("maps successful chat completions to AICompletionResult", async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () =>
       new Response(
         JSON.stringify({
           choices: [{ message: { role: "assistant", content: "  Guided hint  " } }],
@@ -170,17 +172,21 @@ describe("OpenAIChatProvider", () => {
     expect(result.outputTokens).toBe(5);
     expect(result.estimatedCostMicros).toBeGreaterThan(0);
 
-    const [, init] = fetchImpl.mock.calls[0]!;
-    const body = JSON.parse(String((init as RequestInit).body));
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(init).toBeDefined();
+    const body = JSON.parse(String(init!.body));
     expect(body.model).toBe(AI_PROVIDER_DEFAULTS.modelIds["flux-standard"]);
     expect(body.max_tokens).toBeLessThanOrEqual(800);
-    expect((init as RequestInit).headers).toMatchObject({
+    expect(init!.headers).toMatchObject({
       Authorization: "Bearer sk-test",
     });
   });
 
   it("clamps maxTokens to server max (client cannot raise)", async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () =>
       new Response(
         JSON.stringify({
           choices: [{ message: { content: "ok" } }],
@@ -193,9 +199,9 @@ describe("OpenAIChatProvider", () => {
       maxOutputTokens: 100,
     });
     await provider.complete({ ...baseRequest, maxTokens: 50_000 });
-    const body = JSON.parse(
-      String((fetchImpl.mock.calls[0]![1] as RequestInit).body),
-    );
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(init).toBeDefined();
+    const body = JSON.parse(String(init!.body));
     expect(body.max_tokens).toBe(100);
   });
 
