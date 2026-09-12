@@ -13,7 +13,7 @@ Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
 Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
-  DRAFT PR #16 — final envelope remediation applied; ready for RE-review (NOT MERGED)
+  DRAFT PR #16 — tokenizer reservation-cost remediation applied; ready for RE-review (NOT MERGED)
   Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
   Env cannot raise limits above envelope; clients cannot either.
   Ambiguous provider failures consume; safe non-execution releases.
@@ -27,7 +27,7 @@ REPOSITORY
 
 origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
-Branch tip:               be7d848
+Branch tip:               1721931
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
 
