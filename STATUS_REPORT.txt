@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-11 23:55 UTC
+Updated: 2026-09-12 15:17 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,9 +11,9 @@ BOTTOM LINE
 Phases 0–3 COMPLETE on main (including PR #13 Academic AI Context Integration).
 
 Phase 4 architecture / product planning: DRAFT PR #14 (docs only).
-Independent review of PR #14: NOT CLEAR FOR MERGE (initial).
-Remediation of four MEDIUM findings: COMPLETE on this branch.
-PR #14 status: awaiting independent RE-REVIEW.
+Independent re-review of remediated PR #14: CLEAR FOR MERGE
+  HIGH: 0 | MEDIUM: 0 | LOW: 2 (non-blocking)
+PR #14 state: draft, open, UNMERGED — awaiting human merge.
 Phase 4 implementation: NOT STARTED.
 Production AI: NOT enabled.
 No production feature code. No database migration.
@@ -25,14 +25,18 @@ REPOSITORY
 origin/main:              0b3b0af514df72f92c6284d7385e69a7f9b48ca3
                           (includes merged PR #13 Academic AI Context Integration)
 Working branch:           cursor/phase4-architecture-399a
-Planning tip:             branch tip on cursor/phase4-architecture-399a
-                          (architecture remediation for PR #14 MEDIUM findings)
+Branch tip:               branch tip on cursor/phase4-architecture-399a
 Base:                     main @ 0b3b0af
 PR #13 in ancestry:       YES (merge commit 0b3b0af)
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/14
-PR state:                 draft, open, unmerged — remediation pushed for re-review
+PR state:                 draft, open, unmerged
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
+
+PR #14 files (docs only):
+  - docs/PHASE4_ARCHITECTURE.md
+  - docs/IMPLEMENTATION_PLAN.md
+  - STATUS_REPORT.txt
 
 --------------------------------------------------------------------------------
 PHASE / IMPLEMENTATION STATUS
@@ -44,7 +48,7 @@ Phase 3 Implementation #1         MERGED (main) — PR #10
 Phase 3 Implementation #2         MERGED (main) — PR #11
 Phase 3 Implementation #3         MERGED (main) — PR #12
 Phase 3 Implementation #4         MERGED (main) — PR #13
-Phase 4 Architecture/Planning     DRAFT PR #14 — remediated; awaiting RE-REVIEW
+Phase 4 Architecture/Planning     DRAFT PR #14 — CLEAR FOR MERGE (re-review)
 Phase 4 Implementation            NOT STARTED
 Later phases                      NOT STARTED
 
@@ -54,7 +58,7 @@ PHASE 4 PLANNING SUMMARY
 
 Document: docs/PHASE4_ARCHITECTURE.md
 
-Chosen objective (unchanged):
+Chosen objective:
   Production AI foundation (prerequisite slice)
   + Guided Study intelligence (first real learning-first tutoring on Study)
 
@@ -70,47 +74,47 @@ Explicitly deferred:
   RAG/embeddings, LMS, Stripe, teacher/parent, proactive agents,
   spaced-repetition engines, document systems, major UI redesigns.
 
+Planned implementation slices (NOT STARTED):
+  0. Production AI provider adapter
+  1. Entitlement & cost hardening under real spend
+  2. Learning-first policy hardening (wire refuse_direct_completion /
+     limited_answer selection; currently unused by live policy)
+  3. Study classId/taskId focus UX (conceptIds focus already works)
+  4. Guided tutoring loop UX (post-MVP polish ok)
+  5. Meaningful proposal generation (live types only; post-MVP ok)
+  6. REQUIRED bounded Class/Task retrieval before production real-AI
+     enablement (listClasses/listTasks still unbounded in code today)
+
 --------------------------------------------------------------------------------
-PR #14 MEDIUM FINDINGS — REMEDIATION
+PR #14 REVIEW HISTORY
 --------------------------------------------------------------------------------
 
-Initial independent review: NOT CLEAR FOR MERGE (HIGH 0 / MEDIUM 4 / LOW 5).
+Initial independent review:
+  NOT CLEAR FOR MERGE — HIGH 0 / MEDIUM 4 / LOW 5
 
-MEDIUM #1 — Proposal types
-  FIXED in docs: live types only ATTRIBUTE_UPDATE, GOAL_UPDATE,
-  CONCEPT_STATE_UPDATE, MISCONCEPTION_SIGNAL. Observation/LearningEvidence
-  are not AI proposal types today; distinguished as future/out-of-MVP.
+MEDIUM findings remediated in docs (commit a21c5d9):
+  1. Proposal types — live only ATTRIBUTE_UPDATE, GOAL_UPDATE,
+     CONCEPT_STATE_UPDATE, MISCONCEPTION_SIGNAL
+  2. Learning-first policy — current vs target accurately documented;
+     refuse/limited modes not claimed active today
+  3. Bounded Class/Task retrieval — Slice 6 REQUIRED (not optional)
+  4. Concept context / MVP DoD — conceptIds already assembled when sent;
+     MVP separated from fuller/later packages
 
-MEDIUM #2 — Learning-first policy
-  FIXED in docs: current policy returns explain/check_work/hint/
-  break_into_steps/teach. refuse_direct_completion and limited_answer exist
-  as types but are NOT selected today. Slice 2 must wire them before claiming
-  refuse/limited-answer enforcement. Product thesis unchanged.
-
-MEDIUM #3 — Unbounded Class/Task queries
-  FIXED in docs: Slice 6 bounded listClasses/listTasks retrieval is REQUIRED
-  before production real-AI enablement (server-side limits, deterministic
-  ordering, explicit max sizes, no client-controlled expansion). Not optional.
-
-MEDIUM #4 — Concept context / MVP DoD
-  FIXED in docs: validated conceptIds ARE assembled today when Study sends
-  them. MVP DoD separated from fuller Phase 4 package and later vision
-  (RAG/mastery/agents/etc.).
-
-Files changed (remediation / planning only):
-  - docs/PHASE4_ARCHITECTURE.md
-  - docs/IMPLEMENTATION_PLAN.md
-  - STATUS_REPORT.txt (this file)
+Independent re-review (2026-09-12):
+  CLEAR FOR MERGE — HIGH 0 / MEDIUM 0 / LOW 2 (non-blocking)
+  LOW: §13 soft "hardening slices" wording; STATUS lag before this update
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent RE-REVIEW of remediated Phase 4 architecture draft PR #14
-2. Do NOT merge PR #14 until re-review clears it
-3. Do NOT start Phase 4 feature code until architecture is approved
-4. After clearance: begin implementation slices as separate PRs
-   (Slice 6 required before production real-AI enablement)
+1. Human merge of draft PR #14 (architecture/planning only)
+2. Do NOT start Phase 4 feature code until after human merge
+3. After merge: begin implementation as separate slice PRs
+4. Do NOT enable production real AI until Slice 6 (bounded Class/Task
+   retrieval) is complete
+5. Status reports: provide only when explicitly requested
 
 ================================================================================
 END OF STATUS REPORT
