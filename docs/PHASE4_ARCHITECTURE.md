@@ -603,7 +603,7 @@ Do **not** implement these now. Prefer small PRs.
 
 ### Slice 1 — Entitlement & cost hardening under real spend
 
-- **Implementation status:** **Implementation #2** — reservation/settlement ledger (`AiUsageOperation`), atomic reserve with `reservedCostMicros` from shared `AI_REQUEST_ENVELOPE` (provider limits cannot exceed reservation envelope), execution-certainty failure matrix (safe RELEASE vs ambiguous SETTLE), financial budget checks that include outstanding RESERVED holds, idempotent finalize. Production AI remains **OFF**. Exact vendor billing reconciliation is **not** claimed.
+- **Implementation status:** **Implementation #2** — reservation/settlement ledger (`AiUsageOperation`), atomic reserve with `reservedCostMicros` from shared `AI_REQUEST_ENVELOPE` token ceilings (o200k_base tokenizer gate before dispatch; provider limits cannot exceed reservation envelope), execution-certainty failure matrix (safe RELEASE vs ambiguous SETTLE), financial budget checks that include outstanding RESERVED holds, idempotent finalize. Production AI remains **OFF**. Exact vendor billing reconciliation is **not** claimed.
 
 - **Responsibility:** Correct reserve/consume/failure accounting with real `estimatedCostMicros` and concurrency-safe budget holds.  
 - **Scope:** Budget enforcement including RESERVED ceilings, conservative cost tables, exhausted-trial UX copy.  

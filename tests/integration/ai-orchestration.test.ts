@@ -642,7 +642,7 @@ describe("AI orchestration boundary", () => {
     const { AIProviderLimitError } = await import("@/lib/ai/provider-errors");
     const user = await createEntitledUser(`oversize-${Date.now()}`);
     // Tiny provider envelope so normal orchestration prompts exceed it after reserve.
-    setAIProvider(new StubAIProvider({ maxInputChars: 64, maxOutputTokens: 32 }));
+    setAIProvider(new StubAIProvider({ maxInputTokens: 64, maxOutputTokens: 32 }));
 
     await expect(
       runAIOrchestration({

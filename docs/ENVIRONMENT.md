@@ -21,7 +21,8 @@
 | `OPENAI_BASE_URL` | no | OpenAI API base URL (default `https://api.openai.com/v1`) |
 | `AI_TIMEOUT_MS` | no | Upstream request timeout (default 25000; clamped 1000–120000) |
 | `AI_MAX_OUTPUT_TOKENS` | no | Server max completion tokens (default **800**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 800) |
-| `AI_MAX_INPUT_CHARS` | no | Server max total input characters (default **12000**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 12000) |
+| `AI_MAX_INPUT_TOKENS` | no | Server max billable input tokens via o200k_base (default **8000**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 8000) |
+| `AI_MAX_INPUT_UTF16_UNITS` | no | Optional DoS prefilter on JS UTF-16 code units (default **64000**; not a token-cost bound) |
 | `AI_MODEL_FLUX_FAST` | no | Vendor model id for internal `flux-fast` |
 | `AI_MODEL_FLUX_STANDARD` | no | Vendor model id for internal `flux-standard` |
 | `AI_MODEL_FLUX_ADVANCED` | no | Vendor model id for internal `flux-advanced` |
@@ -49,9 +50,13 @@ provider, model, API key, endpoint, temperature, or token limits.
 Provider acceptance limits and reservation-cost ceilings share one server-side
 source of truth (`AI_REQUEST_ENVELOPE` in `src/lib/ai/request-envelope.ts`):
 
-- max input characters: **12000**
+- max billable input tokens: **8000** (measured with production `o200k_base` via `js-tiktoken`, plus documented chat-framing overhead)
 - max output tokens: **800**
-- reservation cost assumes a conservative char→token overestimate (≤1 token per input char) plus max output tokens
+- UTF-16 unit prefilter: **64000** (DoS only — **not** a token or cost bound; JS `.length` is never treated as a tokenizer)
+- reservation cost = server cost table at `(maxInputTokens, maxOutputTokens)` from the same envelope the tokenizer gate enforces before dispatch
+- therefore, for any request allowed to reach the provider: independently measured billable input tokens ≤ reservation input-token ceiling, and `reservedCostMicros` ≥ server-estimated cost at the permitted token maxima
+- this does **not** claim exact vendor-invoice reconciliation; the cost table remains an internal estimate
+- bound holds only while mapped production models use `o200k_base` (current gpt-4o / gpt-4o-mini mappings); encoding changes must update the tokenizer module in the same change
 - `reservedCostMicros` is internal accounting, **not** a vendor invoice
 - environment variables may **lower** these limits; they cannot raise them above the envelope
 - clients cannot raise the envelope

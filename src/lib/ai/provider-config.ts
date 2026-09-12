@@ -4,8 +4,9 @@
  * Production AI is OFF by default. Having an API key is not enough —
  * AI_PRODUCTION_ENABLED must be explicitly "true".
  *
- * Input/output limits are clamped to AI_REQUEST_ENVELOPE — env may only lower
- * them. Clients cannot raise them. Reservation cost uses the same envelope.
+ * Input/output token limits are clamped to AI_REQUEST_ENVELOPE — env may only
+ * lower them. Clients cannot raise them. Reservation cost uses the same
+ * token envelope (tokenizer-gated).
  *
  * Never import this module from client components.
  */
@@ -13,8 +14,8 @@
 import {
   AI_REQUEST_ENVELOPE,
   clampToRequestEnvelope,
-} from "./request-envelope";
-import type { InternalModelKey } from "./types";
+} from "@/lib/ai/request-envelope";
+import type { InternalModelKey } from "@/lib/ai/types";
 
 export type AIProviderEnv = Record<string, string | undefined>;
 
@@ -39,18 +40,22 @@ export type AIProviderRuntimeConfig = {
    */
   maxOutputTokens: number;
   /**
-   * Server-enforced max total input characters (client cannot raise).
-   * Always ≤ AI_REQUEST_ENVELOPE.maxInputChars.
+   * Server-enforced max billable input tokens (client cannot raise).
+   * Always ≤ AI_REQUEST_ENVELOPE.maxInputTokens. Enforced via o200k_base gate.
    */
-  maxInputChars: number;
+  maxInputTokens: number;
+  /**
+   * DoS prefilter on UTF-16 code units (not a token-cost bound).
+   * Always ≤ AI_REQUEST_ENVELOPE.maxInputUtf16Units.
+   */
+  maxInputUtf16Units: number;
   /** Internal model key → vendor model id. */
   modelIds: Record<InternalModelKey, string>;
 };
 
 const DEFAULT_TIMEOUT_MS = 25_000;
-/** Defaults equal the authoritative envelope (env may only lower). */
 const DEFAULT_MAX_OUTPUT_TOKENS = AI_REQUEST_ENVELOPE.maxOutputTokens;
-const DEFAULT_MAX_INPUT_CHARS = AI_REQUEST_ENVELOPE.maxInputChars;
+const DEFAULT_MAX_INPUT_TOKENS = AI_REQUEST_ENVELOPE.maxInputTokens;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 const DEFAULT_MODEL_IDS: Record<InternalModelKey, string> = {
@@ -98,7 +103,7 @@ export function isProductionAIEnabled(
  * Resolve server provider configuration.
  * Safe default: stub. Production path requires AI_PRODUCTION_ENABLED=true.
  *
- * AI_MAX_INPUT_CHARS / AI_MAX_OUTPUT_TOKENS may only reduce the envelope;
+ * AI_MAX_INPUT_TOKENS / AI_MAX_OUTPUT_TOKENS may only reduce the envelope;
  * values above AI_REQUEST_ENVELOPE are clamped server-side.
  */
 export function resolveAIProviderConfig(
@@ -109,7 +114,6 @@ export function resolveAIProviderConfig(
   const kind: AIProviderKind =
     productionEnabled && requestedKind === "openai" ? "openai" : "stub";
 
-  // Parse with envelope hard max as the clamp ceiling (not 500k / 4096).
   const parsedLimits = clampToRequestEnvelope({
     maxOutputTokens: parsePositiveInt(
       env.AI_MAX_OUTPUT_TOKENS,
@@ -117,11 +121,17 @@ export function resolveAIProviderConfig(
       16,
       AI_REQUEST_ENVELOPE.maxOutputTokens,
     ),
-    maxInputChars: parsePositiveInt(
-      env.AI_MAX_INPUT_CHARS,
-      DEFAULT_MAX_INPUT_CHARS,
+    maxInputTokens: parsePositiveInt(
+      env.AI_MAX_INPUT_TOKENS,
+      DEFAULT_MAX_INPUT_TOKENS,
+      256,
+      AI_REQUEST_ENVELOPE.maxInputTokens,
+    ),
+    maxInputUtf16Units: parsePositiveInt(
+      env.AI_MAX_INPUT_UTF16_UNITS,
+      AI_REQUEST_ENVELOPE.maxInputUtf16Units,
       1_000,
-      AI_REQUEST_ENVELOPE.maxInputChars,
+      AI_REQUEST_ENVELOPE.maxInputUtf16Units,
     ),
   });
 
@@ -139,7 +149,8 @@ export function resolveAIProviderConfig(
       120_000,
     ),
     maxOutputTokens: parsedLimits.maxOutputTokens,
-    maxInputChars: parsedLimits.maxInputChars,
+    maxInputTokens: parsedLimits.maxInputTokens,
+    maxInputUtf16Units: parsedLimits.maxInputUtf16Units,
     modelIds: {
       "flux-fast":
         readFrom(env, "AI_MODEL_FLUX_FAST") ?? DEFAULT_MODEL_IDS["flux-fast"],
@@ -157,7 +168,8 @@ export function resolveAIProviderConfig(
 export const AI_PROVIDER_DEFAULTS = {
   timeoutMs: DEFAULT_TIMEOUT_MS,
   maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
-  maxInputChars: DEFAULT_MAX_INPUT_CHARS,
+  maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+  maxInputUtf16Units: AI_REQUEST_ENVELOPE.maxInputUtf16Units,
   openaiBaseUrl: DEFAULT_OPENAI_BASE_URL,
   modelIds: DEFAULT_MODEL_IDS,
 } as const;

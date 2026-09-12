@@ -15,19 +15,22 @@ import {
  * Stub provider for tests, local development, and the default runtime.
  * No real model calls — validates the orchestration path end-to-end.
  *
- * Enforces the same authoritative request envelope as production providers
- * so reservation cost and acceptance limits cannot diverge in stub mode.
+ * Enforces the same authoritative token envelope as production providers
+ * (o200k_base gate) so reservation cost and acceptance limits cannot diverge.
  */
 export class StubAIProvider implements AIProvider {
   readonly id = "stub";
 
-  private readonly limits: AIRequestEnvelopeLimits;
+  private readonly limits: Required<AIRequestEnvelopeLimits>;
 
   constructor(limits: Partial<AIRequestEnvelopeLimits> = {}) {
     this.limits = clampToRequestEnvelope({
-      maxInputChars: limits.maxInputChars ?? AI_REQUEST_ENVELOPE.maxInputChars,
+      maxInputTokens:
+        limits.maxInputTokens ?? AI_REQUEST_ENVELOPE.maxInputTokens,
       maxOutputTokens:
         limits.maxOutputTokens ?? AI_REQUEST_ENVELOPE.maxOutputTokens,
+      maxInputUtf16Units:
+        limits.maxInputUtf16Units ?? AI_REQUEST_ENVELOPE.maxInputUtf16Units,
     });
   }
 
@@ -68,9 +71,9 @@ function buildStubReply(
     "I'm Flux — your academic learning companion.",
     "",
     "In this foundation build I can confirm the AI orchestration path is wired:",
-    `• Request received`,
+    "• Request received",
     `• Model route: ${modelKey} (internal)`,
-    `• Learning-first policy: I'll guide rather than dump answers`,
+    "• Learning-first policy: I'll guide rather than dump answers",
     "",
     `You asked: “${truncate(userMessage, 160)}”`,
     "",

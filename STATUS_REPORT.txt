@@ -54,9 +54,9 @@ Delivered:
   - AiUsageOperation ledger (RESERVED → SETTLED | RELEASED)
   - beginUsageReservation / finalizeUsageReservation server API
   - Atomic trial counter reserve + paid-plan FOR UPDATE + held-op counting
-  - AI_REQUEST_ENVELOPE (maxInputChars=12000, maxOutputTokens=800) as single source of truth
+  - AI_REQUEST_ENVELOPE (maxInputTokens=8000 via o200k_base, maxOutputTokens=800) as single source of truth
   - Provider config clamped to envelope (env may only lower)
-  - reservedCostMicros derived from same envelope (conservative char→token overestimate)
+  - reservedCostMicros derived from same token envelope (tokenizer-gated; not a char heuristic)
   - Invariant: max possible provider table cost ≤ reservedCostMicros
   - Failure matrix by executionCertainty:
       not_dispatched → RELEASED (safe non-execution)

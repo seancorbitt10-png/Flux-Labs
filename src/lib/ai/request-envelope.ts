@@ -5,51 +5,58 @@
  *   A) provider-enforced input/output limits
  *   B) reservation-cost ceiling calculation
  *
- * Invariant:
- *   maximum possible provider cost for an authorized request
- *     <=
- *   server-side reservedCostMicros
+ * Invariant (defensible):
+ *   For any request that is allowed to reach the provider:
+ *     billableInputTokens(request)  <=  maxInputTokens
+ *     requestedOutputTokens         <=  maxOutputTokens
+ *   therefore (server cost table is monotonic in tokens):
+ *     estimateCostMicros(maxInputTokens, maxOutputTokens)
+ *       >= estimateCostMicros(actualBillableInput, actualOutput)
+ *
+ * Billable input tokens are measured with the production o200k_base tokenizer
+ * (see `@/lib/ai/tokenization`) — NOT inferred from JS string length, Unicode
+ * code points, or UTF-8 bytes. UTF-16 `.length` is used only as a cheap DoS
+ * prefilter and is explicitly NOT a token-cost bound.
  *
  * Environment configuration may LOWER these ceilings.
  * Environment configuration cannot RAISE them above this envelope.
  * Clients cannot change them.
- *
- * Character→token accounting is intentionally conservative and does NOT claim
- * exact tokenization. For reservation cost we treat each input character as at
- * most one billable input token (overestimate vs typical English ~4 chars/token).
  */
 
 import { AIProviderLimitError } from "@/lib/ai/provider-errors";
+import { countBillableInputTokens } from "@/lib/ai/tokenization";
 import type { AICompletionRequest } from "@/lib/ai/types";
 
 /**
  * Hard ceilings. Provider acceptance and reservation cost both derive from these.
- * Prefer a simple auditable bound over tokenizer infrastructure in this phase.
  */
 export const AI_REQUEST_ENVELOPE = {
-  /** Absolute maximum total input characters across all messages. */
-  maxInputChars: 12_000,
+  /**
+   * Absolute maximum billable input tokens (o200k_base + chat framing).
+   * Enforced by tokenizer gate before provider dispatch.
+   */
+  maxInputTokens: 8_000,
   /** Absolute maximum completion tokens the provider may request. */
   maxOutputTokens: 800,
   /**
-   * Conservative lower bound on characters per input token for cost accounting.
-   * Using 1 means: reservation assumes ≤1 token per character (overestimate).
-   * This is NOT an exact tokenizer.
+   * Cheap DoS prefilter on JS string `.length` (UTF-16 code units).
+   * NOT a token bound and NOT used for reservation cost.
+   * Sized high enough that legitimate multilingual text is gated by tokens first.
    */
-  inputCharsPerTokenLowerBound: 1,
+  maxInputUtf16Units: 64_000,
 } as const;
 
 export type AIRequestEnvelopeLimits = {
-  maxInputChars: number;
+  maxInputTokens: number;
   maxOutputTokens: number;
+  maxInputUtf16Units?: number;
 };
 
-/** Input token ceiling used for reservation cost (conservative char accounting). */
+/** Input token ceiling used for reservation cost (= provider-enforced max). */
 export function reservationInputTokenCeiling(
-  maxInputChars: number = AI_REQUEST_ENVELOPE.maxInputChars,
+  maxInputTokens: number = AI_REQUEST_ENVELOPE.maxInputTokens,
 ): number {
-  const bound = AI_REQUEST_ENVELOPE.inputCharsPerTokenLowerBound;
-  return Math.ceil(Math.max(0, maxInputChars) / bound);
+  return Math.max(0, maxInputTokens);
 }
 
 /** Output token ceiling used for reservation cost (= provider max output). */
@@ -65,26 +72,38 @@ export function reservationOutputTokenCeiling(
  */
 export function clampToRequestEnvelope(
   limits: AIRequestEnvelopeLimits,
-): AIRequestEnvelopeLimits {
+): Required<AIRequestEnvelopeLimits> {
   return {
-    maxInputChars: Math.min(
-      Math.max(0, limits.maxInputChars),
-      AI_REQUEST_ENVELOPE.maxInputChars,
+    maxInputTokens: Math.min(
+      Math.max(0, limits.maxInputTokens),
+      AI_REQUEST_ENVELOPE.maxInputTokens,
     ),
     maxOutputTokens: Math.min(
       Math.max(0, limits.maxOutputTokens),
       AI_REQUEST_ENVELOPE.maxOutputTokens,
     ),
+    maxInputUtf16Units: Math.min(
+      Math.max(
+        0,
+        limits.maxInputUtf16Units ?? AI_REQUEST_ENVELOPE.maxInputUtf16Units,
+      ),
+      AI_REQUEST_ENVELOPE.maxInputUtf16Units,
+    ),
   };
 }
 
-/** Total input characters across messages (server measurement). */
-export function totalInputChars(request: AICompletionRequest): number {
+/** Total UTF-16 code units across messages (DoS prefilter only). */
+export function totalInputUtf16Units(request: AICompletionRequest): number {
   return request.messages.reduce((sum, m) => sum + m.content.length, 0);
 }
 
 /**
  * Enforce the envelope before provider dispatch.
+ *
+ * Order:
+ *   1) UTF-16 unit DoS prefilter (not a token proof)
+ *   2) o200k_base billable token count vs maxInputTokens (authoritative)
+ *
  * Throws AIProviderLimitError (executionCertainty = not_dispatched) on violation
  * so entitlement accounting can safely RELEASE the reservation.
  */
@@ -93,10 +112,18 @@ export function assertCompletionRequestWithinEnvelope(
   limits: AIRequestEnvelopeLimits = AI_REQUEST_ENVELOPE,
 ): void {
   const clamped = clampToRequestEnvelope(limits);
-  const chars = totalInputChars(request);
-  if (chars > clamped.maxInputChars) {
+
+  const utf16Units = totalInputUtf16Units(request);
+  if (utf16Units > clamped.maxInputUtf16Units) {
     throw new AIProviderLimitError(
-      `Input exceeds server max of ${clamped.maxInputChars} characters`,
+      `Input exceeds server UTF-16 prefilter of ${clamped.maxInputUtf16Units} units`,
+    );
+  }
+
+  const billableTokens = countBillableInputTokens(request);
+  if (billableTokens > clamped.maxInputTokens) {
+    throw new AIProviderLimitError(
+      `Input exceeds server max of ${clamped.maxInputTokens} billable tokens`,
     );
   }
 
@@ -104,5 +131,4 @@ export function assertCompletionRequestWithinEnvelope(
     throw new AIProviderLimitError("Requested maxTokens is below minimum.");
   }
   // maxTokens above the envelope are clamped by the provider (never sent upstream).
-  // Input characters above the envelope are hard-rejected before dispatch.
 }

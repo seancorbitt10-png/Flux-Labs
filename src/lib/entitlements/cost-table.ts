@@ -6,8 +6,9 @@
  * so usage accounting fails closed under uncertainty.
  *
  * reservationCostCeilingMicros is a conservative hold against plan AI budgets.
- * It is derived from the same authoritative AI_REQUEST_ENVELOPE that caps
- * provider input/output acceptance. It is NOT an exact provider invoice amount.
+ * It is derived from AI_REQUEST_ENVELOPE.maxInputTokens / maxOutputTokens — the
+ * same token ceilings enforced by the o200k_base tokenizer gate before provider
+ * dispatch. It is NOT an exact provider invoice amount.
  *
  * Exact provider billing reconciliation is a later concern.
  */
@@ -97,12 +98,17 @@ function defaultModelForCapability(
 /**
  * Server-determined conservative reservation cost ceiling.
  *
- * Derived from AI_REQUEST_ENVELOPE (same envelope the provider enforces):
- *   - input tokens: conservative char→token overestimate of maxInputChars
+ * Derived from AI_REQUEST_ENVELOPE token ceilings (same ceilings the tokenizer
+ * gate enforces before provider dispatch):
+ *   - input tokens: maxInputTokens (o200k_base billable definition)
  *   - output tokens: maxOutputTokens
- *   - plus the model's minCallMicros floor via estimateCostMicros
+ *   - plus the model\'s minCallMicros floor via estimateCostMicros
  *
  * reservedCost ≠ actualProviderCost / vendor invoice. Clients never supply this.
+ *
+ * Safety basis: any request that reaches the provider has already been gated to
+ * billableInputTokens <= maxInputTokens, so the reserved ceiling covers the
+ * maximum server-estimated cost for permitted traffic.
  */
 export function reservationCostCeilingMicros(args: {
   capability: UsageCapability;
@@ -111,7 +117,7 @@ export function reservationCostCeilingMicros(args: {
   const modelKey = args.modelKey ?? defaultModelForCapability(args.capability);
   return estimateCostMicros({
     modelKey,
-    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputChars),
+    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputTokens),
     outputTokens: reservationOutputTokenCeiling(
       AI_REQUEST_ENVELOPE.maxOutputTokens,
     ),
@@ -119,14 +125,16 @@ export function reservationCostCeilingMicros(args: {
 }
 
 /**
- * Maximum server-side estimated cost for a request that stays within the
- * authoritative envelope for the given model. Equals the reservation ceiling
- * for that model — used to assert the cost/envelope invariant in tests.
+ * Maximum server-side estimated cost for traffic inside the authoritative
+ * token envelope. Equals the reservation ceiling for that model.
+ *
+ * Note: this is NOT itself a safety proof — tests must independently measure
+ * tokenizer billable tokens and compare them to reservationInputTokenCeiling().
  */
 export function maxEnvelopeCostMicros(modelKey: InternalModelKey): number {
   return estimateCostMicros({
     modelKey,
-    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputChars),
+    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputTokens),
     outputTokens: reservationOutputTokenCeiling(
       AI_REQUEST_ENVELOPE.maxOutputTokens,
     ),

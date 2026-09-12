@@ -21,7 +21,7 @@ export function createAIProviderFromConfig(
 
   if (config.kind === "stub") {
     return new StubAIProvider({
-      maxInputChars: config.maxInputChars,
+      maxInputTokens: config.maxInputTokens,
       maxOutputTokens: config.maxOutputTokens,
     });
   }
@@ -39,7 +39,7 @@ export function createAIProviderFromConfig(
 
   // Exhaustiveness fallback — treat unknown as stub.
   return new StubAIProvider({
-      maxInputChars: config.maxInputChars,
+      maxInputTokens: config.maxInputTokens,
       maxOutputTokens: config.maxOutputTokens,
     });
 }

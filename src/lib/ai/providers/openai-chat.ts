@@ -65,7 +65,8 @@ export type OpenAIChatProviderOptions = {
   baseUrl: string;
   timeoutMs: number;
   maxOutputTokens: number;
-  maxInputChars: number;
+  maxInputTokens: number;
+  maxInputUtf16Units?: number;
   modelIds: Record<InternalModelKey, string>;
   /** Injected for tests — defaults to global fetch. */
   fetchImpl?: typeof fetch;
@@ -78,7 +79,8 @@ export class OpenAIChatProvider implements AIProvider {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
-  private readonly maxInputChars: number;
+  private readonly maxInputTokens: number;
+  private readonly maxInputUtf16Units: number;
   private readonly modelIds: Record<InternalModelKey, string>;
   private readonly fetchImpl: typeof fetch;
 
@@ -94,10 +96,12 @@ export class OpenAIChatProvider implements AIProvider {
     // Defense in depth: never accept constructor limits above the envelope.
     const clamped = clampToRequestEnvelope({
       maxOutputTokens: options.maxOutputTokens,
-      maxInputChars: options.maxInputChars,
+      maxInputTokens: options.maxInputTokens,
+      maxInputUtf16Units: options.maxInputUtf16Units,
     });
     this.maxOutputTokens = clamped.maxOutputTokens;
-    this.maxInputChars = clamped.maxInputChars;
+    this.maxInputTokens = clamped.maxInputTokens;
+    this.maxInputUtf16Units = clamped.maxInputUtf16Units;
     this.modelIds = options.modelIds;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -117,7 +121,8 @@ export class OpenAIChatProvider implements AIProvider {
       baseUrl: config.openaiBaseUrl,
       timeoutMs: config.timeoutMs,
       maxOutputTokens: config.maxOutputTokens,
-      maxInputChars: config.maxInputChars,
+      maxInputTokens: config.maxInputTokens,
+      maxInputUtf16Units: config.maxInputUtf16Units,
       modelIds: config.modelIds,
       fetchImpl,
     });
@@ -177,8 +182,9 @@ export class OpenAIChatProvider implements AIProvider {
 
   private assertInputBounds(request: AICompletionRequest): void {
     assertCompletionRequestWithinEnvelope(request, {
-      maxInputChars: this.maxInputChars,
+      maxInputTokens: this.maxInputTokens,
       maxOutputTokens: this.maxOutputTokens,
+      maxInputUtf16Units: this.maxInputUtf16Units,
     });
   }
 
