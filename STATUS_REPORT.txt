@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-12 13:45 EDT
+Updated: 2026-09-12 13:56 EDT
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -26,7 +26,7 @@ REPOSITORY
 
 origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
-Branch tip:               2a9e7cd
+Branch tip:               5cff67e
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
 
@@ -41,7 +41,7 @@ Phase 3 Design                    COMPLETE — HUMAN-APPROVED
 Phase 3 Implementation #1–#4      MERGED (main) — PRs #10–#13
 Phase 4 Architecture/Planning     MERGED (main) — PR #14
 Phase 4 Implementation #1         MERGED (main) — PR #15 (provider adapter)
-Phase 4 Implementation #2         DRAFT PR #16 — entitlement/cost hardening
+Phase 4 Implementation #2         DRAFT PR #16 — entitlement/cost hardening (+ remediation)
 Phase 4 Implementation #3+        NOT STARTED
 Later phases                      NOT STARTED
 
@@ -53,14 +53,18 @@ Delivered:
   - AiUsageOperation ledger (RESERVED → SETTLED | RELEASED)
   - beginUsageReservation / finalizeUsageReservation server API
   - Atomic trial counter reserve + paid-plan FOR UPDATE + held-op counting
+  - Server-side reservedCostMicros ceiling at reserve time (≠ vendor invoice)
+  - Budget checks include outstanding RESERVED cost + SETTLED cost
+  - Failure matrix by executionCertainty:
+      not_dispatched → RELEASED (safe non-execution)
+      ambiguous / dispatched → SETTLED (consume; no free retry)
   - Idempotent settlement/release; ownership checks (no IDOR)
-  - Provider failure releases capacity; invalid output keeps capacity consumed
-  - Server-side conservative cost table (not client-authoritative)
-  - Orchestration wired to reserve → provider → finalize
+  - Clients cannot supply plan, cost, reservation amount, or settlement outcome
+  - Orchestration wired to reserve → provider → certainty-driven finalize
   - Production AI remains OFF unless explicitly gated
   - Stub provider remains default
   - Tests / typecheck / lint / build / migration passing on this branch
-    (218 tests passed)
+    (235 tests passed)
 
 NOT delivered (intentionally later):
   - Real production AI enablement
@@ -75,7 +79,7 @@ NOT delivered (intentionally later):
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #2 PR #16 (do not merge until review)
+1. Independent RE-review of Phase 4 Implementation #2 PR #16 (do not merge until review)
 2. Do NOT enable production real AI until Slice 6 is complete
 3. Later: Implementation #3+ as separate slice PRs
 4. Status reports: provide only when explicitly requested
