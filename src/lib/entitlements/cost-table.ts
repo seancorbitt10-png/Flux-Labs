@@ -5,13 +5,19 @@
  * client-authoritative. Settlement may take max(providerEstimate, tableEstimate)
  * so usage accounting fails closed under uncertainty.
  *
- * reservedCostCeilingMicros is a conservative hold against plan AI budgets.
- * It is NOT an exact provider invoice amount.
+ * reservationCostCeilingMicros is a conservative hold against plan AI budgets.
+ * It is derived from the same authoritative AI_REQUEST_ENVELOPE that caps
+ * provider input/output acceptance. It is NOT an exact provider invoice amount.
  *
  * Exact provider billing reconciliation is a later concern.
  */
 
 import type { UsageCapability } from "@prisma/client";
+import {
+  AI_REQUEST_ENVELOPE,
+  reservationInputTokenCeiling,
+  reservationOutputTokenCeiling,
+} from "@/lib/ai/request-envelope";
 import type { InternalModelKey } from "@/lib/ai/types";
 
 export type ModelCostEstimate = {
@@ -26,6 +32,7 @@ export type ModelCostEstimate = {
 /**
  * Conservative planning table. Prefer overestimates over underestimates.
  * Values are intentionally not exposed as client-controllable inputs.
+ * Every InternalModelKey must have a row — reservation/settlement fail closed.
  */
 export const INTERNAL_MODEL_COST_TABLE: Record<
   InternalModelKey,
@@ -56,6 +63,10 @@ export function estimateCostMicros(args: {
   providerEstimateMicros?: number;
 }): number {
   const row = INTERNAL_MODEL_COST_TABLE[args.modelKey];
+  if (!row) {
+    // Fail closed — unknown model keys are not billable via client authority.
+    throw new Error(`No cost row for internal model key: ${args.modelKey}`);
+  }
   const inputTokens = Math.max(0, args.inputTokens ?? 0);
   const outputTokens = Math.max(0, args.outputTokens ?? 0);
 
@@ -67,10 +78,6 @@ export function estimateCostMicros(args: {
   const provider = Math.max(0, args.providerEstimateMicros ?? 0);
   return Math.max(row.minCallMicros, tableEstimate, provider);
 }
-
-/** Conservative token envelope used only for reservation ceilings (not billing). */
-const RESERVATION_INPUT_TOKEN_CEILING = 4_000;
-const RESERVATION_OUTPUT_TOKEN_CEILING = 1_000;
 
 function defaultModelForCapability(
   capability: UsageCapability,
@@ -89,7 +96,13 @@ function defaultModelForCapability(
 
 /**
  * Server-determined conservative reservation cost ceiling.
- * reservedCost ≠ actualProviderCost. Clients never supply this value.
+ *
+ * Derived from AI_REQUEST_ENVELOPE (same envelope the provider enforces):
+ *   - input tokens: conservative char→token overestimate of maxInputChars
+ *   - output tokens: maxOutputTokens
+ *   - plus the model's minCallMicros floor via estimateCostMicros
+ *
+ * reservedCost ≠ actualProviderCost / vendor invoice. Clients never supply this.
  */
 export function reservationCostCeilingMicros(args: {
   capability: UsageCapability;
@@ -98,7 +111,24 @@ export function reservationCostCeilingMicros(args: {
   const modelKey = args.modelKey ?? defaultModelForCapability(args.capability);
   return estimateCostMicros({
     modelKey,
-    inputTokens: RESERVATION_INPUT_TOKEN_CEILING,
-    outputTokens: RESERVATION_OUTPUT_TOKEN_CEILING,
+    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputChars),
+    outputTokens: reservationOutputTokenCeiling(
+      AI_REQUEST_ENVELOPE.maxOutputTokens,
+    ),
+  });
+}
+
+/**
+ * Maximum server-side estimated cost for a request that stays within the
+ * authoritative envelope for the given model. Equals the reservation ceiling
+ * for that model — used to assert the cost/envelope invariant in tests.
+ */
+export function maxEnvelopeCostMicros(modelKey: InternalModelKey): number {
+  return estimateCostMicros({
+    modelKey,
+    inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputChars),
+    outputTokens: reservationOutputTokenCeiling(
+      AI_REQUEST_ENVELOPE.maxOutputTokens,
+    ),
   });
 }

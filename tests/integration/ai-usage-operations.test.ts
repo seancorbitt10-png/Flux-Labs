@@ -3,7 +3,10 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { isProductionAIEnabled } from "@/lib/ai/provider-config";
 import { reserveCapability } from "@/lib/entitlements/check";
-import { estimateCostMicros } from "@/lib/entitlements/cost-table";
+import {
+  estimateCostMicros,
+  reservationCostCeilingMicros,
+} from "@/lib/entitlements/cost-table";
 import {
   beginUsageReservation,
   finalizeUsageReservation,
@@ -11,6 +14,15 @@ import {
 import { EntitlementError } from "@/lib/errors";
 
 const prisma = new PrismaClient();
+
+const PLUS_AI_BUDGET_MICROS = 5_000_000;
+function standardReservationCeiling(): number {
+  return reservationCostCeilingMicros({
+    capability: "AI_SESSION",
+    modelKey: "flux-standard",
+  });
+}
+
 
 async function createTrialUser(suffix: string) {
   const email = `usage-op.${suffix}@fluxlabs.test`;
@@ -560,7 +572,7 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
         capability: "AI_SESSION",
         feature: "seed-hold",
         status: "RESERVED",
-        reservedCostMicros: 4_998_801,
+        reservedCostMicros: PLUS_AI_BUDGET_MICROS - standardReservationCeiling() + 1,
       },
     });
 
@@ -614,8 +626,8 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
         capability: "AI_SESSION",
         feature: "seed-settled",
         status: "SETTLED",
-        reservedCostMicros: 1200,
-        estimatedCostMicros: 4_998_801,
+        reservedCostMicros: standardReservationCeiling(),
+        estimatedCostMicros: PLUS_AI_BUDGET_MICROS - standardReservationCeiling() + 1,
         settledAt: new Date(),
       },
     });
@@ -635,7 +647,8 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     const entitlement = await prisma.entitlement.findFirstOrThrow({
       where: { userId: user.id, status: "ACTIVE" },
     });
-    // Leave room for exactly one flux-standard reservation ceiling (1200 micros).
+    // Leave room for exactly one flux-standard reservation ceiling.
+    const ceiling = standardReservationCeiling();
     await prisma.aiUsageOperation.create({
       data: {
         userId: user.id,
@@ -643,8 +656,8 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
         capability: "AI_SESSION",
         feature: "seed-near-budget",
         status: "SETTLED",
-        reservedCostMicros: 1200,
-        estimatedCostMicros: 4_998_800,
+        reservedCostMicros: ceiling,
+        estimatedCostMicros: PLUS_AI_BUDGET_MICROS - ceiling,
         settledAt: new Date(),
       },
     });

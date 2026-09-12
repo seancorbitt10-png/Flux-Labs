@@ -637,4 +637,30 @@ describe("AI orchestration boundary", () => {
     });
   });
 
+
+  it("rejects oversize provider input after reserve and releases the reservation", async () => {
+    const { AIProviderLimitError } = await import("@/lib/ai/provider-errors");
+    const user = await createEntitledUser(`oversize-${Date.now()}`);
+    // Tiny provider envelope so normal orchestration prompts exceed it after reserve.
+    setAIProvider(new StubAIProvider({ maxInputChars: 64, maxOutputTokens: 32 }));
+
+    await expect(
+      runAIOrchestration({
+        actorUserId: user.id,
+        userMessage: "Help me understand covalent bonding",
+      }),
+    ).rejects.toBeInstanceOf(AIProviderLimitError);
+
+    const ops = await prisma.aiUsageOperation.findMany({
+      where: { userId: user.id },
+    });
+    expect(ops.length).toBeGreaterThan(0);
+    for (const op of ops) {
+      expect(op.status).toBe("RELEASED");
+    }
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(0);
+  });
+
+
 });

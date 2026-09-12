@@ -4,16 +4,38 @@ import type {
   AIProvider,
   InternalModelKey,
 } from "@/lib/ai/types";
+import {
+  AI_REQUEST_ENVELOPE,
+  assertCompletionRequestWithinEnvelope,
+  clampToRequestEnvelope,
+  type AIRequestEnvelopeLimits,
+} from "@/lib/ai/request-envelope";
 
 /**
  * Stub provider for tests, local development, and the default runtime.
  * No real model calls — validates the orchestration path end-to-end.
+ *
+ * Enforces the same authoritative request envelope as production providers
+ * so reservation cost and acceptance limits cannot diverge in stub mode.
  */
 export class StubAIProvider implements AIProvider {
   readonly id = "stub";
 
+  private readonly limits: AIRequestEnvelopeLimits;
+
+  constructor(limits: Partial<AIRequestEnvelopeLimits> = {}) {
+    this.limits = clampToRequestEnvelope({
+      maxInputChars: limits.maxInputChars ?? AI_REQUEST_ENVELOPE.maxInputChars,
+      maxOutputTokens:
+        limits.maxOutputTokens ?? AI_REQUEST_ENVELOPE.maxOutputTokens,
+    });
+  }
+
   async complete(request: AICompletionRequest): Promise<AICompletionResult> {
     const started = Date.now();
+    // Same pre-dispatch envelope check as OpenAI — oversize => not_dispatched.
+    assertCompletionRequestWithinEnvelope(request, this.limits);
+
     const lastUser = [...request.messages]
       .reverse()
       .find((m) => m.role === "user");

@@ -4,6 +4,7 @@ import {
   isProductionAIEnabled,
   resolveAIProviderConfig,
 } from "@/lib/ai/provider-config";
+import { AI_REQUEST_ENVELOPE } from "@/lib/ai/request-envelope";
 import {
   AIProviderConfigError,
   AIProviderInvalidResponseError,
@@ -143,7 +144,7 @@ describe("OpenAIChatProvider", () => {
       baseUrl: "https://api.openai.com/v1",
       timeoutMs: overrides?.timeoutMs ?? 5_000,
       maxOutputTokens: overrides?.maxOutputTokens ?? 800,
-      maxInputChars: overrides?.maxInputChars ?? 100_000,
+      maxInputChars: overrides?.maxInputChars ?? AI_PROVIDER_DEFAULTS.maxInputChars,
       modelIds: AI_PROVIDER_DEFAULTS.modelIds,
       fetchImpl,
     });
@@ -356,4 +357,29 @@ describe("client cannot select provider/model", () => {
       assertNoClientStudyAuthority({ maxTokens: 99999 }),
     ).toThrow(/cannot supply maxTokens/i);
   });
+
+  it("clamps env input/output limits to the authoritative request envelope", () => {
+    const raised = resolveAIProviderConfig({
+      AI_MAX_INPUT_CHARS: "500000",
+      AI_MAX_OUTPUT_TOKENS: "4096",
+    });
+    expect(raised.maxInputChars).toBe(AI_REQUEST_ENVELOPE.maxInputChars);
+    expect(raised.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+
+    const lowered = resolveAIProviderConfig({
+      AI_MAX_INPUT_CHARS: "2000",
+      AI_MAX_OUTPUT_TOKENS: "100",
+    });
+    expect(lowered.maxInputChars).toBe(2000);
+    expect(lowered.maxOutputTokens).toBe(100);
+  });
+
+  it("defaults provider limits to the authoritative request envelope", () => {
+    expect(AI_PROVIDER_DEFAULTS.maxInputChars).toBe(AI_REQUEST_ENVELOPE.maxInputChars);
+    expect(AI_PROVIDER_DEFAULTS.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+    const config = resolveAIProviderConfig({});
+    expect(config.maxInputChars).toBe(AI_REQUEST_ENVELOPE.maxInputChars);
+    expect(config.maxOutputTokens).toBe(AI_REQUEST_ENVELOPE.maxOutputTokens);
+  });
+
 });

@@ -22,6 +22,10 @@ import {
   AIProviderTimeoutError,
   AIProviderUpstreamError,
 } from "@/lib/ai/provider-errors";
+import {
+  assertCompletionRequestWithinEnvelope,
+  clampToRequestEnvelope,
+} from "@/lib/ai/request-envelope";
 import { MAX_PROVIDER_REPLY_CHARS } from "@/lib/ai/response-validation";
 
 const DEFAULT_TEMPERATURE = 0.4;
@@ -87,8 +91,13 @@ export class OpenAIChatProvider implements AIProvider {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs;
-    this.maxOutputTokens = options.maxOutputTokens;
-    this.maxInputChars = options.maxInputChars;
+    // Defense in depth: never accept constructor limits above the envelope.
+    const clamped = clampToRequestEnvelope({
+      maxOutputTokens: options.maxOutputTokens,
+      maxInputChars: options.maxInputChars,
+    });
+    this.maxOutputTokens = clamped.maxOutputTokens;
+    this.maxInputChars = clamped.maxInputChars;
     this.modelIds = options.modelIds;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -167,15 +176,10 @@ export class OpenAIChatProvider implements AIProvider {
   }
 
   private assertInputBounds(request: AICompletionRequest): void {
-    const totalChars = request.messages.reduce(
-      (sum, m) => sum + m.content.length,
-      0,
-    );
-    if (totalChars > this.maxInputChars) {
-      throw new AIProviderLimitError(
-        `Input exceeds server max of ${this.maxInputChars} characters`,
-      );
-    }
+    assertCompletionRequestWithinEnvelope(request, {
+      maxInputChars: this.maxInputChars,
+      maxOutputTokens: this.maxOutputTokens,
+    });
   }
 
   private resolveVendorModel(internal: InternalModelKey): string {
