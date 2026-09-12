@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-12 13:26 EDT
+Updated: 2026-09-12 13:45 EDT
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,10 +13,11 @@ Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
 Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
-  DRAFT PR #16 — ready for independent review (NOT MERGED)
-  Server-side reservation / settlement ledger added.
-  Concurrent over-allocation prevented; settlement idempotent.
-  Production AI remains DISABLED by default.
+  DRAFT PR #16 — remediation applied; ready for independent RE-review (NOT MERGED)
+  Server-side reservation / settlement ledger with reservedCost ceiling.
+  Ambiguous provider failures consume; safe non-execution releases.
+  Concurrent capability + financial budget over-allocation prevented.
+  Settlement idempotent. Production AI remains DISABLED by default.
   No Stripe/billing, RAG, Slice 6, or later Phase 4 slices in this work.
 
 --------------------------------------------------------------------------------

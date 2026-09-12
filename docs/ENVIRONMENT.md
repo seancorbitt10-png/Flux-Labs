@@ -49,5 +49,14 @@ provider, model, API key, endpoint, temperature, or token limits.
 Server-side only:
 
 - `AiUsageOperation` tracks RESERVED → SETTLED | RELEASED
-- Clients cannot supply plan, remaining usage, reservation amount, cost, or settlement state
+- Reservation holds capability **and** a conservative server-side `reservedCostMicros` ceiling when the plan has an AI budget
+- `reservedCostMicros` ≠ actual provider cost / vendor invoice; settlement records the best server-side estimate available
+- Outstanding RESERVED cost is included in budget availability; RELEASED is excluded; SETTLED remains included
+- Failure classification by execution certainty:
+  - safe non-execution (`not_dispatched`) → RELEASE
+  - ambiguous / dispatched provider failure → SETTLE (consume)
+- Clients cannot supply plan, remaining usage, reservation amount, cost, settlement outcome, or operation id
+- Settlement/release is idempotent by server-generated operation id
 - Production AI remains gated by `AI_PRODUCTION_ENABLED` (default off)
+- Exact vendor billing reconciliation remains future work
+

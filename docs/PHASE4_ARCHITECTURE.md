@@ -498,7 +498,7 @@ Phase 4 must add tests that **real-provider-shaped** outputs (verbose, partially
 | Input tokens / Study turn | ~1.5k–4k (context + history + user) |
 | Output tokens / Study turn | ~200–600 (guided; capped by maxTokens) |
 | Requests / active student / day | ~5–20 Study turns (wide range) |
-| Retries | ≤1–2 on transient failure; budget must count failed paid attempts or explicitly refund — decide in slice |
+| Retries | ≤1–2 on transient failure; ambiguous/dispatched failures **consume** reservation (no free retry); only safe non-execution releases |
 | Trial exposure | Target ≤ ~$1 avg; envelope ~$1.50–$2.00 / trial user (`docs/ECONOMICS.md`) |
 | Paid-user exposure | Enforce plan allowances; design toward **60%+** gross margin, aspirational **70–80%** |
 | Docs/images | **$0 in Phase 4** (text-only) |
@@ -603,14 +603,14 @@ Do **not** implement these now. Prefer small PRs.
 
 ### Slice 1 — Entitlement & cost hardening under real spend
 
-- **Implementation status:** **Implementation #2** — reservation/settlement ledger (`AiUsageOperation`), atomic reserve, idempotent finalize, paid-plan concurrency lock. Production AI remains **OFF**.
+- **Implementation status:** **Implementation #2** — reservation/settlement ledger (`AiUsageOperation`), atomic reserve with conservative `reservedCostMicros` ceiling, execution-certainty failure matrix (safe RELEASE vs ambiguous SETTLE), financial budget checks that include outstanding RESERVED holds, idempotent finalize. Production AI remains **OFF**. Exact vendor billing reconciliation is **not** claimed.
 
-- **Responsibility:** Correct reserve/consume/failure accounting with real `estimatedCostMicros`.  
-- **Scope:** Budget enforcement, conservative cost tables, exhausted-trial UX copy.  
+- **Responsibility:** Correct reserve/consume/failure accounting with real `estimatedCostMicros` and concurrency-safe budget holds.  
+- **Scope:** Budget enforcement including RESERVED ceilings, conservative cost tables, exhausted-trial UX copy.  
 - **Deps:** Slice 0.  
-- **Security:** No unpaid calls; race-safe reserve.  
-- **Tests:** Exhausted budget; concurrent requests; overestimate behavior.  
-- **DoD:** Trial envelope cannot be exceeded by successful or retried calls beyond defined policy.  
+- **Security:** No unpaid calls; race-safe reserve; ambiguous provider failures cannot restore trial capacity.  
+- **Tests:** Exhausted budget; concurrent capability + financial reservations; safe-release vs ambiguous-consume matrix; overestimate behavior.  
+- **DoD:** Trial envelope cannot be exceeded by successful or retried calls beyond defined policy; ambiguous failures consume.  
 - **User-visible:** Clear messaging when AI unavailable due to limits.
 
 ### Slice 2 — Learning-first prompt & policy hardening for real models

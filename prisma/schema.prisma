@@ -633,6 +633,10 @@ model AiUsageOperation {
   feature       String
   status        AiUsageOperationStatus @default(RESERVED)
 
+  /// Conservative cost ceiling held at reservation time (micros). Not a client input.
+  /// Distinct from settled estimatedCostMicros / vendor invoice amounts.
+  reservedCostMicros Int @default(0)
+
   /// Estimated financial cost applied at settlement (micros). Not a client input.
   estimatedCostMicros Int @default(0)
   inputTokens         Int?

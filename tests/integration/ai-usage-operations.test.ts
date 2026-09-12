@@ -213,7 +213,7 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     expect(usage[0]?.success).toBe(true);
   });
 
-  it("releases reservation on provider failure and restores trial capacity", async () => {
+  it("releases reservation on safe non-execution and restores trial capacity", async () => {
     const user = await createTrialUser(`release-${Date.now()}`);
     const reservation = await beginUsageReservation({
       userId: user.id,
@@ -225,7 +225,7 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
       operationId: reservation.operationId,
       userId: user.id,
       outcome: "failed_released",
-      errorCode: "PROVIDER_TIMEOUT",
+      errorCode: "AI_PROVIDER_CONFIG",
     });
 
     const op = await prisma.aiUsageOperation.findUniqueOrThrow({
@@ -238,6 +238,41 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     });
     expect(trial.aiSessionsUsed).toBe(0);
     expect(trial.estimatedCostMicros).toBe(0);
+  });
+
+  it("consumes reservation on ambiguous execution (timeout) without restoring trial", async () => {
+    const user = await createTrialUser(`ambig-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(reserved.reservedCostMicros).toBeGreaterThan(0);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_consumed",
+      errorCode: "AI_PROVIDER_TIMEOUT",
+      modelKey: "flux-standard",
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    expect(op.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+
+    const trial = await prisma.trial.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(trial.aiSessionsUsed).toBe(1);
+    expect(trial.estimatedCostMicros).toBe(reserved.reservedCostMicros);
   });
 
   it("keeps capacity consumed when provider output is invalid", async () => {
@@ -310,13 +345,13 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
       operationId: reservation.operationId,
       userId: user.id,
       outcome: "failed_released",
-      errorCode: "PROVIDER_ERROR",
+      errorCode: "NOT_DISPATCHED",
     });
     await finalizeUsageReservation({
       operationId: reservation.operationId,
       userId: user.id,
       outcome: "failed_released",
-      errorCode: "PROVIDER_ERROR",
+      errorCode: "NOT_DISPATCHED",
     });
 
     const trial = await prisma.trial.findUniqueOrThrow({
@@ -440,6 +475,262 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     expect(reservation.operationId).toBeTruthy();
   });
 
+  it("maps provider error certainty to settlement outcomes", async () => {
+    const { settlementOutcomeForProviderError } = await import(
+      "@/lib/entitlements/operations"
+    );
+    const {
+      AIProviderConfigError,
+      AIProviderTimeoutError,
+      AIProviderUpstreamError,
+      AIProviderInvalidResponseError,
+      AIProviderLimitError,
+    } = await import("@/lib/ai/provider-errors");
+
+    expect(settlementOutcomeForProviderError(new AIProviderConfigError("x"))).toBe(
+      "failed_released",
+    );
+    expect(settlementOutcomeForProviderError(new AIProviderLimitError("x"))).toBe(
+      "failed_released",
+    );
+    expect(
+      settlementOutcomeForProviderError(new AIProviderTimeoutError()),
+    ).toBe("failed_consumed");
+    expect(
+      settlementOutcomeForProviderError(new AIProviderUpstreamError()),
+    ).toBe("failed_consumed");
+    expect(
+      settlementOutcomeForProviderError(new AIProviderInvalidResponseError()),
+    ).toBe("failed_consumed");
+    expect(settlementOutcomeForProviderError(new Error("network"))).toBe(
+      "failed_consumed",
+    );
+  });
+
+  it("stores server-side reservedCost ceiling distinct from settled estimate", async () => {
+    const user = await createTrialUser(`ceiling-${Date.now()}`);
+    const { reservationCostCeilingMicros } = await import(
+      "@/lib/entitlements/cost-table"
+    );
+    const ceiling = reservationCostCeilingMicros({
+      capability: "AI_SESSION",
+      modelKey: "flux-standard",
+    });
+
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(reserved.reservedCostMicros).toBe(ceiling);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 10,
+      outputTokens: 5,
+      providerEstimateMicros: 1,
+    });
+
+    const settled = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    // Success uses token-based estimate (min floor), not the reservation ceiling.
+    expect(settled.estimatedCostMicros).toBeLessThan(settled.reservedCostMicros);
+    expect(settled.estimatedCostMicros).toBeGreaterThanOrEqual(50);
+  });
+
+  it("includes outstanding RESERVED cost in budget availability", async () => {
+    const user = await createPaidUser(`budget-hold-${Date.now()}`, "PLUS");
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: user.id, status: "ACTIVE" },
+    });
+    // PLUS budget = 5_000_000. Hold almost all with an outstanding reservation.
+    await prisma.aiUsageOperation.create({
+      data: {
+        userId: user.id,
+        entitlementId: entitlement.id,
+        capability: "AI_SESSION",
+        feature: "seed-hold",
+        status: "RESERVED",
+        reservedCostMicros: 4_998_801,
+      },
+    });
+
+    await expect(
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+  });
+
+  it("excludes RELEASED reservations from budget availability", async () => {
+    const user = await createPaidUser(`budget-rel-${Date.now()}`, "PLUS");
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: user.id, status: "ACTIVE" },
+    });
+    await prisma.aiUsageOperation.create({
+      data: {
+        userId: user.id,
+        entitlementId: entitlement.id,
+        capability: "AI_SESSION",
+        feature: "seed-released",
+        status: "RELEASED",
+        reservedCostMicros: 4_999_000,
+        estimatedCostMicros: 0,
+        releasedAt: new Date(),
+      },
+    });
+
+    await expect(
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+    ).resolves.toMatchObject({ operationId: expect.any(String) });
+  });
+
+  it("keeps SETTLED cost included in budget availability", async () => {
+    const user = await createPaidUser(`budget-set-${Date.now()}`, "PLUS");
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: user.id, status: "ACTIVE" },
+    });
+    await prisma.aiUsageOperation.create({
+      data: {
+        userId: user.id,
+        entitlementId: entitlement.id,
+        capability: "AI_SESSION",
+        feature: "seed-settled",
+        status: "SETTLED",
+        reservedCostMicros: 1200,
+        estimatedCostMicros: 4_998_801,
+        settledAt: new Date(),
+      },
+    });
+
+    await expect(
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+  });
+
+  it("prevents concurrent financial reservations from exceeding AI budget", async () => {
+    const user = await createPaidUser(`budget-race-${Date.now()}`, "PLUS");
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: user.id, status: "ACTIVE" },
+    });
+    // Leave room for exactly one flux-standard reservation ceiling (1200 micros).
+    await prisma.aiUsageOperation.create({
+      data: {
+        userId: user.id,
+        entitlementId: entitlement.id,
+        capability: "AI_SESSION",
+        feature: "seed-near-budget",
+        status: "SETTLED",
+        reservedCostMicros: 1200,
+        estimatedCostMicros: 4_998_800,
+        settledAt: new Date(),
+      },
+    });
+
+    const results = await Promise.allSettled([
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+      beginUsageReservation({
+        userId: user.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        modelKey: "flux-standard",
+      }),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(2);
+
+    const reserved = await prisma.aiUsageOperation.count({
+      where: { userId: user.id, status: "RESERVED" },
+    });
+    expect(reserved).toBe(1);
+  });
+
+  it("rejects settling an already released operation", async () => {
+    const user = await createTrialUser(`no-settle-rel-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    await expect(
+      finalizeUsageReservation({
+        operationId: reservation.operationId,
+        userId: user.id,
+        outcome: "failed_consumed",
+        errorCode: "AI_PROVIDER_TIMEOUT",
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+  });
+
+  it("rejects releasing an already settled operation", async () => {
+    const user = await createTrialUser(`no-rel-set-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+
+    await expect(
+      finalizeUsageReservation({
+        operationId: reservation.operationId,
+        userId: user.id,
+        outcome: "failed_released",
+        errorCode: "LATE_RELEASE",
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+  });
+
   it("cannot transition RELEASED back to SETTLED (no free revive)", async () => {
     const user = await createTrialUser(`revive-${Date.now()}`);
     const reservation = await beginUsageReservation({
@@ -452,7 +743,7 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
       operationId: reservation.operationId,
       userId: user.id,
       outcome: "failed_released",
-      errorCode: "PROVIDER_ERROR",
+      errorCode: "NOT_DISPATCHED",
     });
 
     await expect(

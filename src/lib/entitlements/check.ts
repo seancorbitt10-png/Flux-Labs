@@ -13,6 +13,8 @@ import {
   trialCounterField,
   type PlanDefinition,
 } from "./plans";
+import type { InternalModelKey } from "@/lib/ai/types";
+import { reservationCostCeilingMicros } from "./cost-table";
 
 export type ActiveEntitlement = {
   entitlement: Entitlement;
@@ -60,6 +62,7 @@ export async function reserveCapability(
   userId: string,
   capability: UsageCapability,
   feature = "ai.unspecified",
+  modelKey?: InternalModelKey,
 ): Promise<UsageReservation> {
   if (!userId || typeof userId !== "string") {
     throw new EntitlementError(
@@ -92,6 +95,19 @@ export async function reserveCapability(
 
     const plan = getPlanDefinition(entitlement.plan);
 
+    // Conservative server-side financial hold (≠ vendor invoice).
+    const reservedCostMicros = reservationCostCeilingMicros({
+      capability,
+      modelKey,
+    });
+    await assertFinancialBudgetAllows(
+      tx,
+      userId,
+      entitlement,
+      plan,
+      reservedCostMicros,
+    );
+
     let trial: Trial | null = null;
     if (entitlement.plan === "FREE_TRIAL") {
       trial = await reserveTrialCapability(tx, userId, capability, plan);
@@ -106,6 +122,8 @@ export async function reserveCapability(
         capability,
         feature,
         status: "RESERVED",
+        reservedCostMicros,
+        modelKey: modelKey ?? null,
       },
     });
 
@@ -144,16 +162,6 @@ async function reserveTrialCapability(
     );
   }
 
-  if (
-    plan.limits.aiBudgetMicros !== null &&
-    trial.estimatedCostMicros >= plan.limits.aiBudgetMicros
-  ) {
-    throw new EntitlementError(
-      "Trial AI budget exceeded",
-      "You have reached the trial usage limit.",
-    );
-  }
-
   const limitKey = capabilityToLimitKey(capability);
   const counterField = trialCounterField(capability);
   const limit = limitKey ? plan.limits[limitKey] : null;
@@ -172,10 +180,6 @@ async function reserveTrialCapability(
     endsAt: { gt: now },
     [counterField]: typeof limit === "number" ? { lt: limit } : undefined,
   };
-
-  if (plan.limits.aiBudgetMicros !== null) {
-    where.estimatedCostMicros = { lt: plan.limits.aiBudgetMicros };
-  }
 
   const updated = await tx.trial.updateMany({
     where,
@@ -224,21 +228,58 @@ async function assertPaidPlanAllowance(
     }
   }
 
-  if (plan.limits.aiBudgetMicros !== null) {
-    const cost = await tx.usageRecord.aggregate({
-      where: {
-        userId,
-        success: true,
-        createdAt: { gte: periodStart },
-      },
-      _sum: { estimatedCostMicros: true },
-    });
-    if ((cost._sum.estimatedCostMicros ?? 0) >= plan.limits.aiBudgetMicros) {
-      throw new EntitlementError(
-        "AI budget exceeded",
-        "You have reached your plan usage limit.",
-      );
-    }
+  // Financial budget is enforced in assertFinancialBudgetAllows (includes RESERVED holds).
+}
+
+
+/**
+ * Concurrency-safe financial budget check.
+ * Counts SETTLED estimated costs + outstanding RESERVED ceilings + this hold.
+ * RELEASED operations are excluded. Must run inside the entitlement FOR UPDATE txn.
+ *
+ * reservedCost ≠ actual provider invoice; it is a conservative internal ceiling.
+ */
+async function assertFinancialBudgetAllows(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  entitlement: Entitlement,
+  plan: PlanDefinition,
+  additionalReservedCostMicros: number,
+): Promise<void> {
+  if (plan.limits.aiBudgetMicros === null) return;
+
+  const periodStart = entitlement.startsAt;
+  const budget = plan.limits.aiBudgetMicros;
+
+  // Include success and consumed-failure settlements (both carry estimatedCostMicros).
+  const settled = await tx.aiUsageOperation.aggregate({
+    where: {
+      userId,
+      status: "SETTLED",
+      createdAt: { gte: periodStart },
+    },
+    _sum: { estimatedCostMicros: true },
+  });
+
+  const outstanding = await tx.aiUsageOperation.aggregate({
+    where: {
+      userId,
+      status: "RESERVED",
+      createdAt: { gte: periodStart },
+    },
+    _sum: { reservedCostMicros: true },
+  });
+
+  const projected =
+    (settled._sum.estimatedCostMicros ?? 0) +
+    (outstanding._sum.reservedCostMicros ?? 0) +
+    Math.max(0, additionalReservedCostMicros);
+
+  if (projected > budget) {
+    throw new EntitlementError(
+      "AI budget exceeded",
+      "You have reached your plan usage limit.",
+    );
   }
 }
 

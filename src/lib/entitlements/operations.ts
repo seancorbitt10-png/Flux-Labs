@@ -2,12 +2,18 @@
  * AI usage reservation / settlement.
  *
  * Lifecycle:
- *   RESERVED → beginUsageReservation (holds entitlement capacity)
- *   SETTLED  → successful or failed-but-consumed finalize
- *   RELEASED → provider/infra failure finalize (capacity returned)
+ *   RESERVED → beginUsageReservation (holds capability + reservedCost ceiling)
+ *   SETTLED  → success, invalid output after dispatch, or ambiguous execution
+ *   RELEASED → safe non-execution only (provider never dispatched)
  *
- * Reservation = server-authorized capacity held for one AI operation.
- * It is NOT an exact vendor invoice amount.
+ * Reservation = server-authorized capacity + conservative cost ceiling.
+ * reservedCost ≠ actualProviderCost / vendor invoice.
+ *
+ * Failure matrix:
+ *   Local validation / config before dispatch → RELEASED
+ *   Timeout / network / upstream after dispatch → SETTLED (consume)
+ *   Invalid provider output after dispatch → SETTLED (consume)
+ *   Valid success → SETTLED
  *
  * Clients never create operations, choose amounts, set costs, or transition
  * status. Settlement is idempotent by server-generated operation id.
@@ -19,6 +25,10 @@ import type {
   UsageCapability,
 } from "@prisma/client";
 import type { InternalModelKey } from "@/lib/ai/types";
+import {
+  AIProviderError,
+  type ProviderExecutionCertainty,
+} from "@/lib/ai/provider-errors";
 import { prisma } from "@/lib/db/prisma";
 import { EntitlementError } from "@/lib/errors";
 import {
@@ -53,6 +63,22 @@ export type FinalizeUsageInput = {
 };
 
 /**
+ * Map provider failure certainty to settlement outcome.
+ * Ambiguous/dispatched failures consume; not_dispatched releases.
+ */
+export function settlementOutcomeForProviderError(
+  error: unknown,
+): FinalizeUsageOutcome {
+  if (error instanceof AIProviderError) {
+    const certainty: ProviderExecutionCertainty = error.executionCertainty;
+    if (certainty === "not_dispatched") return "failed_released";
+    return "failed_consumed";
+  }
+  // Unknown errors after provider.complete() was entered → treat as ambiguous.
+  return "failed_consumed";
+}
+
+/**
  * Authorize + reserve entitlement capacity and open a ledger row.
  * Fail closed if entitlement or ledger write cannot complete.
  */
@@ -60,8 +86,14 @@ export async function beginUsageReservation(args: {
   userId: string;
   capability: UsageCapability;
   feature: string;
+  modelKey?: InternalModelKey;
 }): Promise<UsageReservation> {
-  return reserveCapability(args.userId, args.capability, args.feature);
+  return reserveCapability(
+    args.userId,
+    args.capability,
+    args.feature,
+    args.modelKey,
+  );
 }
 
 /**
@@ -129,6 +161,37 @@ export async function finalizeUsageReservation(
   });
 }
 
+/**
+ * Best-effort release when still RESERVED (pre-dispatch local failures).
+ * No-ops if already terminal. Fail-closed on ownership mismatch.
+ */
+export async function releaseUsageReservationIfHeld(args: {
+  operationId: string;
+  userId: string;
+  errorCode?: string;
+  feature?: string;
+}): Promise<void> {
+  const op = await prisma.aiUsageOperation.findUnique({
+    where: { id: args.operationId },
+  });
+  if (!op) return;
+  if (op.userId !== args.userId) {
+    throw new EntitlementError(
+      "Usage reservation not found for user",
+      "AI usage could not be finalized.",
+    );
+  }
+  if (op.status !== "RESERVED") return;
+
+  await finalizeUsageReservation({
+    operationId: args.operationId,
+    userId: args.userId,
+    outcome: "failed_released",
+    feature: args.feature ?? op.feature,
+    errorCode: args.errorCode ?? "PRE_DISPATCH_FAILURE",
+  });
+}
+
 async function settleReservedOperation(
   tx: Prisma.TransactionClient,
   op: AiUsageOperation,
@@ -138,8 +201,9 @@ async function settleReservedOperation(
   const modelKey =
     typeof input.modelKey === "string" && input.modelKey.length > 0
       ? input.modelKey
-      : undefined;
+      : op.modelKey ?? undefined;
 
+  // Success: best server estimate. Ambiguous/invalid consume: keep reserved ceiling.
   const cost = success
     ? estimateCostMicros({
         modelKey:
@@ -148,7 +212,7 @@ async function settleReservedOperation(
         outputTokens: input.outputTokens,
         providerEstimateMicros: input.providerEstimateMicros,
       })
-    : 0;
+    : Math.max(0, op.reservedCostMicros);
 
   const usage = await tx.usageRecord.create({
     data: {
@@ -192,7 +256,8 @@ async function settleReservedOperation(
     );
   }
 
-  if (success && cost > 0) {
+  // Attribute settled cost against trial soft budget (success or consumed failure).
+  if (cost > 0) {
     const now = new Date();
     await tx.trial.updateMany({
       where: {
@@ -222,7 +287,7 @@ async function releaseReservedOperation(
       estimatedCostMicros: 0,
       latencyMs: input.latencyMs,
       success: false,
-      errorCode: input.errorCode ?? "PROVIDER_ERROR",
+      errorCode: input.errorCode ?? "NOT_DISPATCHED",
       metadata: input.metadata as Prisma.InputJsonValue | undefined,
     },
   });
@@ -236,8 +301,8 @@ async function releaseReservedOperation(
     data: {
       status: "RELEASED",
       releasedAt: new Date(),
-      errorCode: input.errorCode ?? "PROVIDER_ERROR",
-      releaseReason: input.errorCode ?? "provider_failure",
+      errorCode: input.errorCode ?? "NOT_DISPATCHED",
+      releaseReason: input.errorCode ?? "safe_non_execution",
       usageRecordId: usage.id,
     },
   });
@@ -249,7 +314,7 @@ async function releaseReservedOperation(
     );
   }
 
-  // Return trial capacity. Conditional decrement prevents negatives.
+  // Return trial capacity only for safe non-execution.
   const counterField = trialCounterField(op.capability);
   await tx.trial.updateMany({
     where: {

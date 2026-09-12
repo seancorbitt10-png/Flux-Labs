@@ -13,7 +13,13 @@ import {
   validateProviderCompletion,
 } from "@/lib/ai/response-validation";
 import { setAIProvider, StubAIProvider } from "@/lib/ai/provider";
-import type { AICompletionRequest, AIProvider } from "@/lib/ai/types";
+import {
+  AIProviderConfigError,
+  AIProviderTimeoutError,
+  AIProviderUpstreamError,
+  AIProviderLimitError,
+} from "@/lib/ai/provider-errors";
+import type { AICompletionRequest, AIProvider, OrchestrationRequest } from "@/lib/ai/types";
 import { setStudentAttribute } from "@/lib/student/attributes";
 import { createStudentGoal } from "@/lib/student/goals";
 import {
@@ -434,4 +440,201 @@ describe("AI orchestration boundary", () => {
     });
     expect(result.taskType).not.toBe("administrative");
   });
+
+  describe("entitlement failure classification matrix", () => {
+    async function latestOp(userId: string) {
+      return prisma.aiUsageOperation.findFirstOrThrow({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    async function trial(userId: string) {
+      return prisma.trial.findUniqueOrThrow({ where: { userId } });
+    }
+
+    it("releases reservation on safe pre-dispatch provider config failure", async () => {
+      const user = await createEntitledUser(`cfg-${Date.now()}`);
+      setAIProvider({
+        id: "cfg",
+        async complete() {
+          throw new AIProviderConfigError("missing key");
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toBeInstanceOf(AIProviderConfigError);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("RELEASED");
+      expect((await trial(user.id)).aiSessionsUsed).toBe(0);
+    });
+
+    it("releases reservation on provider limit failure before dispatch", async () => {
+      const user = await createEntitledUser(`lim-${Date.now()}`);
+      setAIProvider({
+        id: "lim",
+        async complete() {
+          throw new AIProviderLimitError("input too large");
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toBeInstanceOf(AIProviderLimitError);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("RELEASED");
+      expect((await trial(user.id)).aiSessionsUsed).toBe(0);
+    });
+
+    it("consumes reservation on provider timeout after dispatch", async () => {
+      const user = await createEntitledUser(`timeout-${Date.now()}`);
+      setAIProvider({
+        id: "timeout",
+        async complete() {
+          throw new AIProviderTimeoutError();
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toBeInstanceOf(AIProviderTimeoutError);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("SETTLED");
+      expect(op.estimatedCostMicros).toBe(op.reservedCostMicros);
+      expect((await trial(user.id)).aiSessionsUsed).toBe(1);
+    });
+
+    it("consumes reservation on ambiguous upstream/network failure", async () => {
+      const user = await createEntitledUser(`up-${Date.now()}`);
+      setAIProvider({
+        id: "up",
+        async complete() {
+          throw new AIProviderUpstreamError("connection reset");
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toBeInstanceOf(AIProviderUpstreamError);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("SETTLED");
+      expect((await trial(user.id)).aiSessionsUsed).toBe(1);
+    });
+
+    it("consumes reservation on invalid provider output after dispatch", async () => {
+      const user = await createEntitledUser(`inv-${Date.now()}`);
+      setAIProvider({
+        id: "inv",
+        async complete(req: AICompletionRequest) {
+          return {
+            content: "",
+            modelKey: req.modelKey,
+            provider: "inv",
+            inputTokens: 10,
+            outputTokens: 0,
+            estimatedCostMicros: 1,
+            latencyMs: 1,
+          };
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("SETTLED");
+      expect((await trial(user.id)).aiSessionsUsed).toBe(1);
+    });
+
+    it("settles reservation on successful provider completion", async () => {
+      const user = await createEntitledUser(`ok-${Date.now()}`);
+      setAIProvider(new StubAIProvider());
+
+      const result = await runAIOrchestration({
+        actorUserId: user.id,
+        userMessage: "Help me review photosynthesis",
+      });
+      expect(result.reply.length).toBeGreaterThan(0);
+
+      const op = await latestOp(user.id);
+      expect(op.status).toBe("SETTLED");
+      expect((await trial(user.id)).aiSessionsUsed).toBe(1);
+    });
+
+    it("never calls provider before successful authorization/reservation", async () => {
+      const user = await createEntitledUser(`auth-${Date.now()}`);
+      await prisma.trial.update({
+        where: { userId: user.id },
+        data: { aiSessionsUsed: 10 },
+      });
+
+      let providerCalled = false;
+      setAIProvider({
+        id: "probe",
+        async complete() {
+          providerCalled = true;
+          return {
+            content: "should not run",
+            modelKey: "flux-standard",
+            provider: "probe",
+            estimatedCostMicros: 1,
+            latencyMs: 1,
+          };
+        },
+      } satisfies AIProvider);
+
+      await expect(
+        runAIOrchestration({
+          actorUserId: user.id,
+          userMessage: "Help me review photosynthesis",
+        }),
+      ).rejects.toThrow();
+
+      expect(providerCalled).toBe(false);
+      expect(
+        await prisma.aiUsageOperation.count({ where: { userId: user.id } }),
+      ).toBe(0);
+    });
+
+    it("rejects client-supplied reservation cost, settlement outcome, and plan", async () => {
+      const user = await createEntitledUser(`client-${Date.now()}`);
+      setAIProvider(new StubAIProvider());
+
+      for (const bag of [
+        { reservedCostMicros: 1 },
+        { outcome: "failed_released" },
+        { plan: "PRO" },
+      ]) {
+        await expect(
+          runAIOrchestration({
+            actorUserId: user.id,
+            userMessage: "Help me review photosynthesis",
+            ...bag,
+          } as OrchestrationRequest),
+        ).rejects.toBeInstanceOf(ValidationError);
+      }
+    });
+  });
+
 });

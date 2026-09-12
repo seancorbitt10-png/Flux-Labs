@@ -5,9 +5,13 @@
  * client-authoritative. Settlement may take max(providerEstimate, tableEstimate)
  * so usage accounting fails closed under uncertainty.
  *
+ * reservedCostCeilingMicros is a conservative hold against plan AI budgets.
+ * It is NOT an exact provider invoice amount.
+ *
  * Exact provider billing reconciliation is a later concern.
  */
 
+import type { UsageCapability } from "@prisma/client";
 import type { InternalModelKey } from "@/lib/ai/types";
 
 export type ModelCostEstimate = {
@@ -62,4 +66,39 @@ export function estimateCostMicros(args: {
 
   const provider = Math.max(0, args.providerEstimateMicros ?? 0);
   return Math.max(row.minCallMicros, tableEstimate, provider);
+}
+
+/** Conservative token envelope used only for reservation ceilings (not billing). */
+const RESERVATION_INPUT_TOKEN_CEILING = 4_000;
+const RESERVATION_OUTPUT_TOKEN_CEILING = 1_000;
+
+function defaultModelForCapability(
+  capability: UsageCapability,
+): InternalModelKey {
+  switch (capability) {
+    case "ADVANCED_TUTORING":
+      return "flux-advanced";
+    case "DOCUMENT_ANALYSIS":
+      return "flux-standard";
+    case "AI_SESSION":
+    case "GENERAL":
+    default:
+      return "flux-standard";
+  }
+}
+
+/**
+ * Server-determined conservative reservation cost ceiling.
+ * reservedCost ≠ actualProviderCost. Clients never supply this value.
+ */
+export function reservationCostCeilingMicros(args: {
+  capability: UsageCapability;
+  modelKey?: InternalModelKey;
+}): number {
+  const modelKey = args.modelKey ?? defaultModelForCapability(args.capability);
+  return estimateCostMicros({
+    modelKey,
+    inputTokens: RESERVATION_INPUT_TOKEN_CEILING,
+    outputTokens: RESERVATION_OUTPUT_TOKEN_CEILING,
+  });
 }
