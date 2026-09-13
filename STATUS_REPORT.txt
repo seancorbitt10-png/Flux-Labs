@@ -2,31 +2,45 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-12 11:54 EDT
+Updated: 2026-09-13 20:15 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 architecture (PR #14) HUMAN-MERGED into main.
+Phase 4 architecture (PR #14) MERGED.
+Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
-Phase 4 Implementation #1 (Slice 0 — Production AI Provider Adapter):
-  DRAFT PR #15 — ready for independent review (NOT MERGED)
-  Production AI abstraction + gated OpenAI adapter shipped.
-  Production AI remains DISABLED by default (stub path).
-  Stub provider remains available for CI/dev.
-  No billing, RAG, Slice 6, or later Phase 4 slices in this work.
+Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
+  DRAFT PR #16 — ready for RE-review (NOT MERGED)
+  Remediations applied:
+    1) tokenizer-backed reservation cost (o200k_base via gpt-tokenizer)
+    2) enforced model→vendor→encoding registry (fail-closed allowlist)
+    3) immutable reservation-time trial source on AiUsageOperation
+       (reservationPlan + consumedTrialCapacity; never mutable Entitlement.plan)
+    4) settlement cost clamped to reservedCostMicros WITH explicit
+       COST_CEILING_EXCEEDED anomaly + uncappedEstimateMicros diagnostics
+    5) settlement accounting model uses immutable op.modelKey only
+       (registry-validated; input.modelKey cannot switch cost rows)
+  Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
+  Env cannot raise limits above envelope; clients cannot either.
+  Ambiguous provider failures consume; safe non-execution releases.
+  Concurrent capability + financial budget over-allocation prevented.
+  Settlement idempotent. Production AI remains DISABLED by default.
+  No Stripe/billing, RAG, Slice 6, or later Phase 4 slices in this work.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              e2e94dc (includes merged PR #14 Phase 4 architecture)
-Working branch:           cursor/phase4-impl1-provider-adapter-399a
-Branch tip:               3f49ac8
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/15
+origin/main:              12f0b14 (includes merged PR #14 + PR #15)
+Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
+Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
+Branch tip / PR head:     1b405ef (1b405efd4a4f03e318f43e06fd637907c1b9b8dd)
+Remediation commit:       a0cbf7c (a0cbf7cf05e59a8a71a29ed0509fedebed6979e7)
+CI:                       green (2/2 checks on head)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -38,44 +52,64 @@ Phase 0–2                         COMPLETE (main)
 Phase 3 Design                    COMPLETE — HUMAN-APPROVED
 Phase 3 Implementation #1–#4      MERGED (main) — PRs #10–#13
 Phase 4 Architecture/Planning     MERGED (main) — PR #14
-Phase 4 Implementation #1         DRAFT PR #15 — provider adapter (Slice 0)
-Phase 4 Implementation #2+        NOT STARTED
+Phase 4 Implementation #1         MERGED (main) — PR #15 (provider adapter)
+Phase 4 Implementation #2         DRAFT PR #16 — entitlement/cost hardening (+ remediations)
+Phase 4 Implementation #3+        NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #1 SUMMARY
+LATEST ACCOUNTING INTEGRITY FIXES (final remediation)
 --------------------------------------------------------------------------------
 
-Delivered:
-  - Server-side AIProvider factory with explicit AI_PRODUCTION_ENABLED gate
-  - StubAIProvider retained as default
-  - Isolated OpenAI Chat Completions adapter (fetch-based; no SDK)
-  - Normalized provider errors (config / timeout / upstream / rate-limit /
-    invalid response / limits)
-  - Server-enforced timeout + input/output bounds
-  - Client still cannot select provider/model/key/endpoint/limits
-  - Production AI OFF unless AI_PRODUCTION_ENABLED=true + AI_PROVIDER=openai
-    + OPENAI_API_KEY
-  - Tests / typecheck / lint / build passing on this branch
-    (201 tests passed)
+Issue 1 — Trial accounting source:
+  Root cause: finalize consulted mutable Entitlement.plan via op.entitlementId.
+  Fix: reserve transaction snapshots reservationPlan + consumedTrialCapacity on
+  AiUsageOperation. Release restore and trial soft-budget attribution use only
+  op.consumedTrialCapacity. Plan changes after reserve cannot flip trial/paid.
 
-NOT delivered (intentionally later):
-  - Real production AI rollout / enablement
-  - Entitlement cost hardening (Slice 1)
-  - Learning-first refuse/limited mode wiring (Slice 2)
-  - Study focus UX (Slice 3)
-  - Bounded Class/Task retrieval (Slice 6 — required before real-AI enablement)
-  - Billing, RAG, LMS, agents, mastery engine
+Issue 2 — Cost ceiling anomalies:
+  Root cause: clamp to reservedCostMicros discarded evidence when estimate >
+  ceiling.
+  Fix: settled estimatedCostMicros still <= reservedCostMicros; when uncapped
+  estimate exceeds ceiling, record COST_CEILING_EXCEEDED and store
+  uncappedEstimateMicros. Operation remains SETTLED/consumed — never RELEASE
+  after dispatch solely due to accounting disagreement.
+
+Quality gates on remediation tip a0cbf7c / PR head a6c0097:
+  tests 285 passed (24 files)
+  typecheck pass
+  lint pass
+  production build pass
+  prisma migrate status: Database schema is up to date
+  migration 20260913191500_phase4_reservation_source_and_cost_anomaly applied
+  production AI disabled by default (AI_PRODUCTION_ENABLED must be "true")
+  GitHub CI: success (2/2)
+
+
+--------------------------------------------------------------------------------
+LATEST FIX — SETTLEMENT MODEL AUTHORITY
+--------------------------------------------------------------------------------
+
+Root cause: settleReservedOperation preferred input.modelKey over op.modelKey and
+cast/fell back to flux-standard, so finalize could switch cost-table rows and an
+invalid key could throw after dispatch leaving RESERVED.
+
+Fix:
+  - reservation persists resolveReservationModelKey(...) on AiUsageOperation
+  - settle uses only registry-validated op.modelKey for estimateCostMicros
+  - input.modelKey cannot replace accounting model (diagnostic-only if passed)
+  - missing/invalid stored modelKey fails closed (no flux-standard fallback)
+  - does not RELEASE solely due to accounting model mismatch
+
+Quality gates: tests 285; typecheck/lint/build pass; migrations up to date;
+production AI disabled by default.
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #1 PR #15 (do not merge until review)
+1. Independent RE-review of Phase 4 Implementation #2 PR #16 (do not merge until review)
 2. Do NOT enable production real AI until Slice 6 is complete
-3. Later: Implementation #2+ as separate slice PRs
-4. Status reports: provide only when explicitly requested
+3. Do NOT start Slice 2 / Slice 3 / Slice 6 / billing / RAG from this PR
 
-================================================================================
-END OF STATUS REPORT
 ================================================================================

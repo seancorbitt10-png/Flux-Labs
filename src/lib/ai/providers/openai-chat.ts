@@ -14,6 +14,7 @@ import type {
   InternalModelKey,
 } from "@/lib/ai/types";
 import type { AIProviderRuntimeConfig } from "@/lib/ai/provider-config";
+import { resolveVerifiedVendorModelId } from "@/lib/ai/model-registry";
 import {
   AIProviderConfigError,
   AIProviderInvalidResponseError,
@@ -22,6 +23,10 @@ import {
   AIProviderTimeoutError,
   AIProviderUpstreamError,
 } from "@/lib/ai/provider-errors";
+import {
+  assertCompletionRequestWithinEnvelope,
+  clampToRequestEnvelope,
+} from "@/lib/ai/request-envelope";
 import { MAX_PROVIDER_REPLY_CHARS } from "@/lib/ai/response-validation";
 
 const DEFAULT_TEMPERATURE = 0.4;
@@ -61,7 +66,8 @@ export type OpenAIChatProviderOptions = {
   baseUrl: string;
   timeoutMs: number;
   maxOutputTokens: number;
-  maxInputChars: number;
+  maxInputTokens: number;
+  maxInputUtf16Units?: number;
   modelIds: Record<InternalModelKey, string>;
   /** Injected for tests — defaults to global fetch. */
   fetchImpl?: typeof fetch;
@@ -74,7 +80,8 @@ export class OpenAIChatProvider implements AIProvider {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
-  private readonly maxInputChars: number;
+  private readonly maxInputTokens: number;
+  private readonly maxInputUtf16Units: number;
   private readonly modelIds: Record<InternalModelKey, string>;
   private readonly fetchImpl: typeof fetch;
 
@@ -87,9 +94,30 @@ export class OpenAIChatProvider implements AIProvider {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs;
-    this.maxOutputTokens = options.maxOutputTokens;
-    this.maxInputChars = options.maxInputChars;
-    this.modelIds = options.modelIds;
+    // Defense in depth: never accept constructor limits above the envelope.
+    const clamped = clampToRequestEnvelope({
+      maxOutputTokens: options.maxOutputTokens,
+      maxInputTokens: options.maxInputTokens,
+      maxInputUtf16Units: options.maxInputUtf16Units,
+    });
+    this.maxOutputTokens = clamped.maxOutputTokens;
+    this.maxInputTokens = clamped.maxInputTokens;
+    this.maxInputUtf16Units = clamped.maxInputUtf16Units;
+    // Fail closed on unverified vendor mappings before any dispatch.
+    this.modelIds = {
+      "flux-fast": resolveVerifiedVendorModelId(
+        "flux-fast",
+        options.modelIds["flux-fast"],
+      ),
+      "flux-standard": resolveVerifiedVendorModelId(
+        "flux-standard",
+        options.modelIds["flux-standard"],
+      ),
+      "flux-advanced": resolveVerifiedVendorModelId(
+        "flux-advanced",
+        options.modelIds["flux-advanced"],
+      ),
+    };
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -108,7 +136,8 @@ export class OpenAIChatProvider implements AIProvider {
       baseUrl: config.openaiBaseUrl,
       timeoutMs: config.timeoutMs,
       maxOutputTokens: config.maxOutputTokens,
-      maxInputChars: config.maxInputChars,
+      maxInputTokens: config.maxInputTokens,
+      maxInputUtf16Units: config.maxInputUtf16Units,
       modelIds: config.modelIds,
       fetchImpl,
     });
@@ -167,25 +196,18 @@ export class OpenAIChatProvider implements AIProvider {
   }
 
   private assertInputBounds(request: AICompletionRequest): void {
-    const totalChars = request.messages.reduce(
-      (sum, m) => sum + m.content.length,
-      0,
-    );
-    if (totalChars > this.maxInputChars) {
-      throw new AIProviderLimitError(
-        `Input exceeds server max of ${this.maxInputChars} characters`,
-      );
-    }
+    assertCompletionRequestWithinEnvelope(request, {
+      maxInputTokens: this.maxInputTokens,
+      maxOutputTokens: this.maxOutputTokens,
+      maxInputUtf16Units: this.maxInputUtf16Units,
+    });
   }
 
   private resolveVendorModel(internal: InternalModelKey): string {
     const mapped = this.modelIds[internal];
-    if (!mapped) {
-      throw new AIProviderConfigError(
-        `No vendor model mapped for internal key ${internal}`,
-      );
-    }
-    return mapped;
+    // Re-validate against the verified registry at dispatch time so constructor
+    // injection cannot bypass encoding allowlisting.
+    return resolveVerifiedVendorModelId(internal, mapped);
   }
 
   private async fetchWithTimeout(

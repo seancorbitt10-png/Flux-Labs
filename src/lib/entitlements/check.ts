@@ -13,11 +13,21 @@ import {
   trialCounterField,
   type PlanDefinition,
 } from "./plans";
+import type { InternalModelKey } from "@/lib/ai/types";
+import {
+  reservationCostCeilingMicros,
+  resolveReservationModelKey,
+} from "./cost-table";
 
 export type ActiveEntitlement = {
   entitlement: Entitlement;
   trial: Trial | null;
   plan: PlanDefinition;
+};
+
+/** Reservation includes a server-generated operation id for settlement. */
+export type UsageReservation = ActiveEntitlement & {
+  operationId: string;
 };
 
 export async function getActiveEntitlement(
@@ -48,12 +58,22 @@ export async function getActiveEntitlement(
 
 /**
  * Atomically reserve one unit of a capability before running expensive work.
+ * Creates a RESERVED AiUsageOperation ledger row for later settlement/release.
  * Prevents TOCTOU overshoot under concurrent requests.
  */
 export async function reserveCapability(
   userId: string,
   capability: UsageCapability,
-): Promise<ActiveEntitlement> {
+  feature = "ai.unspecified",
+  modelKey?: InternalModelKey,
+): Promise<UsageReservation> {
+  if (!userId || typeof userId !== "string") {
+    throw new EntitlementError(
+      "Missing authenticated user for reservation",
+      "You must be signed in to use AI features.",
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     const now = new Date();
 
@@ -73,15 +93,56 @@ export async function reserveCapability(
       );
     }
 
+    // Serialize concurrent reservations for this entitlement row.
+    await tx.$executeRaw`SELECT id FROM entitlements WHERE id = ${entitlement.id} FOR UPDATE`;
+
     const plan = getPlanDefinition(entitlement.plan);
 
-    if (entitlement.plan === "FREE_TRIAL") {
-      const trial = await reserveTrialCapability(tx, userId, capability, plan);
-      return { entitlement, trial, plan };
+    // Conservative server-side financial hold (≠ vendor invoice).
+    // Persist the same server model used for the reservation ceiling.
+    // Settlement must read this immutable op.modelKey — never re-select.
+    const accountingModelKey = resolveReservationModelKey(
+      capability,
+      modelKey,
+    );
+    const reservedCostMicros = reservationCostCeilingMicros({
+      capability,
+      modelKey: accountingModelKey,
+    });
+    await assertFinancialBudgetAllows(
+      tx,
+      userId,
+      entitlement,
+      plan,
+      reservedCostMicros,
+    );
+
+    let trial: Trial | null = null;
+    // Immutable reservation-time source: set only inside this transaction from
+    // the entitlement actually used for the hold. Finalization must never
+    // re-read mutable Entitlement.plan to decide trial restore/attribution.
+    const consumedTrialCapacity = entitlement.plan === "FREE_TRIAL";
+    if (consumedTrialCapacity) {
+      trial = await reserveTrialCapability(tx, userId, capability, plan);
+    } else {
+      await assertPaidPlanAllowance(tx, userId, entitlement, capability, plan);
     }
 
-    await assertPaidPlanAllowance(tx, userId, entitlement, capability, plan);
-    return { entitlement, trial: null, plan };
+    const operation = await tx.aiUsageOperation.create({
+      data: {
+        userId,
+        entitlementId: entitlement.id,
+        capability,
+        feature,
+        status: "RESERVED",
+        reservedCostMicros,
+        reservationPlan: entitlement.plan,
+        consumedTrialCapacity,
+        modelKey: accountingModelKey,
+      },
+    });
+
+    return { entitlement, trial, plan, operationId: operation.id };
   });
 }
 
@@ -116,16 +177,6 @@ async function reserveTrialCapability(
     );
   }
 
-  if (
-    plan.limits.aiBudgetMicros !== null &&
-    trial.estimatedCostMicros >= plan.limits.aiBudgetMicros
-  ) {
-    throw new EntitlementError(
-      "Trial AI budget exceeded",
-      "You have reached the trial usage limit.",
-    );
-  }
-
   const limitKey = capabilityToLimitKey(capability);
   const counterField = trialCounterField(capability);
   const limit = limitKey ? plan.limits[limitKey] : null;
@@ -144,10 +195,6 @@ async function reserveTrialCapability(
     endsAt: { gt: now },
     [counterField]: typeof limit === "number" ? { lt: limit } : undefined,
   };
-
-  if (plan.limits.aiBudgetMicros !== null) {
-    where.estimatedCostMicros = { lt: plan.limits.aiBudgetMicros };
-  }
 
   const updated = await tx.trial.updateMany({
     where,
@@ -179,15 +226,16 @@ async function assertPaidPlanAllowance(
   const limit = limitKey ? plan.limits[limitKey] : null;
 
   if (typeof limit === "number") {
-    const used = await tx.usageRecord.count({
+    // Count held + consumed operations so concurrent reserves cannot overshoot.
+    const heldOrSettled = await tx.aiUsageOperation.count({
       where: {
         userId,
         capability,
-        success: true,
+        status: { in: ["RESERVED", "SETTLED"] },
         createdAt: { gte: periodStart },
       },
     });
-    if (used >= limit) {
+    if (heldOrSettled >= limit) {
       throw new EntitlementError(
         `${capability} limit reached`,
         `You have reached your ${plan.label} limit for this feature.`,
@@ -195,21 +243,58 @@ async function assertPaidPlanAllowance(
     }
   }
 
-  if (plan.limits.aiBudgetMicros !== null) {
-    const cost = await tx.usageRecord.aggregate({
-      where: {
-        userId,
-        success: true,
-        createdAt: { gte: periodStart },
-      },
-      _sum: { estimatedCostMicros: true },
-    });
-    if ((cost._sum.estimatedCostMicros ?? 0) >= plan.limits.aiBudgetMicros) {
-      throw new EntitlementError(
-        "AI budget exceeded",
-        "You have reached your plan usage limit.",
-      );
-    }
+  // Financial budget is enforced in assertFinancialBudgetAllows (includes RESERVED holds).
+}
+
+
+/**
+ * Concurrency-safe financial budget check.
+ * Counts SETTLED estimated costs + outstanding RESERVED ceilings + this hold.
+ * RELEASED operations are excluded. Must run inside the entitlement FOR UPDATE txn.
+ *
+ * reservedCost ≠ actual provider invoice; it is a conservative internal ceiling.
+ */
+async function assertFinancialBudgetAllows(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  entitlement: Entitlement,
+  plan: PlanDefinition,
+  additionalReservedCostMicros: number,
+): Promise<void> {
+  if (plan.limits.aiBudgetMicros === null) return;
+
+  const periodStart = entitlement.startsAt;
+  const budget = plan.limits.aiBudgetMicros;
+
+  // Include success and consumed-failure settlements (both carry estimatedCostMicros).
+  const settled = await tx.aiUsageOperation.aggregate({
+    where: {
+      userId,
+      status: "SETTLED",
+      createdAt: { gte: periodStart },
+    },
+    _sum: { estimatedCostMicros: true },
+  });
+
+  const outstanding = await tx.aiUsageOperation.aggregate({
+    where: {
+      userId,
+      status: "RESERVED",
+      createdAt: { gte: periodStart },
+    },
+    _sum: { reservedCostMicros: true },
+  });
+
+  const projected =
+    (settled._sum.estimatedCostMicros ?? 0) +
+    (outstanding._sum.reservedCostMicros ?? 0) +
+    Math.max(0, additionalReservedCostMicros);
+
+  if (projected > budget) {
+    throw new EntitlementError(
+      "AI budget exceeded",
+      "You have reached your plan usage limit.",
+    );
   }
 }
 
