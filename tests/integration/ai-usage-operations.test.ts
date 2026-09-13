@@ -72,6 +72,27 @@ async function createPaidUser(suffix: string, plan: "PLUS" | "PRO" = "PLUS") {
   });
 }
 
+
+/** Paid plan user who also has an orphan Trial row (must not be touched by paid ops). */
+async function createPaidUserWithOrphanTrial(
+  suffix: string,
+  plan: "PLUS" | "PRO" = "PLUS",
+) {
+  const user = await createPaidUser(suffix, plan);
+  const endsAt = new Date(Date.now() + 7 * 86_400_000);
+  await prisma.trial.create({
+    data: {
+      userId: user.id,
+      endsAt,
+      aiSessionsUsed: 3,
+      documentAnalysesUsed: 1,
+      advancedTutoringUsed: 1,
+      estimatedCostMicros: 999,
+    },
+  });
+  return user;
+}
+
 describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
   beforeAll(async () => {
     await prisma.$connect();
@@ -768,6 +789,486 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
       }),
     ).rejects.toBeInstanceOf(EntitlementError);
   });
+
+
+  // ---------------------------------------------------------------------------
+  // Accounting integrity: trial restore + settlement ceiling
+  // ---------------------------------------------------------------------------
+
+  it("FREE_TRIAL release restores exactly one consumed trial capability", async () => {
+    const user = await createTrialUser(`trial-rel-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+    const mid = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(mid.aiSessionsUsed).toBe(1);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(0);
+  });
+
+  it("PAID release does not decrement any trial counter", async () => {
+    const user = await createPaidUser(`paid-rel-${Date.now()}`, "PLUS");
+    // Ensure no trial row exists.
+    expect(await prisma.trial.findUnique({ where: { userId: user.id } })).toBeNull();
+
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    expect(await prisma.trial.findUnique({ where: { userId: user.id } })).toBeNull();
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("RELEASED");
+  });
+
+  it("PAID release does not change an orphan Trial row on the same user", async () => {
+    const user = await createPaidUserWithOrphanTrial(`paid-orphan-${Date.now()}`);
+    const before = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(before.aiSessionsUsed).toBe(3);
+    expect(before.estimatedCostMicros).toBe(999);
+
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    const after = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(after.aiSessionsUsed).toBe(3);
+    expect(after.documentAnalysesUsed).toBe(1);
+    expect(after.advancedTutoringUsed).toBe(1);
+    expect(after.estimatedCostMicros).toBe(999);
+  });
+
+  it("duplicate release does not decrement trial capacity twice", async () => {
+    const user = await createTrialUser(`dup-rel-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(0);
+  });
+
+  it("release of an already SETTLED operation does not alter trial capacity", async () => {
+    const user = await createTrialUser(`settle-then-rel-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+
+    const before = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(before.aiSessionsUsed).toBe(1);
+
+    await expect(
+      finalizeUsageReservation({
+        operationId: reservation.operationId,
+        userId: user.id,
+        outcome: "failed_released",
+        errorCode: "NOT_DISPATCHED",
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+
+    const after = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(after.aiSessionsUsed).toBe(1);
+    expect(after.estimatedCostMicros).toBe(before.estimatedCostMicros);
+  });
+
+  it("release of an already RELEASED operation does not alter trial capacity", async () => {
+    const user = await createTrialUser(`rel-then-rel-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+    const mid = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(mid.aiSessionsUsed).toBe(0);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    const after = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(after.aiSessionsUsed).toBe(0);
+  });
+
+  it("successful settlement below reservation ceiling uses the server estimate", async () => {
+    const user = await createTrialUser(`settle-below-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    const expected = estimateCostMicros({
+      modelKey: "flux-standard",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+    expect(expected).toBeLessThan(reserved.reservedCostMicros);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    expect(op.estimatedCostMicros).toBe(expected);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+  });
+
+  it("provider estimate below ceiling is used when it exceeds the table estimate", async () => {
+    const user = await createTrialUser(`prov-below-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    const providerEstimateMicros = Math.floor(reserved.reservedCostMicros / 2);
+    const tableOnly = estimateCostMicros({
+      modelKey: "flux-standard",
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+    expect(providerEstimateMicros).toBeGreaterThan(tableOnly);
+    expect(providerEstimateMicros).toBeLessThan(reserved.reservedCostMicros);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 1,
+      outputTokens: 1,
+      providerEstimateMicros,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.estimatedCostMicros).toBe(providerEstimateMicros);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+  });
+
+  it("provider estimate exactly equal to reservation ceiling settles at the ceiling", async () => {
+    const user = await createTrialUser(`prov-eq-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 1,
+      outputTokens: 1,
+      providerEstimateMicros: reserved.reservedCostMicros,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+  });
+
+  it("provider estimate above reservation ceiling settles at the ceiling (not above)", async () => {
+    const user = await createTrialUser(`prov-over-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    const overCeiling = reserved.reservedCostMicros + 5_000_000;
+    const uncapped = estimateCostMicros({
+      modelKey: "flux-standard",
+      inputTokens: 1,
+      outputTokens: 1,
+      providerEstimateMicros: overCeiling,
+    });
+    expect(uncapped).toBe(overCeiling);
+    expect(uncapped).toBeGreaterThan(reserved.reservedCostMicros);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 1,
+      outputTokens: 1,
+      providerEstimateMicros: overCeiling,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    // Financial invariant: settled cost must not exceed the reserved ceiling.
+    expect(op.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+    expect(op.estimatedCostMicros).toBeLessThan(overCeiling);
+
+    const usage = await prisma.usageRecord.findFirstOrThrow({
+      where: { userId: user.id, success: true },
+    });
+    expect(usage.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+  });
+
+  it("table estimate above provider estimate wins, still capped by reservation", async () => {
+    const user = await createTrialUser(`table-vs-prov-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-advanced",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    const expected = estimateCostMicros({
+      modelKey: "flux-advanced",
+      inputTokens: 2000,
+      outputTokens: 400,
+      providerEstimateMicros: 1,
+    });
+    expect(expected).toBeGreaterThan(1);
+    expect(expected).toBeLessThanOrEqual(reserved.reservedCostMicros);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-advanced",
+      inputTokens: 2000,
+      outputTokens: 400,
+      providerEstimateMicros: 1,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.estimatedCostMicros).toBe(expected);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+  });
+
+  it("ambiguous failure still consumes reservation at the reserved ceiling", async () => {
+    const user = await createTrialUser(`ambig-ceil-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_consumed",
+      errorCode: "AI_PROVIDER_TIMEOUT",
+      modelKey: "flux-standard",
+      providerEstimateMicros: reserved.reservedCostMicros + 9_000_000,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    expect(op.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(1);
+  });
+
+  it("safe non-dispatch still releases without settling cost", async () => {
+    const user = await createTrialUser(`safe-rel-cost-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "failed_released",
+      errorCode: "NOT_DISPATCHED",
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("RELEASED");
+    expect(op.estimatedCostMicros).toBe(0);
+
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(0);
+    expect(trial.estimatedCostMicros).toBe(0);
+  });
+
+  it("duplicate settlement remains idempotent under ceiling clamp", async () => {
+    const user = await createTrialUser(`idem-ceil-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+
+    const payload = {
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success" as const,
+      modelKey: "flux-standard" as const,
+      inputTokens: 1,
+      outputTokens: 1,
+      providerEstimateMicros: reserved.reservedCostMicros + 1_000_000,
+    };
+
+    await finalizeUsageReservation(payload);
+    await finalizeUsageReservation(payload);
+
+    const ops = await prisma.aiUsageOperation.findMany({
+      where: { userId: user.id, status: "SETTLED" },
+    });
+    expect(ops).toHaveLength(1);
+    expect(ops[0]!.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+
+    const usageCount = await prisma.usageRecord.count({
+      where: { userId: user.id, success: true },
+    });
+    expect(usageCount).toBe(1);
+
+    const trial = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(trial.aiSessionsUsed).toBe(1);
+    expect(trial.estimatedCostMicros).toBe(reserved.reservedCostMicros);
+  });
+
+  it("PAID settlement does not attribute cost onto an orphan Trial row", async () => {
+    const user = await createPaidUserWithOrphanTrial(`paid-settle-orphan-${Date.now()}`);
+    const before = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "flux-standard",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+
+    const after = await prisma.trial.findUniqueOrThrow({ where: { userId: user.id } });
+    expect(after.aiSessionsUsed).toBe(before.aiSessionsUsed);
+    expect(after.estimatedCostMicros).toBe(before.estimatedCostMicros);
+  });
+
 
   it("keeps request fingerprints free of raw student text", () => {
     const message = "secret homework answer 42";

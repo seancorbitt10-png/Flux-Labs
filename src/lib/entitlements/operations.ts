@@ -8,6 +8,8 @@
  *
  * Reservation = server-authorized capacity + conservative cost ceiling.
  * reservedCost ≠ actualProviderCost / vendor invoice.
+ * Settlement invariant: estimatedCostMicros <= reservedCostMicros.
+ * Trial capacity is restored on release only for FREE_TRIAL-backed ops.
  *
  * Failure matrix:
  *   Local validation / config before dispatch → RELEASED
@@ -192,6 +194,45 @@ export async function releaseUsageReservationIfHeld(args: {
   });
 }
 
+
+/**
+ * Whether this reservation consumed FREE_TRIAL capability capacity.
+ * Derived from the entitlement linked at reservation time — never from
+ * client input and never from "user has a Trial row".
+ */
+async function operationConsumedTrialCapacity(
+  tx: Prisma.TransactionClient,
+  op: AiUsageOperation,
+): Promise<boolean> {
+  if (!op.entitlementId) {
+    return false;
+  }
+  const entitlement = await tx.entitlement.findFirst({
+    where: {
+      id: op.entitlementId,
+      userId: op.userId,
+    },
+    select: { plan: true },
+  });
+  return entitlement?.plan === "FREE_TRIAL";
+}
+
+/**
+ * Server settlement cost must never exceed the reservation ceiling held for
+ * this operation. Provider/table estimates may inform the amount, but cannot
+ * enlarge the financial hold after dispatch.
+ *
+ * settledEstimatedCostMicros <= reservedCostMicros
+ */
+function settlementCostWithinReservationCeiling(
+  estimatedMicros: number,
+  reservedCostMicros: number,
+): number {
+  const estimate = Math.max(0, estimatedMicros);
+  const ceiling = Math.max(0, reservedCostMicros);
+  return Math.min(estimate, ceiling);
+}
+
 async function settleReservedOperation(
   tx: Prisma.TransactionClient,
   op: AiUsageOperation,
@@ -203,8 +244,10 @@ async function settleReservedOperation(
       ? input.modelKey
       : op.modelKey ?? undefined;
 
-  // Success: best server estimate. Ambiguous/invalid consume: keep reserved ceiling.
-  const cost = success
+  // Success: best server estimate, clamped to the reservation ceiling.
+  // Ambiguous/invalid consume: charge the reserved ceiling (already held).
+  // Invariant: settled estimatedCostMicros <= op.reservedCostMicros.
+  const uncappedCost = success
     ? estimateCostMicros({
         modelKey:
           (modelKey as InternalModelKey | undefined) ?? "flux-standard",
@@ -213,6 +256,10 @@ async function settleReservedOperation(
         providerEstimateMicros: input.providerEstimateMicros,
       })
     : Math.max(0, op.reservedCostMicros);
+  const cost = settlementCostWithinReservationCeiling(
+    uncappedCost,
+    op.reservedCostMicros,
+  );
 
   const usage = await tx.usageRecord.create({
     data: {
@@ -256,8 +303,9 @@ async function settleReservedOperation(
     );
   }
 
-  // Attribute settled cost against trial soft budget (success or consumed failure).
-  if (cost > 0) {
+  // Attribute settled cost against trial soft budget only when THIS operation
+  // reserved against FREE_TRIAL (not merely because a Trial row exists).
+  if (cost > 0 && (await operationConsumedTrialCapacity(tx, op))) {
     const now = new Date();
     await tx.trial.updateMany({
       where: {
@@ -314,15 +362,20 @@ async function releaseReservedOperation(
     );
   }
 
-  // Return trial capacity only for safe non-execution.
-  const counterField = trialCounterField(op.capability);
-  await tx.trial.updateMany({
-    where: {
-      userId: input.userId,
-      [counterField]: { gt: 0 },
-    },
-    data: {
-      [counterField]: { decrement: 1 },
-    },
-  });
+  // Return trial capacity ONLY when this reservation consumed FREE_TRIAL
+  // capability (authoritative entitlement linked at reserve time). Paid-plan
+  // releases must not touch an unrelated Trial row for the same user.
+  // Runs only after RESERVED→RELEASED succeeds once (idempotent).
+  if (await operationConsumedTrialCapacity(tx, op)) {
+    const counterField = trialCounterField(op.capability);
+    await tx.trial.updateMany({
+      where: {
+        userId: input.userId,
+        [counterField]: { gt: 0 },
+      },
+      data: {
+        [counterField]: { decrement: 1 },
+      },
+    });
+  }
 }

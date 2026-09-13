@@ -56,6 +56,11 @@ export const INTERNAL_MODEL_COST_TABLE: Record<
   },
 };
 
+/**
+ * Raw server-side cost estimate (table floor, token estimate, optional provider
+ * estimate). Callers that settle a reservation MUST clamp the result to the
+ * operation's reservedCostMicros so settled cost never exceeds the hold.
+ */
 export function estimateCostMicros(args: {
   modelKey: InternalModelKey;
   inputTokens?: number;
