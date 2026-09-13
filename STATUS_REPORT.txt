@@ -2,39 +2,65 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 21:46 UTC
+Updated: 2026-09-13 22:27 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
+
 Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
-Phase 4 Implementation #3 learning-first policy (PR #17) MERGED
-  Merge commit: 25d4483a8ead179f43b392b675a0743f2fecf565
+Phase 4 Implementation #3 learning-first policy (PR #17) MERGED.
+Phase 4 Implementation #4 Study Focus UX (PR #18) MERGED.
 
-Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
-  DRAFT PR #18 — awaiting independent review (NOT MERGED)
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/18
-  Branch:                   cursor/phase4-impl4-study-focus-399a
-  Head:                     bde6ae5 (bde6ae5997c26350a2f551468f986e495fcf41a6)
-  Base main:                25d4483 (25d4483a8ead179f43b392b675a0743f2fecf565)
-  Summary:
-    - Study Class + Task focus UX (IDs only; server-owned records)
-    - Concept focus retained
-    - Bootstrap class/task options; academicWorkspace integration
-    - Client academic blobs rejected; learning-first policy intact
-    - No new persistence; production AI DISABLED
-    - Slice 6 still required before production AI
+PR #18 merge commit:
+  8c269f06239dfb2160bd339bc3e6a5a59583262c
+
+origin/main tip:
+  8c269f06239dfb2160bd339bc3e6a5a59583262c
+
+Production AI remains DISABLED by default.
+Slice 6 (bounded Class/Task retrieval) is still REQUIRED before production
+real-AI enablement.
+
+No RAG, embeddings, billing, Slice 4/5, or unrelated work in flight.
 
 --------------------------------------------------------------------------------
-STUDY FOCUS CONTRACT
+PHASE 4 IMPLEMENTATION STATUS
 --------------------------------------------------------------------------------
 
-Client may send IDs only: classId?, taskId?, conceptIds?, focusLabel?
-Client must NOT send Class/Task/Concept/academicWorkspace objects or policy fields.
+PR #14  Architecture / planning              MERGED
+PR #15  Provider adapter (Slice 0)           MERGED
+PR #16  Entitlement + cost hardening         MERGED
+PR #17  Learning-first policy hardening      MERGED
+PR #18  Study Focus UX (Slice 3)             MERGED
+        https://github.com/seancorbitt10-png/Flux-Labs/pull/18
+
+Slice 6  Bounded Class/Task retrieval        NOT STARTED (hard gate)
+Slice 4  Guided tutoring loop UX             NOT STARTED (optional polish)
+Slice 5  Proposal quality                    NOT STARTED (post-MVP)
+RAG / embeddings / billing                   NOT STARTED
+
+--------------------------------------------------------------------------------
+WHAT IS ON MAIN NOW (PR #18)
+--------------------------------------------------------------------------------
+
+- Study Class + Task focus UX (client sends IDs only)
+- Concept focus retained and integrated
+- Bootstrap exposes owned class/task options
+- Server ownership + class/task consistency via academicWorkspace
+- Client academic object blobs rejected on Study payloads
+- No new Study context table / chat history persistence
+- Learning-first policy from PR #17 remains authoritative
+- Production AI remains disabled
+
+Study focus contract:
+  Client may send: classId?, taskId?, conceptIds?, focusLabel?
+  Client must NOT send: Class/Task/Concept/academicWorkspace objects,
+  or assistanceMode/policyMode/systemDirective/taskType overrides.
 
 Consistency:
   - Owned class + owned task required
@@ -42,23 +68,23 @@ Consistency:
   - Orphan task (classId=null) may combine with class focus (no silent rewrite)
 
 --------------------------------------------------------------------------------
-QUALITY GATES (local)
+REPOSITORY
 --------------------------------------------------------------------------------
 
-Tests:            323 passed
-Typecheck:        pass
-Lint:             pass
-Production build: pass
-Prisma status:    up to date (no new migration)
-Production AI:    disabled
+Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
+origin/main tip:          8c269f0 (8c269f06239dfb2160bd339bc3e6a5a59583262c)
+PR #17 merge:             25d4483 (in history under #18)
+PR #18:                   MERGED
+Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #18
-2. Merge only after approved review
-3. Do NOT enable production AI until Slice 6
-4. Do NOT start Slice 6/billing/RAG from this PR
+1. Start Phase 4 Implementation #5 / Slice 6 — Bounded Class/Task retrieval
+   from current main (8c269f0)
+2. Do NOT enable production real AI until Slice 6 is complete
+3. Do NOT start RAG / billing / Slice 4–5 unless intentionally chosen over
+   the production gate
 
 ================================================================================
