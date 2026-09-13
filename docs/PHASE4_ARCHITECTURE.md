@@ -78,7 +78,7 @@ The largest product gap is not missing Classes UI polish or missing Stripe — i
 
 Secondary gaps (important but not Phase 4 primary):
 
-- Study UI can send `conceptIds` (assembled when valid) but does **not** yet pass `classId` / `taskId` focus → class/task academic grounding is ambient/server-default rather than task-selected in the UX.
+- Study UI sends optional `classId` / `taskId` / `conceptIds` (IDs only). Ownership and class/task consistency are enforced in `assembleAcademicWorkspaceContext`. Client Class/Task blobs are rejected.
 - Knowledge catalog remains thin; concept focus is explicit-ID only (no search/resolution).
 - Chat history is browser-session only (acceptable for Phase 4 MVP; durable chat is not required to prove thesis).
 - No document grounding (acceptable to defer; premature RAG would dominate cost/complexity).
@@ -619,6 +619,8 @@ Do **not** implement these now. Prefer small PRs.
 - **User-visible:** Study replies feel like tutoring, not answer keys.
 
 ### Slice 3 — Study focus UX (`classId` / `taskId`)
+
+**Status (Implementation #4):** Study bootstrap + UI focus controls land class/task ID selection; server validation unchanged from academicWorkspace ownership rules.
 
 - **Responsibility:** Let students ground Study in a class/task (concept `conceptIds` focus already works).  
 - **Scope:** UI to pass focus IDs; deep-link from task pages; display focus chip.  

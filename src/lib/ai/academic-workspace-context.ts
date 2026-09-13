@@ -236,6 +236,10 @@ export async function assembleAcademicWorkspaceContext(
     });
   }
 
+  // Consistency: when a task is linked to a class, focus classId must match.
+  // Orphan tasks (classId=null) may be focused together with a class — the
+  // class still scopes ambient lists; the orphan task remains the task focus.
+  // We never silently rewrite the client's selected classId.
   if (
     focusClass &&
     focusTask &&
