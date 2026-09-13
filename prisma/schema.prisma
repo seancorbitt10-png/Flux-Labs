@@ -637,11 +637,30 @@ model AiUsageOperation {
   /// Distinct from settled estimatedCostMicros / vendor invoice amounts.
   reservedCostMicros Int @default(0)
 
+  /// Immutable plan snapshot taken inside the reservation transaction.
+  /// Finalization must use this — never the mutable current Entitlement.plan.
+  reservationPlan PlanTier?
+
+  /// Whether THIS reservation consumed FREE_TRIAL capability capacity.
+  /// Set server-side at reserve time; never client-supplied; never recomputed
+  /// from mutable entitlement/Trial state at finalize.
+  consumedTrialCapacity Boolean @default(false)
+
   /// Estimated financial cost applied at settlement (micros). Not a client input.
+  /// Always <= reservedCostMicros.
   estimatedCostMicros Int @default(0)
+
+  /// Uncapped server estimate at settlement (micros), before reservation ceiling
+  /// clamp. Server-controlled diagnostics only — not a vendor invoice and not
+  /// client-authoritative. Null when not settled or not computed.
+  uncappedEstimateMicros Int?
+
   inputTokens         Int?
   outputTokens        Int?
   modelKey            String?
+  /// Settlement/release error or accounting anomaly code (server-controlled).
+  /// COST_CEILING_EXCEEDED means uncappedEstimateMicros > reservedCostMicros
+  /// while settled cost remained clamped to the reservation ceiling.
   errorCode           String?
   releaseReason       String?
 

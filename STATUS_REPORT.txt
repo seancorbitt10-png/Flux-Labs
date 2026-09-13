@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 19:10 UTC
+Updated: 2026-09-13 19:30 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -17,8 +17,10 @@ Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
   Remediations applied:
     1) tokenizer-backed reservation cost (o200k_base via gpt-tokenizer)
     2) enforced model→vendor→encoding registry (fail-closed allowlist)
-    3) FREE_TRIAL-only trial capacity restore on release
-    4) settlement cost clamped to reservedCostMicros ceiling
+    3) immutable reservation-time trial source on AiUsageOperation
+       (reservationPlan + consumedTrialCapacity; never mutable Entitlement.plan)
+    4) settlement cost clamped to reservedCostMicros WITH explicit
+       COST_CEILING_EXCEEDED anomaly + uncappedEstimateMicros diagnostics
   Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
   Env cannot raise limits above envelope; clients cannot either.
   Ambiguous provider failures consume; safe non-execution releases.
@@ -34,7 +36,7 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     e873ab2 (e873ab204b1e6d95ee9ae7d57fbe419d0b0799c8)
+Branch tip / PR head:     (see latest commit after push)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -52,25 +54,24 @@ Phase 4 Implementation #3+        NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-LATEST ACCOUNTING INTEGRITY FIXES
+LATEST ACCOUNTING INTEGRITY FIXES (final remediation)
 --------------------------------------------------------------------------------
 
-Trial release:
-  Root cause: release always decremented Trial counters if a Trial row existed.
-  Fix: restore trial capacity only when the operation's linked entitlement.plan
-  is FREE_TRIAL (authoritative reservation source). Paid releases and orphan
-  Trial rows are untouched. Duplicate/terminal releases remain idempotent.
+Issue 1 — Trial accounting source:
+  Root cause: finalize consulted mutable Entitlement.plan via op.entitlementId.
+  Fix: reserve transaction snapshots reservationPlan + consumedTrialCapacity on
+  AiUsageOperation. Release restore and trial soft-budget attribution use only
+  op.consumedTrialCapacity. Plan changes after reserve cannot flip trial/paid.
 
-Settlement ceiling:
-  Root cause: success settlement used max(table, providerEstimate, floor) without
-  clamping to reservedCostMicros, so anomalous provider estimates could settle
-  above the financial hold.
-  Fix: settled estimatedCostMicros = min(serverEstimate, reservedCostMicros).
-  Ambiguous/dispatched failures still SETTLE; not_dispatched still RELEASES.
-  Provider estimates cannot enlarge the reservation after dispatch.
+Issue 2 — Cost ceiling anomalies:
+  Root cause: clamp to reservedCostMicros discarded evidence when estimate >
+  ceiling.
+  Fix: settled estimatedCostMicros still <= reservedCostMicros; when uncapped
+  estimate exceeds ceiling, record COST_CEILING_EXCEEDED and store
+  uncappedEstimateMicros. Operation remains SETTLED/consumed — never RELEASE
+  after dispatch solely due to accounting disagreement.
 
-Quality gates on this tip:
-  tests 277 passed; typecheck/lint/build pass; migrations up to date (no new migration)
+Quality gates: run after this commit (tests / typecheck / lint / build / migrate).
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
@@ -78,9 +79,6 @@ NEXT ACTIONS
 
 1. Independent RE-review of Phase 4 Implementation #2 PR #16 (do not merge until review)
 2. Do NOT enable production real AI until Slice 6 is complete
-3. Later: Implementation #3+ as separate slice PRs
-4. Status reports: provide only when explicitly requested
+3. Do NOT start Slice 2 / Slice 3 / Slice 6 / billing / RAG from this PR
 
-================================================================================
-END OF STATUS REPORT
 ================================================================================

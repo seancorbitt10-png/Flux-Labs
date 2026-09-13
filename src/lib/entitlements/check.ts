@@ -109,7 +109,11 @@ export async function reserveCapability(
     );
 
     let trial: Trial | null = null;
-    if (entitlement.plan === "FREE_TRIAL") {
+    // Immutable reservation-time source: set only inside this transaction from
+    // the entitlement actually used for the hold. Finalization must never
+    // re-read mutable Entitlement.plan to decide trial restore/attribution.
+    const consumedTrialCapacity = entitlement.plan === "FREE_TRIAL";
+    if (consumedTrialCapacity) {
       trial = await reserveTrialCapability(tx, userId, capability, plan);
     } else {
       await assertPaidPlanAllowance(tx, userId, entitlement, capability, plan);
@@ -123,6 +127,8 @@ export async function reserveCapability(
         feature,
         status: "RESERVED",
         reservedCostMicros,
+        reservationPlan: entitlement.plan,
+        consumedTrialCapacity,
         modelKey: modelKey ?? null,
       },
     });

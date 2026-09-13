@@ -9,7 +9,11 @@
  * Reservation = server-authorized capacity + conservative cost ceiling.
  * reservedCost ≠ actualProviderCost / vendor invoice.
  * Settlement invariant: estimatedCostMicros <= reservedCostMicros.
- * Trial capacity is restored on release only for FREE_TRIAL-backed ops.
+ * If the uncapped server estimate exceeds the reservation ceiling, settle still
+ * consumes at the ceiling and records COST_CEILING_EXCEEDED (never RELEASE after
+ * dispatch solely due to accounting disagreement).
+ * Trial capacity restore/attribution uses immutable op.consumedTrialCapacity
+ * captured at reservation time — never mutable Entitlement.plan.
  *
  * Failure matrix:
  *   Local validation / config before dispatch → RELEASED
@@ -41,6 +45,9 @@ import { estimateCostMicros } from "@/lib/entitlements/cost-table";
 import { trialCounterField } from "@/lib/entitlements/plans";
 
 export type { UsageReservation };
+
+/** Server-controlled settlement anomaly: uncapped estimate exceeded the hold. */
+export const COST_CEILING_EXCEEDED = "COST_CEILING_EXCEEDED" as const;
 
 export type FinalizeUsageOutcome =
   | "success"
@@ -196,25 +203,14 @@ export async function releaseUsageReservationIfHeld(args: {
 
 
 /**
- * Whether this reservation consumed FREE_TRIAL capability capacity.
- * Derived from the entitlement linked at reservation time — never from
- * client input and never from "user has a Trial row".
+ * Whether THIS reservation consumed FREE_TRIAL capability capacity.
+ *
+ * Uses the immutable server-set flag captured inside the reserve transaction.
+ * Never re-reads mutable Entitlement.plan, never asks "does the user currently
+ * have a Trial row?", and never accepts client input.
  */
-async function operationConsumedTrialCapacity(
-  tx: Prisma.TransactionClient,
-  op: AiUsageOperation,
-): Promise<boolean> {
-  if (!op.entitlementId) {
-    return false;
-  }
-  const entitlement = await tx.entitlement.findFirst({
-    where: {
-      id: op.entitlementId,
-      userId: op.userId,
-    },
-    select: { plan: true },
-  });
-  return entitlement?.plan === "FREE_TRIAL";
+function operationConsumedTrialCapacity(op: AiUsageOperation): boolean {
+  return op.consumedTrialCapacity === true;
 }
 
 /**
@@ -247,6 +243,8 @@ async function settleReservedOperation(
   // Success: best server estimate, clamped to the reservation ceiling.
   // Ambiguous/invalid consume: charge the reserved ceiling (already held).
   // Invariant: settled estimatedCostMicros <= op.reservedCostMicros.
+  // If uncapped estimate exceeds the ceiling, still SETTLE (consume) at the
+  // ceiling and record COST_CEILING_EXCEEDED — never RELEASE after dispatch.
   const uncappedCost = success
     ? estimateCostMicros({
         modelKey:
@@ -260,6 +258,10 @@ async function settleReservedOperation(
     uncappedCost,
     op.reservedCostMicros,
   );
+  const costCeilingExceeded = uncappedCost > Math.max(0, op.reservedCostMicros);
+  const settlementErrorCode = costCeilingExceeded
+    ? COST_CEILING_EXCEEDED
+    : input.errorCode;
 
   const usage = await tx.usageRecord.create({
     data: {
@@ -273,7 +275,7 @@ async function settleReservedOperation(
       estimatedCostMicros: cost,
       latencyMs: input.latencyMs,
       success,
-      errorCode: input.errorCode,
+      errorCode: settlementErrorCode,
       metadata: input.metadata as Prisma.InputJsonValue | undefined,
     },
   });
@@ -288,10 +290,11 @@ async function settleReservedOperation(
       status: "SETTLED",
       settledAt: new Date(),
       estimatedCostMicros: cost,
+      uncappedEstimateMicros: uncappedCost,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
       modelKey,
-      errorCode: input.errorCode,
+      errorCode: settlementErrorCode,
       usageRecordId: usage.id,
     },
   });
@@ -304,8 +307,8 @@ async function settleReservedOperation(
   }
 
   // Attribute settled cost against trial soft budget only when THIS operation
-  // reserved against FREE_TRIAL (not merely because a Trial row exists).
-  if (cost > 0 && (await operationConsumedTrialCapacity(tx, op))) {
+  // consumed FREE_TRIAL capacity at reservation time (immutable flag).
+  if (cost > 0 && operationConsumedTrialCapacity(op)) {
     const now = new Date();
     await tx.trial.updateMany({
       where: {
@@ -363,10 +366,10 @@ async function releaseReservedOperation(
   }
 
   // Return trial capacity ONLY when this reservation consumed FREE_TRIAL
-  // capability (authoritative entitlement linked at reserve time). Paid-plan
+  // capability (immutable consumedTrialCapacity from reserve time). Paid-plan
   // releases must not touch an unrelated Trial row for the same user.
   // Runs only after RESERVED→RELEASED succeeds once (idempotent).
-  if (await operationConsumedTrialCapacity(tx, op)) {
+  if (operationConsumedTrialCapacity(op)) {
     const counterField = trialCounterField(op.capability);
     await tx.trial.updateMany({
       where: {
