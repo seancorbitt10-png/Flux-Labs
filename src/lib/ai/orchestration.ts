@@ -83,7 +83,9 @@ export async function runAIOrchestration(
   let providerDispatchAttempted = false;
 
   try {
-    const policy = decideAssistancePolicy(route.taskType, userMessage);
+    const policy = decideAssistancePolicy(route.taskType, userMessage, {
+      learningIntent: request.learningIntent,
+    });
 
     const assembled = await assembleAIContext({
       actorUserId,

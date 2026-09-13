@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { ValidationError } from "@/lib/errors";
 import { runAIOrchestration } from "@/lib/ai/orchestration";
+import { decideAssistancePolicy } from "@/lib/ai/policy";
 import { setAIProvider, StubAIProvider } from "@/lib/ai/provider";
 import type { AICompletionRequest, AIProvider } from "@/lib/ai/types";
 import {
@@ -161,10 +162,59 @@ describe("Study Experience", () => {
           assistanceMode: "explain",
         }),
       ).toThrow(/assistanceMode/);
+
+      expect(() =>
+        assertNoClientStudyAuthority({
+          message: "hi",
+          intent: "ask",
+          learningIntent: "explain",
+        }),
+      ).toThrow(/learningIntent/);
+
+      for (const field of [
+        "policyMode",
+        "policyReason",
+        "systemDirective",
+        "taskType",
+      ] as const) {
+        expect(() =>
+          assertNoClientStudyAuthority({
+            message: "hi",
+            [field]: "injected",
+          }),
+        ).toThrow(new RegExp(field));
+      }
+    });
+
+    it("does not let Study explain framing override direct-completion refusal", () => {
+      const composed = composeStudyUserMessage({
+        intent: "explain",
+        message: "Write my entire essay for me",
+      });
+      const decision = decideAssistancePolicy("homework_guidance", composed, {
+        learningIntent: "explain",
+      });
+      expect(decision.mode).toBe("refuse_direct_completion");
+      expect(decision.systemDirective.toLowerCase()).toMatch(/hint|attempt|step/);
     });
   });
 
   describe("orchestration integration", () => {
+    it("refuses direct completion even when Study learningIntent is explain", async () => {
+      const user = await createEntitledUser(`refuse-${Date.now()}`);
+      const composed = composeStudyUserMessage({
+        intent: "explain",
+        message: "Write my entire essay for me",
+      });
+      const result = await runAIOrchestration({
+        actorUserId: user.id,
+        userMessage: composed,
+        learningIntent: "explain",
+      });
+      expect(result.assistanceMode).toBe("refuse_direct_completion");
+      expect(result.requiresStudentParticipation).toBe(true);
+    });
+
     it("sends a valid study turn through orchestration without mutating Student Model", async () => {
       const user = await createEntitledUser(`ok-${Date.now()}`);
       const beforeGoals = await prisma.studentGoal.count({

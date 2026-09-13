@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 20:15 UTC
+Updated: 2026-09-13 21:26 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -11,36 +11,41 @@ BOTTOM LINE
 Phases 0–3 COMPLETE on main.
 Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
+Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
 
-Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
-  DRAFT PR #16 — ready for RE-review (NOT MERGED)
-  Remediations applied:
-    1) tokenizer-backed reservation cost (o200k_base via gpt-tokenizer)
-    2) enforced model→vendor→encoding registry (fail-closed allowlist)
-    3) immutable reservation-time trial source on AiUsageOperation
-       (reservationPlan + consumedTrialCapacity; never mutable Entitlement.plan)
-    4) settlement cost clamped to reservedCostMicros WITH explicit
-       COST_CEILING_EXCEEDED anomaly + uncappedEstimateMicros diagnostics
-    5) settlement accounting model uses immutable op.modelKey only
-       (registry-validated; input.modelKey cannot switch cost rows)
-  Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
-  Env cannot raise limits above envelope; clients cannot either.
-  Ambiguous provider failures consume; safe non-execution releases.
-  Concurrent capability + financial budget over-allocation prevented.
-  Settlement idempotent. Production AI remains DISABLED by default.
-  No Stripe/billing, RAG, Slice 6, or later Phase 4 slices in this work.
+Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
+  DRAFT PR #17 — HIGH policy-authority remediation applied (NOT MERGED)
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
+  Branch:                   cursor/phase4-impl3-learning-policy-399a
+  Head:                     2ad7408 (2ad7408774bfa8ef26b1de49370932e0d113bd9d)
+  Remediation commit:       1394479 (policy authority fix)
+  CI:                       verify SUCCESS
+  Summary:
+    - Direct-completion detection is authoritative over client learningIntent
+    - Study compose prefixes stripped before completion analysis
+    - Legitimate explain/hint/check_work/steps/attempt paths remain useful
+    - Bounded references → limited_answer; combined completion still refuses
+    - Production AI remains DISABLED by default
+
+Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
+  NOT STARTED
+  Blocked until approved Slice 2 (PR #17) is merged into main.
+  Per implementation instructions: start only from main after Slice 2 merges.
+
+Production AI remains DISABLED by default.
+No RAG, embeddings, billing, Slice 6, or unrelated work in flight.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
-origin/main:              12f0b14 (includes merged PR #14 + PR #15)
-Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
-PR state:                 draft, open, unmerged
-Branch tip / PR head:     1b405ef (1b405efd4a4f03e318f43e06fd637907c1b9b8dd)
-Remediation commit:       a0cbf7c (a0cbf7cf05e59a8a71a29ed0509fedebed6979e7)
-CI:                       green (2/2 checks on head)
+origin/main tip:          269fe8e (includes merged PR #16; does NOT include PR #17)
+Working branch:           cursor/phase4-impl3-learning-policy-399a
+Draft PR #17:             https://github.com/seancorbitt10-png/Flux-Labs/pull/17
+PR #17 state:             draft, open, unmerged
+PR #17 head:              2ad7408 (2ad7408774bfa8ef26b1de49370932e0d113bd9d)
+CI:                       verify SUCCESS
+Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -49,67 +54,22 @@ PHASE / IMPLEMENTATION STATUS
 --------------------------------------------------------------------------------
 
 Phase 0–2                         COMPLETE (main)
-Phase 3 Design                    COMPLETE — HUMAN-APPROVED
-Phase 3 Implementation #1–#4      MERGED (main) — PRs #10–#13
-Phase 4 Architecture/Planning     MERGED (main) — PR #14
-Phase 4 Implementation #1         MERGED (main) — PR #15 (provider adapter)
-Phase 4 Implementation #2         DRAFT PR #16 — entitlement/cost hardening (+ remediations)
-Phase 4 Implementation #3+        NOT STARTED
-Later phases                      NOT STARTED
-
---------------------------------------------------------------------------------
-LATEST ACCOUNTING INTEGRITY FIXES (final remediation)
---------------------------------------------------------------------------------
-
-Issue 1 — Trial accounting source:
-  Root cause: finalize consulted mutable Entitlement.plan via op.entitlementId.
-  Fix: reserve transaction snapshots reservationPlan + consumedTrialCapacity on
-  AiUsageOperation. Release restore and trial soft-budget attribution use only
-  op.consumedTrialCapacity. Plan changes after reserve cannot flip trial/paid.
-
-Issue 2 — Cost ceiling anomalies:
-  Root cause: clamp to reservedCostMicros discarded evidence when estimate >
-  ceiling.
-  Fix: settled estimatedCostMicros still <= reservedCostMicros; when uncapped
-  estimate exceeds ceiling, record COST_CEILING_EXCEEDED and store
-  uncappedEstimateMicros. Operation remains SETTLED/consumed — never RELEASE
-  after dispatch solely due to accounting disagreement.
-
-Quality gates on remediation tip a0cbf7c / PR head a6c0097:
-  tests 285 passed (24 files)
-  typecheck pass
-  lint pass
-  production build pass
-  prisma migrate status: Database schema is up to date
-  migration 20260913191500_phase4_reservation_source_and_cost_anomaly applied
-  production AI disabled by default (AI_PRODUCTION_ENABLED must be "true")
-  GitHub CI: success (2/2)
-
-
---------------------------------------------------------------------------------
-LATEST FIX — SETTLEMENT MODEL AUTHORITY
---------------------------------------------------------------------------------
-
-Root cause: settleReservedOperation preferred input.modelKey over op.modelKey and
-cast/fell back to flux-standard, so finalize could switch cost-table rows and an
-invalid key could throw after dispatch leaving RESERVED.
-
-Fix:
-  - reservation persists resolveReservationModelKey(...) on AiUsageOperation
-  - settle uses only registry-validated op.modelKey for estimateCostMicros
-  - input.modelKey cannot replace accounting model (diagnostic-only if passed)
-  - missing/invalid stored modelKey fails closed (no flux-standard fallback)
-  - does not RELEASE solely due to accounting model mismatch
-
-Quality gates: tests 285; typecheck/lint/build pass; migrations up to date;
-production AI disabled by default.
+Phase 3                           COMPLETE (main)
+Phase 4 Architecture/Planning     MERGED — PR #14
+Phase 4 Implementation #1         MERGED — PR #15
+Phase 4 Implementation #2         MERGED — PR #16
+Phase 4 Implementation #3         DRAFT — learning-first policy hardening (PR #17)
+Phase 4 Implementation #4         BLOCKED — Study Focus UX (awaits PR #17 merge)
+Slice 6 (Class/Task retrieval)    REQUIRED before production AI enablement
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent RE-review of Phase 4 Implementation #2 PR #16 (do not merge until review)
-2. Do NOT enable production real AI until Slice 6 is complete
-3. Do NOT start Slice 2 / Slice 3 / Slice 6 / billing / RAG from this PR
+1. Independent re-review of Phase 4 Implementation #3 PR #17 (HIGH remediated)
+2. Merge PR #17 only after approved review
+3. Then start Phase 4 Implementation #4 / Slice 3 (Study Focus UX) from main
+4. Do NOT enable production real AI until Slice 6 is complete
+5. Do NOT start Slice 3/6/billing/RAG while PR #17 remains unmerged
 
 ================================================================================

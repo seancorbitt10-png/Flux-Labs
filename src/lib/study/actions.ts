@@ -129,6 +129,7 @@ export async function sendStudyTurnAction(
       classId: parsed.data.classId,
       taskId: parsed.data.taskId,
       priorTurns: parsed.data.priorTurns,
+      learningIntent: intent,
     });
 
     return {

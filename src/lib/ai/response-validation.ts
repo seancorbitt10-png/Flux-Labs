@@ -39,7 +39,11 @@ export function validateProviderCompletion(
     throw new ValidationError("Provider completion missing model key.");
   }
 
-  let text = trimmed;
+  let text = stripLeakedControlText(trimmed);
+  if (!text) {
+    throw new ValidationError("Provider returned an empty response.");
+  }
+
   let truncated = false;
   if (text.length > MAX_PROVIDER_REPLY_CHARS) {
     text = text.slice(0, MAX_PROVIDER_REPLY_CHARS);
@@ -52,4 +56,22 @@ export function validateProviderCompletion(
     truncated,
     provider: completion.provider,
   };
+}
+
+/**
+ * Remove accidental leaks of internal policy/fence/control text from
+ * student-visible replies. Does not invent academic content.
+ */
+export function stripLeakedControlText(text: string): string {
+  let cleaned = text;
+  cleaned = cleaned.replace(
+    /<<<STUDENT_DATA>>>[\s\S]*?<<<END_STUDENT_DATA>>>/g,
+    "",
+  );
+  cleaned = cleaned.replace(/^APPLICATION_POLICY:.*$/gim, "");
+  cleaned = cleaned.replace(/^TRUSTED_FOCUS.*$/gim, "");
+  cleaned = cleaned.replace(/^\s*-?\s*assistanceMode:\s*\S+.*$/gim, "");
+  cleaned = cleaned.replace(/^\s*-?\s*modeContract:\s*.*$/gim, "");
+  cleaned = cleaned.replace(/^\s*-?\s*directive:\s*.*$/gim, "");
+  return cleaned.replace(/\n{3,}/g, "\n\n").trim();
 }
