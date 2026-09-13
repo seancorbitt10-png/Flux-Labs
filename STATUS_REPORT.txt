@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 21:43 UTC
+Updated: 2026-09-13 21:46 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -16,79 +16,49 @@ Phase 4 Implementation #3 learning-first policy (PR #17) MERGED
   Merge commit: 25d4483a8ead179f43b392b675a0743f2fecf565
 
 Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
-  IN PROGRESS — draft PR (NOT MERGED)
+  DRAFT PR #18 — awaiting independent review (NOT MERGED)
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/18
   Branch:                   cursor/phase4-impl4-study-focus-399a
+  Head:                     bde6ae5 (bde6ae5997c26350a2f551468f986e495fcf41a6)
+  Base main:                25d4483 (25d4483a8ead179f43b392b675a0743f2fecf565)
   Summary:
-    - Study Class focus UX (server-owned classId only)
-    - Study Task focus UX (server-owned taskId only)
-    - Concept focus retained and integrated with class/task controls
-    - Bootstrap lists owned class/task options for the Study UI
-    - academicWorkspace remains the authoritative context path
-    - Client academic object blobs rejected on Study payloads
-    - No new Study context table / persistence
-    - Production AI remains DISABLED by default
-    - Slice 6 remains required before production AI enablement
+    - Study Class + Task focus UX (IDs only; server-owned records)
+    - Concept focus retained
+    - Bootstrap class/task options; academicWorkspace integration
+    - Client academic blobs rejected; learning-first policy intact
+    - No new persistence; production AI DISABLED
+    - Slice 6 still required before production AI
 
 --------------------------------------------------------------------------------
-STUDY FOCUS CONTRACT (Slice 3)
+STUDY FOCUS CONTRACT
 --------------------------------------------------------------------------------
 
-Client may send (IDs only):
-  - classId?: string
-  - taskId?: string
-  - conceptIds?: string[]
-  - focusLabel?: string (display/data framing only)
+Client may send IDs only: classId?, taskId?, conceptIds?, focusLabel?
+Client must NOT send Class/Task/Concept/academicWorkspace objects or policy fields.
 
-Client MUST NOT send:
-  - Class / Task / Concept objects
-  - academicWorkspace / assembledContext blobs
-  - assistanceMode / policyMode / systemDirective / taskType
-
-Server path:
-  Study UI → sendStudyTurnAction (ID refs)
-    → runAIOrchestration
-    → assembleAIContext
-    → assembleAcademicWorkspaceContext (ownership + consistency)
-    → learning-first policy
-    → provider (stub unless AI_PRODUCTION_ENABLED=true)
-
-Class/task consistency:
-  - Both owned by authenticated user
-  - If task.classId is set, it MUST equal selected classId
-  - If task.classId is null (orphan task), class + task focus may co-exist
-    (ambient class filter uses the focused class; orphan task remains focused)
-  - Inconsistent pairs are rejected (not silently rewritten)
+Consistency:
+  - Owned class + owned task required
+  - If task.classId is set, it must equal selected classId (else reject)
+  - Orphan task (classId=null) may combine with class focus (no silent rewrite)
 
 --------------------------------------------------------------------------------
-REPOSITORY
+QUALITY GATES (local)
 --------------------------------------------------------------------------------
 
-Base (main):              25d4483 (PR #17 merge)
-Working branch:           cursor/phase4-impl4-study-focus-399a
-Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
-
-Repo: https://github.com/seancorbitt10-png/Flux-Labs
-
---------------------------------------------------------------------------------
-PHASE / IMPLEMENTATION STATUS
---------------------------------------------------------------------------------
-
-Phase 0–2                         COMPLETE (main)
-Phase 3                           COMPLETE (main)
-Phase 4 Architecture/Planning     MERGED — PR #14
-Phase 4 Implementation #1         MERGED — PR #15
-Phase 4 Implementation #2         MERGED — PR #16
-Phase 4 Implementation #3         MERGED — PR #17
-Phase 4 Implementation #4         DRAFT — Study Focus UX (this branch)
-Slice 6 (Class/Task retrieval)    REQUIRED before production AI enablement
+Tests:            323 passed
+Typecheck:        pass
+Lint:             pass
+Production build: pass
+Prisma status:    up to date (no new migration)
+Production AI:    disabled
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #4 draft PR
+1. Independent review of PR #18
 2. Merge only after approved review
-3. Do NOT enable production real AI until Slice 6 is complete
+3. Do NOT enable production AI until Slice 6
 4. Do NOT start Slice 6/billing/RAG from this PR
 
 ================================================================================
