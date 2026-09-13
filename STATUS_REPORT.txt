@@ -2,109 +2,64 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 22:38 UTC
+Updated: 2026-09-13 23:24 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-
-Phase 4 architecture (PR #14) MERGED.
-Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
-Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
-Phase 4 Implementation #3 learning-first policy (PR #17) MERGED.
-Phase 4 Implementation #4 Study Focus UX (PR #18) MERGED.
-
-origin/main tip:
-  8c269f06239dfb2160bd339bc3e6a5a59583262c
-  (Merge pull request #18 — Study Focus UX)
+Phase 4 PRs #14–#18 MERGED.
 
 Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
-  DRAFT PR #20 — awaiting independent review (NOT MERGED)
+  DRAFT PR #20 — targeted remediation applied (NOT MERGED)
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/20
   Branch:                   cursor/phase4-impl5-bounded-retrieval-399a
-  Head:                     20d9b8d (20d9b8dde05a7bb704b94101f3c66009582400b5)
   Base main:                8c269f0 (8c269f06239dfb2160bd339bc3e6a5a59583262c)
-  CI:                       verify SUCCESS
 
-  Summary:
-    - listClasses / listTasks enforce server-side take limits
-    - Defaults: classes 50 / tasks 100; ceilings: 100 / 200
-    - AI assembly: AI_CLASS_QUERY_LIMIT=8, AI_TASK_QUERY_LIMIT=36 (open tasks)
-    - Focus class/task loaded via getClass/getTask and merged first
-    - Study bootstrap uses explicit option limits
-    - Production AI remains DISABLED
-    - No new migration; no RAG / billing / Slice 4–5
+  Remediation (independent review):
+    1. Deterministic ORDER BY tie-breakers (id ASC) on listClasses/listTasks
+    2. Strict positive-integer limit contract (reject fractional/NaN/Infinity)
 
-Also open (docs only):
-  PR #19 — docs: STATUS_REPORT after PR #18 merge (draft)
-
-Production AI remains DISABLED by default.
-Slice 6 must be merged and explicitly approved before any production
-real-AI enablement.
+  Production AI remains DISABLED.
+  No migration. No RAG/billing/Slice 4–5.
 
 --------------------------------------------------------------------------------
-BOUNDS CONTRACT (Slice 6 — on PR #20)
+DETERMINISTIC RETRIEVAL CONTRACT
 --------------------------------------------------------------------------------
 
-Domain:
-  listClasses limit? → default 50, max 100
-  listTasks   limit? → default 100, max 200
-  Non-positive limit → ValidationError
-  Over-max requests are clamped (never unbounded)
+Classes ORDER BY:
+  term DESC, name ASC, id ASC
 
-AI academicWorkspace assembly:
-  AI_CLASS_QUERY_LIMIT = maxClasses (8)
-  AI_TASK_QUERY_LIMIT  = maxTasks * 3 (36), open statuses only
-  Focus rows via getClass/getTask always eligible for inclusion
+Tasks ORDER BY:
+  dueAt ASC, createdAt DESC, id ASC
+
+Limit contract:
+  undefined → default (classes 50 / tasks 100)
+  positive integer → accepted; clamp to max (100 / 200)
+  0, negative, fractional, NaN, Infinity → ValidationError
+
+Focus preservation unchanged:
+  getClass/getTask load focus rows; ambient lists remain bounded candidates.
 
 --------------------------------------------------------------------------------
-QUALITY GATES (local, PR #20)
+QUALITY GATES (local)
 --------------------------------------------------------------------------------
 
-Tests:            333 passed
+Tests:            338 passed
 Typecheck:        pass
 Lint:             pass
 Production build: pass
 Prisma status:    up to date (no new migration)
-Production AI:    disabled (isProductionAIEnabled({}) === false)
-CI on PR #20:     verify SUCCESS
-
---------------------------------------------------------------------------------
-PHASE / IMPLEMENTATION STATUS
---------------------------------------------------------------------------------
-
-Phase 0–2                         COMPLETE (main)
-Phase 3                           COMPLETE (main)
-Phase 4 Architecture              MERGED — PR #14
-Phase 4 Implementation #1         MERGED — PR #15
-Phase 4 Implementation #2         MERGED — PR #16
-Phase 4 Implementation #3         MERGED — PR #17
-Phase 4 Implementation #4         MERGED — PR #18
-Phase 4 Implementation #5         DRAFT — bounded Class/Task retrieval (PR #20)
-Slice 4 Guided tutoring loop UX   NOT STARTED (optional polish)
-Slice 5 Proposal quality          NOT STARTED (post-MVP)
-RAG / embeddings / billing        NOT STARTED
-
---------------------------------------------------------------------------------
-REPOSITORY
---------------------------------------------------------------------------------
-
-Repo:                     https://github.com/seancorbitt10-png/Flux-Labs
-origin/main tip:          8c269f0 (8c269f06239dfb2160bd339bc3e6a5a59583262c)
-PR #18:                   MERGED
-PR #20:                   draft, open, unmerged
-                          https://github.com/seancorbitt10-png/Flux-Labs/pull/20
-Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
+Production AI:    disabled
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #20 (Slice 6)
-2. Merge PR #20 only after approved review
-3. Do NOT enable production real AI without explicit approval after Slice 6
-4. Do NOT start RAG / billing / Slice 4–5 from PR #20
+1. Independent re-review of PR #20
+2. Merge only after approved review
+3. Do NOT enable production AI
+4. Do NOT start RAG/billing/Slice 4–5 from this PR
 
 ================================================================================
