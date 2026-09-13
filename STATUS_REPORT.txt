@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 21:10 UTC
+Updated: 2026-09-13 21:15 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -17,8 +17,9 @@ Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
   DRAFT PR #17 — HIGH policy-authority remediation applied (NOT MERGED)
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
   Branch:                   cursor/phase4-impl3-learning-policy-399a
-  Head:                     652a5cd (652a5cdb9664a037e781f1bc6b0dacbed7e9c95d)
+  Head:                     dfc49e3 (dfc49e349b518b19c0208928a2e7fcbf9038c38c)
   Remediation commit:       1394479 (policy authority fix)
+  CI:                       verify SUCCESS
   Summary:
     - Direct-completion detection is authoritative over client learningIntent
     - Study compose prefixes stripped before completion analysis
@@ -42,6 +43,8 @@ origin/main tip:          269fe8e (includes merged PR #16; does NOT include PR #
 Working branch:           cursor/phase4-impl3-learning-policy-399a
 Draft PR #17:             https://github.com/seancorbitt10-png/Flux-Labs/pull/17
 PR #17 state:             draft, open, unmerged
+PR #17 head:              dfc49e3 (dfc49e349b518b19c0208928a2e7fcbf9038c38c)
+CI:                       verify SUCCESS
 Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
