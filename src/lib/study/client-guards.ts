@@ -1,5 +1,12 @@
 import { ValidationError } from "@/lib/errors";
 
+/**
+ * Reject client attempts to supply identity, authority, routing, or
+ * trusted academic context blobs on Study action payloads.
+ *
+ * Clients may send classId / taskId / conceptIds (ID references only).
+ * They must never send Class / Task / Concept / academicWorkspace objects.
+ */
 const FORBIDDEN_STUDY_FIELDS = [
   "userId",
   "actorUserId",
@@ -33,12 +40,22 @@ const FORBIDDEN_STUDY_FIELDS = [
   "key",
   "createdByUserId",
   "systemProvenance",
+  // Academic / context blobs — IDs only cross the trust boundary.
+  "class",
+  "task",
+  "classes",
+  "tasks",
+  "concept",
+  "concepts",
+  "academicWorkspace",
+  "academicContext",
+  "assembledContext",
+  "studentModel",
+  "focusClass",
+  "focusTask",
+  "focusConcept",
 ] as const;
 
-/**
- * Reject client attempts to supply identity, authority, or routing fields
- * on Study action payloads.
- */
 export function assertNoClientStudyAuthority(
   payload: Record<string, unknown>,
 ): void {

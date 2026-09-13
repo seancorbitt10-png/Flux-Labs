@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 21:26 UTC
+Updated: 2026-09-13 21:46 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -12,64 +12,53 @@ Phases 0–3 COMPLETE on main.
 Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
-
-Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
-  DRAFT PR #17 — HIGH policy-authority remediation applied (NOT MERGED)
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
-  Branch:                   cursor/phase4-impl3-learning-policy-399a
-  Head:                     2ad7408 (2ad7408774bfa8ef26b1de49370932e0d113bd9d)
-  Remediation commit:       1394479 (policy authority fix)
-  CI:                       verify SUCCESS
-  Summary:
-    - Direct-completion detection is authoritative over client learningIntent
-    - Study compose prefixes stripped before completion analysis
-    - Legitimate explain/hint/check_work/steps/attempt paths remain useful
-    - Bounded references → limited_answer; combined completion still refuses
-    - Production AI remains DISABLED by default
+Phase 4 Implementation #3 learning-first policy (PR #17) MERGED
+  Merge commit: 25d4483a8ead179f43b392b675a0743f2fecf565
 
 Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
-  NOT STARTED
-  Blocked until approved Slice 2 (PR #17) is merged into main.
-  Per implementation instructions: start only from main after Slice 2 merges.
-
-Production AI remains DISABLED by default.
-No RAG, embeddings, billing, Slice 6, or unrelated work in flight.
-
---------------------------------------------------------------------------------
-REPOSITORY
---------------------------------------------------------------------------------
-
-origin/main tip:          269fe8e (includes merged PR #16; does NOT include PR #17)
-Working branch:           cursor/phase4-impl3-learning-policy-399a
-Draft PR #17:             https://github.com/seancorbitt10-png/Flux-Labs/pull/17
-PR #17 state:             draft, open, unmerged
-PR #17 head:              2ad7408 (2ad7408774bfa8ef26b1de49370932e0d113bd9d)
-CI:                       verify SUCCESS
-Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
-
-Repo: https://github.com/seancorbitt10-png/Flux-Labs
+  DRAFT PR #18 — awaiting independent review (NOT MERGED)
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/18
+  Branch:                   cursor/phase4-impl4-study-focus-399a
+  Head:                     bde6ae5 (bde6ae5997c26350a2f551468f986e495fcf41a6)
+  Base main:                25d4483 (25d4483a8ead179f43b392b675a0743f2fecf565)
+  Summary:
+    - Study Class + Task focus UX (IDs only; server-owned records)
+    - Concept focus retained
+    - Bootstrap class/task options; academicWorkspace integration
+    - Client academic blobs rejected; learning-first policy intact
+    - No new persistence; production AI DISABLED
+    - Slice 6 still required before production AI
 
 --------------------------------------------------------------------------------
-PHASE / IMPLEMENTATION STATUS
+STUDY FOCUS CONTRACT
 --------------------------------------------------------------------------------
 
-Phase 0–2                         COMPLETE (main)
-Phase 3                           COMPLETE (main)
-Phase 4 Architecture/Planning     MERGED — PR #14
-Phase 4 Implementation #1         MERGED — PR #15
-Phase 4 Implementation #2         MERGED — PR #16
-Phase 4 Implementation #3         DRAFT — learning-first policy hardening (PR #17)
-Phase 4 Implementation #4         BLOCKED — Study Focus UX (awaits PR #17 merge)
-Slice 6 (Class/Task retrieval)    REQUIRED before production AI enablement
+Client may send IDs only: classId?, taskId?, conceptIds?, focusLabel?
+Client must NOT send Class/Task/Concept/academicWorkspace objects or policy fields.
+
+Consistency:
+  - Owned class + owned task required
+  - If task.classId is set, it must equal selected classId (else reject)
+  - Orphan task (classId=null) may combine with class focus (no silent rewrite)
+
+--------------------------------------------------------------------------------
+QUALITY GATES (local)
+--------------------------------------------------------------------------------
+
+Tests:            323 passed
+Typecheck:        pass
+Lint:             pass
+Production build: pass
+Prisma status:    up to date (no new migration)
+Production AI:    disabled
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of Phase 4 Implementation #3 PR #17 (HIGH remediated)
-2. Merge PR #17 only after approved review
-3. Then start Phase 4 Implementation #4 / Slice 3 (Study Focus UX) from main
-4. Do NOT enable production real AI until Slice 6 is complete
-5. Do NOT start Slice 3/6/billing/RAG while PR #17 remains unmerged
+1. Independent review of PR #18
+2. Merge only after approved review
+3. Do NOT enable production AI until Slice 6
+4. Do NOT start Slice 6/billing/RAG from this PR
 
 ================================================================================

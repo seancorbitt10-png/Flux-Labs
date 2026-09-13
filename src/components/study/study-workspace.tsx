@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { OrchestrationProposalSummary } from "@/lib/ai/types";
 import {
@@ -15,7 +15,12 @@ import {
   STUDY_INTENTS,
   type StudyIntent,
 } from "@/lib/study/intents";
-import type { StudyBootstrap, StudyFocusOption } from "@/lib/study/bootstrap";
+import type {
+  StudyBootstrap,
+  StudyClassFocusOption,
+  StudyFocusOption,
+  StudyTaskFocusOption,
+} from "@/lib/study/bootstrap";
 
 type ChatTurn = {
   id: string;
@@ -34,14 +39,40 @@ type PendingProposal = OrchestrationProposalSummary & {
   error?: string;
 };
 
-function newId() {
+function createTurnId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildFocusSummary(args: {
+  classOption: StudyClassFocusOption | null;
+  taskOption: StudyTaskFocusOption | null;
+  conceptOption: StudyFocusOption | null;
+  focusLabel: string;
+}): string {
+  const parts: string[] = [];
+  if (args.classOption) {
+    parts.push(
+      args.classOption.courseCode
+        ? `${args.classOption.name} (${args.classOption.courseCode})`
+        : args.classOption.name,
+    );
+  }
+  if (args.taskOption) parts.push(args.taskOption.title);
+  if (args.conceptOption) parts.push(args.conceptOption.name);
+  if (parts.length === 0 && args.focusLabel.trim()) {
+    return args.focusLabel.trim();
+  }
+  return parts.join(" · ");
 }
 
 export function StudyWorkspace({
   initialBootstrap,
+  initialClassId = "",
+  initialTaskId = "",
 }: {
   initialBootstrap: StudyBootstrap;
+  initialClassId?: string;
+  initialTaskId?: string;
 }) {
   const formId = useId();
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -50,21 +81,77 @@ export function StudyWorkspace({
   const [intent, setIntent] = useState<StudyIntent>("ask");
   const [message, setMessage] = useState("");
   const [focusLabel, setFocusLabel] = useState("");
-  const [focusConceptId, setFocusConceptId] = useState<string>("");
+  const [focusConceptId, setFocusConceptId] = useState("");
+  const [focusClassId, setFocusClassId] = useState(initialClassId);
+  const [focusTaskId, setFocusTaskId] = useState(initialTaskId);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns, pending]);
 
-  function selectedFocusOption(): StudyFocusOption | null {
-    if (!focusConceptId) return null;
-    return (
-      bootstrap.focusOptions.find((o) => o.conceptId === focusConceptId) ?? null
+  const selectedClass = useMemo(
+    () => bootstrap.classOptions.find((c) => c.classId === focusClassId) ?? null,
+    [bootstrap.classOptions, focusClassId],
+  );
+
+  const selectedTask = useMemo(
+    () => bootstrap.taskOptions.find((t) => t.taskId === focusTaskId) ?? null,
+    [bootstrap.taskOptions, focusTaskId],
+  );
+
+  const selectedConcept = useMemo(
+    () =>
+      bootstrap.focusOptions.find((o) => o.conceptId === focusConceptId) ?? null,
+    [bootstrap.focusOptions, focusConceptId],
+  );
+
+  const visibleTasks = useMemo(() => {
+    if (!focusClassId) return bootstrap.taskOptions;
+    return bootstrap.taskOptions.filter(
+      (t) => t.classId === focusClassId || t.classId === null,
     );
+  }, [bootstrap.taskOptions, focusClassId]);
+
+  const summary = buildFocusSummary({
+    classOption: selectedClass,
+    taskOption: selectedTask,
+    conceptOption: selectedConcept,
+    focusLabel,
+  });
+
+  function handleClassChange(nextClassId: string) {
+    setFocusClassId(nextClassId);
+    if (!focusTaskId) return;
+    const task = bootstrap.taskOptions.find((t) => t.taskId === focusTaskId);
+    if (!task) return;
+    if (task.classId && nextClassId && task.classId !== nextClassId) {
+      setFocusTaskId("");
+    }
+  }
+
+  function handleTaskChange(nextTaskId: string) {
+    setFocusTaskId(nextTaskId);
+    if (!nextTaskId) return;
+    const task = bootstrap.taskOptions.find((t) => t.taskId === nextTaskId);
+    if (!task) return;
+    if (task.classId) {
+      setFocusClassId(task.classId);
+    }
+    if (!focusLabel.trim()) {
+      setFocusLabel(task.title);
+    }
+  }
+
+  function clearFocus() {
+    setFocusClassId("");
+    setFocusTaskId("");
+    setFocusConceptId("");
+    setFocusLabel("");
   }
 
   function submitTurn() {
@@ -73,9 +160,12 @@ export function StudyWorkspace({
     setError(null);
     setStatusMessage(null);
 
-    const focusOption = selectedFocusOption();
     const effectiveFocusLabel =
-      focusLabel.trim() || focusOption?.name || null;
+      focusLabel.trim() ||
+      selectedTask?.title ||
+      selectedConcept?.name ||
+      selectedClass?.name ||
+      null;
 
     const priorTurns = turns.slice(-8).map((t) => ({
       role: t.role,
@@ -83,7 +173,7 @@ export function StudyWorkspace({
     }));
 
     const optimisticUser: ChatTurn = {
-      id: newId(),
+      id: createTurnId(),
       role: "user",
       content: trimmed,
       meta: { intent },
@@ -96,12 +186,13 @@ export function StudyWorkspace({
         message: trimmed,
         intent,
         focusLabel: effectiveFocusLabel,
-        ...(focusOption ? { conceptIds: [focusOption.conceptId] } : {}),
+        ...(selectedConcept ? { conceptIds: [selectedConcept.conceptId] } : {}),
+        ...(focusClassId ? { classId: focusClassId } : {}),
+        ...(focusTaskId ? { taskId: focusTaskId } : {}),
         priorTurns,
       });
 
       if (!result.ok) {
-        // Drop optimistic turn so failed sends do not poison priorTurns.
         setTurns((prev) => prev.filter((t) => t.id !== optimisticUser.id));
         setMessage(trimmed);
         setError(result.message);
@@ -112,7 +203,7 @@ export function StudyWorkspace({
       setTurns((prev) => [
         ...prev,
         {
-          id: newId(),
+          id: createTurnId(),
           role: "assistant",
           content: result.reply,
           meta: {
@@ -141,7 +232,7 @@ export function StudyWorkspace({
     });
   }
 
-  function onConfirmProposal(proposalId: string) {
+  function handleConfirmProposal(proposalId: string) {
     startTransition(async () => {
       const result = await confirmStudyProposalAction({ proposalId });
       setProposals((prev) =>
@@ -158,7 +249,7 @@ export function StudyWorkspace({
     });
   }
 
-  function onRejectProposal(proposalId: string) {
+  function handleRejectProposal(proposalId: string) {
     startTransition(async () => {
       const result = await rejectStudyProposalAction({ proposalId });
       setProposals((prev) =>
@@ -176,9 +267,33 @@ export function StudyWorkspace({
   }
 
   function refreshBootstrap() {
+    setOptionsLoading(true);
     startTransition(async () => {
       const result = await loadStudyBootstrapAction();
-      if (result.ok) setBootstrap(result.data);
+      setOptionsLoading(false);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setBootstrap(result.data);
+      if (
+        focusClassId &&
+        !result.data.classOptions.some((c) => c.classId === focusClassId)
+      ) {
+        setFocusClassId("");
+      }
+      if (
+        focusTaskId &&
+        !result.data.taskOptions.some((t) => t.taskId === focusTaskId)
+      ) {
+        setFocusTaskId("");
+      }
+      if (
+        focusConceptId &&
+        !result.data.focusOptions.some((o) => o.conceptId === focusConceptId)
+      ) {
+        setFocusConceptId("");
+      }
     });
   }
 
@@ -212,20 +327,115 @@ export function StudyWorkspace({
           className="flex min-h-0 flex-col rounded-lg border border-foreground/12 bg-background/70"
           aria-label="Study conversation"
         >
-          <div className="border-b border-foreground/10 px-3 py-2 sm:px-4">
-            <label className="block space-y-1" htmlFor={`${formId}-focus-select`}>
-              <span className="text-xs text-foreground/55">Focus</span>
+          <div className="space-y-3 border-b border-foreground/10 px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-foreground/50">
+                Focus
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="text-xs text-foreground/55 underline-offset-2 hover:text-foreground hover:underline"
+                  onClick={clearFocus}
+                  disabled={pending}
+                >
+                  Clear focus
+                </button>
+                <button
+                  type="button"
+                  className="text-xs text-foreground/55 underline-offset-2 hover:text-foreground hover:underline"
+                  onClick={refreshBootstrap}
+                  disabled={pending || optionsLoading}
+                >
+                  {optionsLoading ? "Refreshing…" : "Refresh options"}
+                </button>
+              </div>
+            </div>
+
+            <p
+              className="rounded-md border border-foreground/10 bg-foreground/[0.03] px-2.5 py-1.5 text-xs text-foreground/70"
+              data-testid="study-focus-summary"
+              aria-live="polite"
+            >
+              {summary ? (
+                <>
+                  <span className="font-medium text-foreground/85">Active: </span>
+                  {summary}
+                </>
+              ) : (
+                <span>No class, task, or concept focus selected.</span>
+              )}
+            </p>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="block space-y-1" htmlFor={`${formId}-class`}>
+                <span className="text-xs text-foreground/55">Class</span>
+                <select
+                  id={`${formId}-class`}
+                  data-testid="study-class-focus"
+                  className="min-h-10 w-full rounded-md border border-foreground/15 bg-background px-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                  value={focusClassId}
+                  disabled={pending}
+                  onChange={(e) => handleClassChange(e.target.value)}
+                >
+                  <option value="">No class focus</option>
+                  {bootstrap.classOptions.length === 0 ? (
+                    <option value="" disabled>
+                      No classes yet — add one under Classes
+                    </option>
+                  ) : null}
+                  {bootstrap.classOptions.map((opt) => (
+                    <option key={opt.classId} value={opt.classId}>
+                      {opt.name}
+                      {opt.courseCode ? ` · ${opt.courseCode}` : ""} · {opt.term}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block space-y-1" htmlFor={`${formId}-task`}>
+                <span className="text-xs text-foreground/55">Task</span>
+                <select
+                  id={`${formId}-task`}
+                  data-testid="study-task-focus"
+                  className="min-h-10 w-full rounded-md border border-foreground/15 bg-background px-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+                  value={focusTaskId}
+                  disabled={pending}
+                  onChange={(e) => handleTaskChange(e.target.value)}
+                >
+                  <option value="">No task focus</option>
+                  {visibleTasks.length === 0 ? (
+                    <option value="" disabled>
+                      {bootstrap.taskOptions.length === 0
+                        ? "No tasks yet — add one under Tasks"
+                        : "No tasks for this class"}
+                    </option>
+                  ) : null}
+                  {visibleTasks.map((opt) => (
+                    <option key={opt.taskId} value={opt.taskId}>
+                      {opt.title}
+                      {opt.status !== "TODO" ? ` · ${opt.status}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="block space-y-1" htmlFor={`${formId}-concept`}>
+              <span className="text-xs text-foreground/55">Concept</span>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <select
-                  id={`${formId}-focus-select`}
+                  id={`${formId}-concept`}
+                  data-testid="study-concept-focus"
                   className="min-h-10 w-full rounded-md border border-foreground/15 bg-background px-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10 sm:max-w-xs"
                   value={focusConceptId}
+                  disabled={pending}
                   onChange={(e) => {
                     setFocusConceptId(e.target.value);
                     const opt = bootstrap.focusOptions.find(
                       (o) => o.conceptId === e.target.value,
                     );
-                    if (opt) setFocusLabel(opt.name);
+                    if (opt && !focusLabel.trim()) setFocusLabel(opt.name);
                   }}
                 >
                   <option value="">No linked concept</option>
@@ -241,13 +451,15 @@ export function StudyWorkspace({
                   maxLength={120}
                   placeholder="What are you working on?"
                   value={focusLabel}
+                  disabled={pending}
                   onChange={(e) => setFocusLabel(e.target.value)}
                   className="min-h-10 w-full flex-1 rounded-md border border-foreground/15 bg-background px-3 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
                   aria-label="Focus label"
                 />
               </div>
               <p className="text-xs text-foreground/45">
-                Concept links are server-validated IDs only — no guessing from free text.
+                Class, task, and concept IDs are validated on the server. Names and
+                descriptions are data — they cannot override learning-first policy.
               </p>
             </label>
           </div>
@@ -261,7 +473,8 @@ export function StudyWorkspace({
                 <p className="font-medium text-foreground/80">Start a study turn</p>
                 <p className="mt-1">
                   Ask a question, request a hint, check an attempt, or ask Flux to
-                  break a problem into steps. Flux will guide — not finish the work for you.
+                  break a problem into steps. Focus a class or task to ground the
+                  session — Flux still guides learning rather than finishing the work.
                 </p>
               </div>
             ) : null}
@@ -300,7 +513,11 @@ export function StudyWorkspace({
             ))}
 
             {pending ? (
-              <p className="text-sm text-foreground/55" role="status" aria-live="assertive">
+              <p
+                className="text-sm text-foreground/55"
+                role="status"
+                aria-live="assertive"
+              >
                 Flux is preparing guidance…
               </p>
             ) : null}
@@ -391,18 +608,10 @@ export function StudyWorkspace({
             <h2 className="text-sm font-medium">Session notes</h2>
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-foreground/60">
               <li>Learning-first policy is server-controlled.</li>
-              <li>Conversation stays in this browser session (not a durable chat DB).</li>
+              <li>Class/task focus is validated against your records.</li>
+              <li>Conversation stays in this browser session.</li>
               <li>Student Model changes only via confirmed AI proposals.</li>
             </ul>
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-2 min-h-9 px-2 text-xs"
-              onClick={refreshBootstrap}
-              disabled={pending}
-            >
-              Refresh focus options
-            </Button>
           </div>
 
           <div className="rounded-lg border border-foreground/12 bg-background/70 p-3">
@@ -437,7 +646,7 @@ export function StudyWorkspace({
                           type="button"
                           className="min-h-9 px-2 text-xs"
                           disabled={pending}
-                          onClick={() => onConfirmProposal(p.id)}
+                          onClick={() => handleConfirmProposal(p.id)}
                         >
                           Confirm
                         </Button>
@@ -446,7 +655,7 @@ export function StudyWorkspace({
                           variant="secondary"
                           className="min-h-9 px-2 text-xs"
                           disabled={pending}
-                          onClick={() => onRejectProposal(p.id)}
+                          onClick={() => handleRejectProposal(p.id)}
                         >
                           Reject
                         </Button>

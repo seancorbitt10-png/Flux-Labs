@@ -16,4 +16,6 @@ export {
   getStudyBootstrap,
   type StudyBootstrap,
   type StudyFocusOption,
+  type StudyClassFocusOption,
+  type StudyTaskFocusOption,
 } from "./bootstrap";
