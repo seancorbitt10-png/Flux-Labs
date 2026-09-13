@@ -320,22 +320,17 @@ Modes actually returned today:
 - `break_into_steps` (including when the student asks for a direct answer / homework completion — current default for those asks)
 - `teach`
 
-**Not selected today (types exist on `AssistanceMode` but policy never returns them):**
+**Slice 2 status (Implementation #3):** `decideAssistancePolicy` now selects:
 
-- `refuse_direct_completion`
-- `limited_answer`
-- also unused today: `ask_question`, `identify_misconception`, `analogous_example`, `partial_assistance`
+- `refuse_direct_completion` for clear direct-completion asks (while still offering hint/steps/attempt help)
+- `limited_answer` for bounded reference asks (formula/definition) that unblock learning
+- existing learning modes (`hint` / `check_work` / `break_into_steps` / `teach`) for legitimate Study intents
 
-So learning-first behavior today is primarily **prompt directive + mode `break_into_steps` / `hint` / `check_work`**, not an active refuse/limited-answer selector. That is **insufficient to claim** refuse/limited-answer enforcement is operational.
+Still unused today (types exist): `ask_question`, `identify_misconception`, `analogous_example`, `partial_assistance`.
 
-**Phase 4 target (Slice 2 — required for MVP learning-first claim):**
-
-- Prefer `hint` / `break_into_steps` / `ask_question` / `check_work` / `identify_misconception` for tutoring turns.
-- When the student asks for completed homework / final answers, policy must select `refuse_direct_completion` or `limited_answer` (with golden tests).
-- Strengthen prompt contracts so real models honor learning-first behavior (tests + golden prompt fixtures).
-- Optional UX: structured tutoring turns (question → attempt → feedback) **without** a new multi-agent runtime — single completion calls, UI-orchestrated loops.
-
-**Do not claim** learning-first tutoring is fully operational until Slice 2 lands against a real (or fixture-backed) model path.
+Learning-first policy selection is now operational in the stub/provider path with unit coverage.
+Production real-AI enablement still requires Slice 6 and remains **OFF** by default.
+This does **not** claim cheat-proof academic integrity.
 
 ### 9.4 Focus wiring
 

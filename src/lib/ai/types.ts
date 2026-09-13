@@ -19,6 +19,15 @@ export type AITaskType =
   | "progress_analysis"
   | "administrative";
 
+/** Server-validated Study learning cues (mirrors StudyIntent). */
+export type LearningIntentCue =
+  | "ask"
+  | "hint"
+  | "check_work"
+  | "explain"
+  | "steps"
+  | "attempt";
+
 export type AssistanceMode =
   | "explain"
   | "teach"
@@ -122,6 +131,11 @@ export type OrchestrationRequest = {
    * Never accept this from the client — orchestration ignores client-supplied routing.
    */
   taskTypeHint?: AITaskType;
+  /**
+   * Optional server-validated Study learning cue (from parseStudyIntent).
+   * Does not let clients choose assistanceMode — policy remains authoritative.
+   */
+  learningIntent?: LearningIntentCue;
   /**
    * @deprecated Phase 1 free-form context. Ignored by the orchestration boundary.
    * Student facts must come from assembleAIContext, not the client.

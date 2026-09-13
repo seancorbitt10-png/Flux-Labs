@@ -51,6 +51,31 @@ function studentDataPayload(assembled: AssembledLearningContext) {
 }
 
 /**
+ * Short mode contracts reinforce learning-first behavior for the provider.
+ * Internal mode names are control metadata — never student-facing copy.
+ */
+function assistanceModeContract(mode: AssistanceMode): string {
+  switch (mode) {
+    case "refuse_direct_completion":
+      return "Refuse completing the academic work; still offer a hint, steps without the final answer, or ask for their attempt.";
+    case "limited_answer":
+      return "Give only a minimal reference fact/formula/definition, then return control to the student.";
+    case "hint":
+      return "One helpful nudge — not the finished solution.";
+    case "check_work":
+      return "Review their reasoning; do not replace it with a finished submission.";
+    case "break_into_steps":
+      return "Guide stepwise; leave the final completing step to the student when it would finish the assignment.";
+    case "teach":
+      return "Teach the concept and check understanding; do not complete graded work for them.";
+    case "ask_question":
+      return "Ask a focused question that advances their reasoning.";
+    default:
+      return "Prefer guided learning over doing the student's work.";
+  }
+}
+
+/**
  * Serialize assembled context into system + user messages.
  * Exported for tests asserting DATA fencing and hierarchy.
  */
@@ -69,6 +94,7 @@ export function buildOrchestrationMessages(
     "APPLICATION_POLICY:",
     `- assistanceMode: ${input.assistanceMode}`,
     `- directive: ${input.systemDirective}`,
+    `- modeContract: ${assistanceModeContract(input.assistanceMode)}`,
     "",
     "PROVENANCE_NOTES (application-authored):",
     ...input.assembled.provenanceNotes.map((n) => `- ${n}`),

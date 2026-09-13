@@ -161,6 +161,14 @@ describe("Study Experience", () => {
           assistanceMode: "explain",
         }),
       ).toThrow(/assistanceMode/);
+
+      expect(() =>
+        assertNoClientStudyAuthority({
+          message: "hi",
+          intent: "ask",
+          learningIntent: "explain",
+        }),
+      ).toThrow(/learningIntent/);
     });
   });
 
