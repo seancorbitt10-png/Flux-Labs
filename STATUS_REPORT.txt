@@ -38,7 +38,7 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     a6c0097 (a6c00971f47872263e070d03e60e8a1e335848d0)
+Branch tip / PR head:     1b405ef (1b405efd4a4f03e318f43e06fd637907c1b9b8dd)
 Remediation commit:       a0cbf7c (a0cbf7cf05e59a8a71a29ed0509fedebed6979e7)
 CI:                       green (2/2 checks on head)
 
@@ -76,7 +76,7 @@ Issue 2 — Cost ceiling anomalies:
   after dispatch solely due to accounting disagreement.
 
 Quality gates on remediation tip a0cbf7c / PR head a6c0097:
-  tests 281 passed (24 files)
+  tests 285 passed (24 files)
   typecheck pass
   lint pass
   production build pass
