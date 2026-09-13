@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 18:33 UTC
+Updated: 2026-09-13 18:35 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -27,10 +27,9 @@ REPOSITORY
 
 origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
-Branch tip:               2494ecb
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-PR head SHA:              2494ecb0f3d1910a5502f65cd132c933b74d0326
+Branch tip / PR head:     f1c1fc2 (f1c1fc2de3a9c304c02d91e76419ba424424cb5e)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -71,9 +70,9 @@ Delivered:
   - Clients cannot supply plan, cost, reservation amount, settlement outcome,
     or raise envelope
   - Orchestration wired to reserve → provider → certainty-driven finalize
-  - Production AI remains OFF unless explicitly gated
+  - Production AI remains OFF unless explicitly gated (AI_PRODUCTION_ENABLED)
   - Stub provider remains default and enforces the same envelope
-  - Quality gates on this branch tip:
+  - Quality gates on this branch:
       tests 252 passed; typecheck/lint/build pass; migrations up to date
       (no new migration in the tokenizer remediation)
 
@@ -98,7 +97,7 @@ Root cause:
 Fix (Option A):
   Server-side gpt-tokenizer with production encoding o200k_base.
   Provider gate + reservedCostMicros share AI_REQUEST_ENVELOPE token ceilings.
-  UTF-16 unit cap is DoS prefilter only — not a cost bound.
+  UTF-16 unit cap (maxInputUtf16Units=64000) is DoS prefilter only — not a cost bound.
 
 Limitations (do not overclaim):
   Bound holds only while mapped models use o200k_base.
