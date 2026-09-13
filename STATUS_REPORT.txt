@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 20:58 UTC
+Updated: 2026-09-13 21:10 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -14,14 +14,15 @@ Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
 
 Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
-  DRAFT PR #17 — awaiting independent review (NOT MERGED)
+  DRAFT PR #17 — HIGH policy-authority remediation applied (NOT MERGED)
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
   Branch:                   cursor/phase4-impl3-learning-policy-399a
-  Head:                     33fbced (33fbced18bdcb8404e85cf90b24c39b7b4ed48be)
+  Head:                     1394479 (see latest commit after STATUS refresh)
   Summary:
-    - decideAssistancePolicy selects refuse_direct_completion / limited_answer
-    - Study learningIntent is server-validated
+    - Direct-completion detection is authoritative over client learningIntent
+    - Study compose prefixes stripped before completion analysis
     - Legitimate explain/hint/check_work/steps/attempt paths remain useful
+    - Bounded references → limited_answer; combined completion still refuses
     - Production AI remains DISABLED by default
 
 Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
@@ -40,7 +41,6 @@ origin/main tip:          269fe8e (includes merged PR #16; does NOT include PR #
 Working branch:           cursor/phase4-impl3-learning-policy-399a
 Draft PR #17:             https://github.com/seancorbitt10-png/Flux-Labs/pull/17
 PR #17 state:             draft, open, unmerged
-PR #17 head:              33fbced (33fbced18bdcb8404e85cf90b24c39b7b4ed48be)
 Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
@@ -62,7 +62,7 @@ Slice 6 (Class/Task retrieval)    REQUIRED before production AI enablement
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #3 PR #17
+1. Independent re-review of Phase 4 Implementation #3 PR #17 (HIGH remediated)
 2. Merge PR #17 only after approved review
 3. Then start Phase 4 Implementation #4 / Slice 3 (Study Focus UX) from main
 4. Do NOT enable production real AI until Slice 6 is complete
