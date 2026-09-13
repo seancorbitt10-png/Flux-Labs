@@ -32,7 +32,7 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     3117be9 (3117be9879c174fea1959a3ec9010274017b801f)
+Branch tip / PR head:     ba9eb71 (ba9eb712824011c662539cb223dbf9632a6aba8c)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
