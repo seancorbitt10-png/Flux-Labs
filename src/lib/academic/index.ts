@@ -27,6 +27,8 @@ export {
   updateClass,
   archiveClass,
   deleteClass,
+  MAX_LIST_CLASSES,
+  DEFAULT_LIST_CLASSES,
 } from "./classes";
 
 export {
@@ -37,6 +39,8 @@ export {
   transitionTaskStatus,
   deleteTask,
   type TaskWithConcepts,
+  MAX_LIST_TASKS,
+  DEFAULT_LIST_TASKS,
 } from "./tasks";
 
 export {

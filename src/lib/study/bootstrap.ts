@@ -70,10 +70,12 @@ export async function getStudyBootstrap(args: {
       actorUserId: args.actorUserId,
       userId: args.userId,
       status: "ACTIVE",
+      limit: MAX_CLASS_OPTIONS,
     }),
     listTasks({
       actorUserId: args.actorUserId,
       userId: args.userId,
+      limit: MAX_TASK_OPTIONS,
     }),
   ]);
 

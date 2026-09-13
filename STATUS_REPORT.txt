@@ -2,63 +2,50 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 21:46 UTC
+Updated: 2026-09-13 22:33 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 architecture (PR #14) MERGED.
-Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
-Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
-Phase 4 Implementation #3 learning-first policy (PR #17) MERGED
-  Merge commit: 25d4483a8ead179f43b392b675a0743f2fecf565
 
-Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
-  DRAFT PR #18 — awaiting independent review (NOT MERGED)
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/18
-  Branch:                   cursor/phase4-impl4-study-focus-399a
-  Head:                     bde6ae5 (bde6ae5997c26350a2f551468f986e495fcf41a6)
-  Base main:                25d4483 (25d4483a8ead179f43b392b675a0743f2fecf565)
+Phase 4 PRs #14–#18 MERGED on main.
+Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
+  DRAFT PR in progress (NOT MERGED)
+  Branch: cursor/phase4-impl5-bounded-retrieval-399a
+  Base main: 8c269f0 (8c269f06239dfb2160bd339bc3e6a5a59583262c)
+
   Summary:
-    - Study Class + Task focus UX (IDs only; server-owned records)
-    - Concept focus retained
-    - Bootstrap class/task options; academicWorkspace integration
-    - Client academic blobs rejected; learning-first policy intact
-    - No new persistence; production AI DISABLED
-    - Slice 6 still required before production AI
+    - listClasses / listTasks enforce server-side take limits
+    - Hard ceilings prevent client over-expansion
+    - AI academicWorkspace assembly uses bounded candidate queries
+    - Focus class/task still loaded via getClass/getTask and merged first
+    - Study bootstrap uses explicit option limits
+    - Production AI remains DISABLED
+    - No RAG / embeddings / billing / Slice 4–5
 
 --------------------------------------------------------------------------------
-STUDY FOCUS CONTRACT
+BOUNDS CONTRACT (Slice 6)
 --------------------------------------------------------------------------------
 
-Client may send IDs only: classId?, taskId?, conceptIds?, focusLabel?
-Client must NOT send Class/Task/Concept/academicWorkspace objects or policy fields.
+Domain:
+  listClasses limit?: number → default 50, max 100
+  listTasks   limit?: number → default 100, max 200
+  Invalid/non-positive limit → ValidationError
 
-Consistency:
-  - Owned class + owned task required
-  - If task.classId is set, it must equal selected classId (else reject)
-  - Orphan task (classId=null) may combine with class focus (no silent rewrite)
-
---------------------------------------------------------------------------------
-QUALITY GATES (local)
---------------------------------------------------------------------------------
-
-Tests:            323 passed
-Typecheck:        pass
-Lint:             pass
-Production build: pass
-Prisma status:    up to date (no new migration)
-Production AI:    disabled
+AI assembly:
+  AI_CLASS_QUERY_LIMIT = maxClasses (8)
+  AI_TASK_QUERY_LIMIT  = maxTasks * 3 (36), statuses open only
+  Focus rows via getClass/getTask always eligible for inclusion
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #18
+1. Independent review of Implementation #5 draft PR
 2. Merge only after approved review
-3. Do NOT enable production AI until Slice 6
-4. Do NOT start Slice 6/billing/RAG from this PR
+3. Do NOT enable production AI until after Slice 6 is merged and explicitly approved
+4. Do NOT start RAG/billing/Slice 4–5 from this PR
 
 ================================================================================

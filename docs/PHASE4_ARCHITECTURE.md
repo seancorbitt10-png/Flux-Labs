@@ -82,7 +82,7 @@ Secondary gaps (important but not Phase 4 primary):
 - Knowledge catalog remains thin; concept focus is explicit-ID only (no search/resolution).
 - Chat history is browser-session only (acceptable for Phase 4 MVP; durable chat is not required to prove thesis).
 - No document grounding (acceptable to defer; premature RAG would dominate cost/complexity).
-- `listClasses` / `listTasks` used by academic AI assembly remain **unbounded at the domain query** (in-memory truncation after fetch) — **must be bounded before production real-AI enablement** (see §19 Slice 6).
+- `listClasses` / `listTasks` are **query-bounded** (server `take` + hard ceilings). AI assembly uses explicit AI query limits with focus-first merge (Implementation #5 / Slice 6). Production real-AI enablement remains a separate explicit flag decision after review.
 
 Without real AI, further academic surface area (more widgets, more integrations) does not increase learning value.
 
@@ -652,6 +652,8 @@ Do **not** implement these now. Prefer small PRs.
 - **User-visible:** “Save to your learning profile?” style confirmations.
 
 ### Slice 6 — Bounded Class/Task retrieval (**REQUIRED before production real-AI enablement**)
+
+**Status (Implementation #5):** Domain `listClasses` / `listTasks` enforce server-side `take` limits (defaults + hard ceilings). AI `assembleAcademicWorkspaceContext` passes explicit AI query limits and still merges owned focus rows via `getClass`/`getTask`. Production AI remains **OFF**.
 
 - **Responsibility:** Server-side bounded Class/Task retrieval for AI context assembly (addresses PR #13 MEDIUM).  
 - **Scope:** Domain `take`/`limit` (or equivalent) on `listClasses` / `listTasks` paths used by academic AI assembly; deterministic ordering; explicit maximum result sizes; no client-controlled arbitrary expansion; predictable AI context budgets; protect against unexpectedly large academic workspace payloads. Further data minimization (trim redundant IDs) as needed.  
