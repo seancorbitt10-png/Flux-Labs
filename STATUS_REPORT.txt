@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 19:35 UTC
+Updated: 2026-09-13 20:01 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -36,8 +36,9 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     13c325e (13c325e71c18d18138ecc5724f9c10dd01e5258a)
+Branch tip / PR head:     a6c0097 (a6c00971f47872263e070d03e60e8a1e335848d0)
 Remediation commit:       a0cbf7c (a0cbf7cf05e59a8a71a29ed0509fedebed6979e7)
+CI:                       green (2/2 checks on head)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -72,7 +73,7 @@ Issue 2 — Cost ceiling anomalies:
   uncappedEstimateMicros. Operation remains SETTLED/consumed — never RELEASE
   after dispatch solely due to accounting disagreement.
 
-Quality gates on tip a0cbf7c:
+Quality gates on remediation tip a0cbf7c / PR head a6c0097:
   tests 281 passed (24 files)
   typecheck pass
   lint pass
@@ -80,6 +81,7 @@ Quality gates on tip a0cbf7c:
   prisma migrate status: Database schema is up to date
   migration 20260913191500_phase4_reservation_source_and_cost_anomaly applied
   production AI disabled by default (AI_PRODUCTION_ENABLED must be "true")
+  GitHub CI: success (2/2)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
