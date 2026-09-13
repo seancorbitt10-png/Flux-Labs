@@ -16,6 +16,8 @@ Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/20
   Branch:                   cursor/phase4-impl5-bounded-retrieval-399a
   Base main:                8c269f0 (8c269f06239dfb2160bd339bc3e6a5a59583262c)
+  PR head SHA:              2f5504370639a3dc86155937938bad0d8dd3a8b9
+  Remediation code SHA:     31c3d7f05b0c5e4c973a16fe23d389b97ce5b7e6
 
   Remediation (independent review):
     1. Deterministic ORDER BY tie-breakers (id ASC) on listClasses/listTasks
@@ -23,6 +25,7 @@ Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
 
   Production AI remains DISABLED.
   No migration. No RAG/billing/Slice 4–5.
+  PR #20 remains UNMERGED — requires another independent review.
 
 --------------------------------------------------------------------------------
 DETERMINISTIC RETRIEVAL CONTRACT
