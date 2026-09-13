@@ -8,6 +8,10 @@
  * lower them. Clients cannot raise them. Reservation cost uses the same
  * token envelope (tokenizer-gated).
  *
+ * Vendor model env vars (AI_MODEL_FLUX_*) may only select allowlisted IDs
+ * verified for o200k_base in `@/lib/ai/model-registry`. Unsupported IDs fail
+ * closed at config resolution — before provider dispatch.
+ *
  * Never import this module from client components.
  */
 
@@ -15,6 +19,10 @@ import {
   AI_REQUEST_ENVELOPE,
   clampToRequestEnvelope,
 } from "@/lib/ai/request-envelope";
+import {
+  defaultVerifiedVendorModelIds,
+  resolveVerifiedVendorModelIds,
+} from "@/lib/ai/model-registry";
 import type { InternalModelKey } from "@/lib/ai/types";
 
 export type AIProviderEnv = Record<string, string | undefined>;
@@ -58,11 +66,8 @@ const DEFAULT_MAX_OUTPUT_TOKENS = AI_REQUEST_ENVELOPE.maxOutputTokens;
 const DEFAULT_MAX_INPUT_TOKENS = AI_REQUEST_ENVELOPE.maxInputTokens;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
-const DEFAULT_MODEL_IDS: Record<InternalModelKey, string> = {
-  "flux-fast": "gpt-4o-mini",
-  "flux-standard": "gpt-4o-mini",
-  "flux-advanced": "gpt-4o",
-};
+const DEFAULT_MODEL_IDS: Record<InternalModelKey, string> =
+  defaultVerifiedVendorModelIds();
 
 function readFrom(env: AIProviderEnv, name: string): string | null {
   const value = env[name];
@@ -151,16 +156,12 @@ export function resolveAIProviderConfig(
     maxOutputTokens: parsedLimits.maxOutputTokens,
     maxInputTokens: parsedLimits.maxInputTokens,
     maxInputUtf16Units: parsedLimits.maxInputUtf16Units,
-    modelIds: {
-      "flux-fast":
-        readFrom(env, "AI_MODEL_FLUX_FAST") ?? DEFAULT_MODEL_IDS["flux-fast"],
-      "flux-standard":
-        readFrom(env, "AI_MODEL_FLUX_STANDARD") ??
-        DEFAULT_MODEL_IDS["flux-standard"],
-      "flux-advanced":
-        readFrom(env, "AI_MODEL_FLUX_ADVANCED") ??
-        DEFAULT_MODEL_IDS["flux-advanced"],
-    },
+    // Vendor model IDs must be allowlisted + encoding-verified (fail closed).
+    modelIds: resolveVerifiedVendorModelIds({
+      "flux-fast": readFrom(env, "AI_MODEL_FLUX_FAST"),
+      "flux-standard": readFrom(env, "AI_MODEL_FLUX_STANDARD"),
+      "flux-advanced": readFrom(env, "AI_MODEL_FLUX_ADVANCED"),
+    }),
   };
 }
 

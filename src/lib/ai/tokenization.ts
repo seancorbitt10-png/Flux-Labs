@@ -1,10 +1,12 @@
 /**
  * Server-side tokenization for Flux internal model keys.
  *
- * Uses `gpt-tokenizer` with the OpenAI `o200k_base` encoding — the encoding used
- * by the production vendor models currently mapped for flux-* keys (gpt-4o /
- * gpt-4o-mini family). Counts match OpenAI's o200k_base vocabulary (verified
- * against the same encoding family used by those models).
+ * Uses `gpt-tokenizer` with the OpenAI `o200k_base` encoding — but ONLY after
+ * `@/lib/ai/model-registry` verifies that the internal model key is backed by a
+ * production mapping whose encoding is explicitly `o200k_base`.
+ *
+ * Counts match OpenAI's o200k_base vocabulary for the currently verified vendor
+ * models (gpt-4o / gpt-4o-mini family). See `model-registry.ts`.
  *
  * This is the independent measurement used to:
  *   1) gate provider dispatch (reject oversize before upstream call)
@@ -13,19 +15,25 @@
  * Guarantees:
  *   - Counts are produced by the o200k_base tokenizer, not by char/byte heuristics.
  *   - Chat-framing overhead is added with documented conservative constants.
- *   - Exact vendor invoice reconciliation is NOT claimed (pricing table is still
- *     an internal estimate; protocol details may evolve with vendor APIs).
+ *   - Unverified / unknown model mappings fail closed (no silent o200k_base guess).
+ *   - Exact vendor invoice reconciliation is NOT claimed.
  *
  * Limitations:
- *   - Bound only holds for models that use o200k_base (current Flux mappings).
- *   - If vendor model mappings change to a different encoding, this module must
- *     be updated in the same change — fail closed rather than reuse a wrong codec.
+ *   - Bound only holds for registry entries verified as o200k_base.
+ *   - New vendor models require an explicit allowlist + encoding entry in
+ *     `model-registry.ts` before they can be selected or tokenized.
  */
 
-import { encode } from "gpt-tokenizer/encoding/o200k_base";
+import { encode as encodeO200kBase } from "gpt-tokenizer/encoding/o200k_base";
+import {
+  assertO200kModel,
+  resolveVerifiedTokenizerEncoding,
+  type VerifiedTokenizerEncoding,
+} from "@/lib/ai/model-registry";
+import { AIProviderConfigError } from "@/lib/ai/provider-errors";
 import type { AICompletionRequest, InternalModelKey } from "@/lib/ai/types";
 
-/** Encoding name for all currently mapped OpenAI production models. */
+/** Encoding name for currently verified OpenAI production mappings. */
 export const PRODUCTION_OPENAI_ENCODING = "o200k_base" as const;
 
 /**
@@ -40,28 +48,45 @@ export const PRODUCTION_OPENAI_ENCODING = "o200k_base" as const;
 export const CHAT_TOKENS_PER_MESSAGE = 4;
 export const CHAT_REPLY_PRIMING_TOKENS = 3;
 
-function assertO200kModel(modelKey: InternalModelKey): void {
-  // All current flux-* → OpenAI mappings use o200k_base. If a future mapping
-  // uses a different encoding, replace this with a model→encoding switch in
-  // the same commit and fail closed for unknown encodings.
-  void modelKey;
+/**
+ * Encode text with the verified encoding for the internal model.
+ * Never silently falls back to o200k_base for unverified mappings.
+ */
+function encodeWithVerifiedEncoding(
+  text: string,
+  modelKey: InternalModelKey,
+): number[] {
+  assertO200kModel(modelKey);
+  const encoding: VerifiedTokenizerEncoding =
+    resolveVerifiedTokenizerEncoding(modelKey);
+
+  switch (encoding) {
+    case "o200k_base":
+      return encodeO200kBase(text);
+    default: {
+      const _exhaustive: never = encoding;
+      throw new AIProviderConfigError(
+        `No tokenizer implementation for encoding "${String(_exhaustive)}" ` +
+          `(internal model "${modelKey}"). Failing closed.`,
+      );
+    }
+  }
 }
 
-/** Encode a single string with the production encoding for the internal model. */
+/** Encode a single string with the verified production encoding for the model. */
 export function countStringTokens(
   text: string,
   modelKey: InternalModelKey,
 ): number {
-  assertO200kModel(modelKey);
-  return encode(text).length;
+  return encodeWithVerifiedEncoding(text, modelKey).length;
 }
 
 /**
  * Billable input-token estimate for a chat completion request.
  *
  * Definition (server-authoritative):
- *   sum(o200k tokens of each message content)
- *   + sum(o200k tokens of each message role)
+ *   sum(verified-encoding tokens of each message content)
+ *   + sum(verified-encoding tokens of each message role)
  *   + CHAT_TOKENS_PER_MESSAGE * messageCount
  *   + CHAT_REPLY_PRIMING_TOKENS
  *
@@ -75,8 +100,9 @@ export function countBillableInputTokens(
   let total = CHAT_REPLY_PRIMING_TOKENS;
   for (const message of request.messages) {
     total += CHAT_TOKENS_PER_MESSAGE;
-    total += encode(message.role).length;
-    total += encode(message.content).length;
+    total += encodeWithVerifiedEncoding(message.role, request.modelKey).length;
+    total += encodeWithVerifiedEncoding(message.content, request.modelKey)
+      .length;
   }
   return total;
 }
@@ -89,6 +115,11 @@ export function countContentTokensOnly(
   texts: string[],
   modelKey: InternalModelKey,
 ): number {
-  assertO200kModel(modelKey);
-  return texts.reduce((sum, t) => sum + encode(t).length, 0);
+  return texts.reduce(
+    (sum, t) => sum + encodeWithVerifiedEncoding(t, modelKey).length,
+    0,
+  );
 }
+
+// Re-export registry assertion for callers/tests that need the enforcement API.
+export { assertO200kModel } from "@/lib/ai/model-registry";

@@ -23,9 +23,9 @@
 | `AI_MAX_OUTPUT_TOKENS` | no | Server max completion tokens (default **800**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 800) |
 | `AI_MAX_INPUT_TOKENS` | no | Server max billable input tokens via o200k_base (default **8000**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 8000) |
 | `AI_MAX_INPUT_UTF16_UNITS` | no | Optional DoS prefilter on JS UTF-16 code units (default **64000**; not a token-cost bound) |
-| `AI_MODEL_FLUX_FAST` | no | Vendor model id for internal `flux-fast` |
-| `AI_MODEL_FLUX_STANDARD` | no | Vendor model id for internal `flux-standard` |
-| `AI_MODEL_FLUX_ADVANCED` | no | Vendor model id for internal `flux-advanced` |
+| `AI_MODEL_FLUX_FAST` | no | Allowlisted vendor model id for internal `flux-fast` (default `gpt-4o-mini`; must be verified o200k_base) |
+| `AI_MODEL_FLUX_STANDARD` | no | Allowlisted vendor model id for internal `flux-standard` (default `gpt-4o-mini`; must be verified o200k_base) |
+| `AI_MODEL_FLUX_ADVANCED` | no | Allowlisted vendor model id for internal `flux-advanced` (default `gpt-4o`; must be verified o200k_base) |
 
 ## AI production gate
 
@@ -56,11 +56,24 @@ source of truth (`AI_REQUEST_ENVELOPE` in `src/lib/ai/request-envelope.ts`):
 - reservation cost = server cost table at `(maxInputTokens, maxOutputTokens)` from the same envelope the tokenizer gate enforces before dispatch
 - therefore, for any request allowed to reach the provider: independently measured billable input tokens ≤ reservation input-token ceiling, and `reservedCostMicros` ≥ server-estimated cost at the permitted token maxima
 - this does **not** claim exact vendor-invoice reconciliation; the cost table remains an internal estimate
-- bound holds only while mapped production models use `o200k_base` (current gpt-4o / gpt-4o-mini mappings); encoding changes must update the tokenizer module in the same change
+- model→vendor→encoding is enforced by `src/lib/ai/model-registry.ts` (not documentation-only): current verified mappings are `flux-fast`/`flux-standard` → `gpt-4o-mini` → `o200k_base` and `flux-advanced` → `gpt-4o` → `o200k_base`
+- env may select only allowlisted vendor IDs verified for `o200k_base`; unsupported vendor IDs fail closed at config resolution (before dispatch)
+- tokenizer refuses unverified internal keys / encodings rather than silently assuming `o200k_base`
+- this does **not** claim `o200k_base` for arbitrary future OpenAI models; new vendor IDs require an explicit registry allowlist entry
 - `reservedCostMicros` is internal accounting, **not** a vendor invoice
 - environment variables may **lower** these limits; they cannot raise them above the envelope
 - clients cannot raise the envelope
 - requests over the envelope are rejected before provider dispatch (`not_dispatched` → RELEASE)
+
+## Verified model/encoding registry
+
+Server-enforced in `src/lib/ai/model-registry.ts`:
+
+- Every internal model key resolves through one registry entry: vendor model ID + tokenizer encoding
+- Provider dispatch, tokenization, and reservation cost all use that same verified metadata
+- Current allowlisted vendor IDs: `gpt-4o-mini`, `gpt-4o` (both verified `o200k_base`)
+- `AI_MODEL_FLUX_*` may only select from that allowlist; other values throw `AIProviderConfigError` (`not_dispatched`)
+- Clients never choose vendor model ID, encoding, provider, or reservation amount
 
 ## AI usage accounting (Phase 4 Implementation #2)
 

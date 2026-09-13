@@ -14,6 +14,7 @@ import type {
   InternalModelKey,
 } from "@/lib/ai/types";
 import type { AIProviderRuntimeConfig } from "@/lib/ai/provider-config";
+import { resolveVerifiedVendorModelId } from "@/lib/ai/model-registry";
 import {
   AIProviderConfigError,
   AIProviderInvalidResponseError,
@@ -102,7 +103,21 @@ export class OpenAIChatProvider implements AIProvider {
     this.maxOutputTokens = clamped.maxOutputTokens;
     this.maxInputTokens = clamped.maxInputTokens;
     this.maxInputUtf16Units = clamped.maxInputUtf16Units;
-    this.modelIds = options.modelIds;
+    // Fail closed on unverified vendor mappings before any dispatch.
+    this.modelIds = {
+      "flux-fast": resolveVerifiedVendorModelId(
+        "flux-fast",
+        options.modelIds["flux-fast"],
+      ),
+      "flux-standard": resolveVerifiedVendorModelId(
+        "flux-standard",
+        options.modelIds["flux-standard"],
+      ),
+      "flux-advanced": resolveVerifiedVendorModelId(
+        "flux-advanced",
+        options.modelIds["flux-advanced"],
+      ),
+    };
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -190,12 +205,9 @@ export class OpenAIChatProvider implements AIProvider {
 
   private resolveVendorModel(internal: InternalModelKey): string {
     const mapped = this.modelIds[internal];
-    if (!mapped) {
-      throw new AIProviderConfigError(
-        `No vendor model mapped for internal key ${internal}`,
-      );
-    }
-    return mapped;
+    // Re-validate against the verified registry at dispatch time so constructor
+    // injection cannot bypass encoding allowlisting.
+    return resolveVerifiedVendorModelId(internal, mapped);
   }
 
   private async fetchWithTimeout(
