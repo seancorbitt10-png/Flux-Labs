@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 18:35 UTC
+Updated: 2026-09-13 19:00 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -13,7 +13,10 @@ Phase 4 architecture (PR #14) MERGED.
 Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 
 Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
-  DRAFT PR #16 — tokenizer reservation-cost remediation + enforced model/encoding registry applied; ready for RE-review (NOT MERGED)
+  DRAFT PR #16 — ready for RE-review (NOT MERGED)
+  Remediations applied:
+    1) tokenizer-backed reservation cost (o200k_base via gpt-tokenizer)
+    2) enforced model→vendor→encoding registry (fail-closed allowlist)
   Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
   Env cannot raise limits above envelope; clients cannot either.
   Ambiguous provider failures consume; safe non-execution releases.
@@ -29,7 +32,7 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     43b9708 (43b9708eac6164e53b13ee6675645e4a57fa17b2)
+Branch tip / PR head:     3117be9 (3117be9879c174fea1959a3ec9010274017b801f)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -59,22 +62,29 @@ Delivered:
   - Provider config clamped to envelope (env may only lower)
   - reservedCostMicros derived from same token envelope (tokenizer-gated;
     NOT a char/UTF-16 heuristic; previous ≤1-token-per-character claim removed)
+  - Verified model/encoding registry (`src/lib/ai/model-registry.ts`):
+      flux-fast     → gpt-4o-mini → o200k_base
+      flux-standard → gpt-4o-mini → o200k_base
+      flux-advanced → gpt-4o      → o200k_base
+    Env AI_MODEL_FLUX_* may only select allowlisted vendor IDs; others fail closed
+    before dispatch. assertO200kModel() is enforced (not a no-op).
   - Invariant (for traffic allowed to reach the provider):
       independently measured o200k_base billable input tokens
         ≤ reservation input-token ceiling
       ⇒ reservedCostMicros ≥ server-estimated cost at permitted maxima
+    (only for registry-verified o200k_base mappings)
   - Failure matrix by executionCertainty:
       not_dispatched → RELEASED (safe non-execution)
       ambiguous / dispatched → SETTLED (consume; no free retry)
   - Idempotent settlement/release; ownership checks (no IDOR)
   - Clients cannot supply plan, cost, reservation amount, settlement outcome,
-    or raise envelope
+    vendor model, encoding, provider, or raise envelope
   - Orchestration wired to reserve → provider → certainty-driven finalize
   - Production AI remains OFF unless explicitly gated (AI_PRODUCTION_ENABLED)
   - Stub provider remains default and enforces the same envelope
-  - Quality gates on this branch:
-      tests 252 passed; typecheck/lint/build pass; migrations up to date
-      (no new migration in the tokenizer remediation)
+  - Quality gates on this branch tip:
+      tests 262 passed; typecheck/lint/build pass; migrations up to date
+      (no new migration in these remediations)
 
 NOT delivered (intentionally later):
   - Real production AI enablement
@@ -86,22 +96,35 @@ NOT delivered (intentionally later):
   - RAG, LMS, agents, mastery engine, admin systems
 
 --------------------------------------------------------------------------------
-RESERVATION-COST REMEDIATION (LATEST)
+REMEDIATION 1 — TOKENIZER RESERVATION COST
 --------------------------------------------------------------------------------
 
 Root cause:
   Reservation used an indefensible ≤1-token-per-character bound (JS .length =
-  UTF-16 units). Tests were tautological (reservationInputTokenCeiling compared
-  to itself).
+  UTF-16 units). Tests were tautological.
 
-Fix (Option A):
+Fix:
   Server-side gpt-tokenizer with production encoding o200k_base.
   Provider gate + reservedCostMicros share AI_REQUEST_ENVELOPE token ceilings.
   UTF-16 unit cap (maxInputUtf16Units=64000) is DoS prefilter only — not a cost bound.
 
+--------------------------------------------------------------------------------
+REMEDIATION 2 — MODEL/ENCODING REGISTRY ENFORCEMENT
+--------------------------------------------------------------------------------
+
+Root cause:
+  assertO200kModel() was a no-op; AI_MODEL_FLUX_* could map internal keys to
+  arbitrary vendor IDs while tokenization still assumed o200k_base.
+
+Fix:
+  Explicit server registry binds internal key → vendor ID → encoding.
+  Provider config, tokenizer, and dispatch all resolve the same verified metadata.
+  Unsupported vendor IDs / unknown internal keys fail closed (not_dispatched).
+
 Limitations (do not overclaim):
-  Bound holds only while mapped models use o200k_base.
-  Exact vendor invoice reconciliation is NOT claimed.
+  Bound holds only for registry-verified o200k_base mappings (current allowlist:
+  gpt-4o-mini, gpt-4o). Exact vendor invoice reconciliation is NOT claimed.
+  o200k_base is NOT assumed for arbitrary future OpenAI models.
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
