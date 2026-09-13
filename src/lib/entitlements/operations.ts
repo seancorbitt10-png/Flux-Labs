@@ -12,6 +12,8 @@
  * If the uncapped server estimate exceeds the reservation ceiling, settle still
  * consumes at the ceiling and records COST_CEILING_EXCEEDED (never RELEASE after
  * dispatch solely due to accounting disagreement).
+ * Settlement accounting model is always op.modelKey (reservation-time),
+ * validated against the internal model registry — never input.modelKey.
  * Trial capacity restore/attribution uses immutable op.consumedTrialCapacity
  * captured at reservation time — never mutable Entitlement.plan.
  *
@@ -30,6 +32,7 @@ import type {
   Prisma,
   UsageCapability,
 } from "@prisma/client";
+import { isInternalModelKey } from "@/lib/ai/model-registry";
 import type { InternalModelKey } from "@/lib/ai/types";
 import {
   AIProviderError,
@@ -229,16 +232,38 @@ function settlementCostWithinReservationCeiling(
   return Math.min(estimate, ceiling);
 }
 
+
+/**
+ * Resolve the immutable reservation-time accounting model for settlement.
+ *
+ * Only op.modelKey is authoritative. Callers/providers cannot substitute a
+ * different InternalModelKey at finalize. Missing/invalid stored keys fail
+ * closed as an internal accounting/configuration inconsistency — never fall
+ * back to flux-standard and never RELEASE solely because of this mismatch.
+ */
+function resolveReservationAccountingModelKey(
+  op: AiUsageOperation,
+): InternalModelKey {
+  if (!isInternalModelKey(op.modelKey)) {
+    throw new EntitlementError(
+      `Usage operation ${op.id} missing or invalid reservation modelKey ` +
+        `(stored=${JSON.stringify(op.modelKey)})`,
+      "AI usage could not be finalized.",
+    );
+  }
+  return op.modelKey;
+}
+
 async function settleReservedOperation(
   tx: Prisma.TransactionClient,
   op: AiUsageOperation,
   input: FinalizeUsageInput,
 ): Promise<void> {
   const success = input.outcome === "success";
-  const modelKey =
-    typeof input.modelKey === "string" && input.modelKey.length > 0
-      ? input.modelKey
-      : op.modelKey ?? undefined;
+
+  // Accounting model is reservation-time authority only.
+  // input.modelKey / provider completion modelKey must never select the cost row.
+  const accountingModelKey = resolveReservationAccountingModelKey(op);
 
   // Success: best server estimate, clamped to the reservation ceiling.
   // Ambiguous/invalid consume: charge the reserved ceiling (already held).
@@ -247,13 +272,13 @@ async function settleReservedOperation(
   // ceiling and record COST_CEILING_EXCEEDED — never RELEASE after dispatch.
   const uncappedCost = success
     ? estimateCostMicros({
-        modelKey:
-          (modelKey as InternalModelKey | undefined) ?? "flux-standard",
+        modelKey: accountingModelKey,
         inputTokens: input.inputTokens,
         outputTokens: input.outputTokens,
         providerEstimateMicros: input.providerEstimateMicros,
       })
     : Math.max(0, op.reservedCostMicros);
+
   const cost = settlementCostWithinReservationCeiling(
     uncappedCost,
     op.reservedCostMicros,
@@ -269,7 +294,7 @@ async function settleReservedOperation(
       capability: op.capability,
       feature: input.feature ?? op.feature,
       aiTaskType: input.aiTaskType,
-      modelKey,
+      modelKey: accountingModelKey,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
       estimatedCostMicros: cost,
@@ -293,7 +318,7 @@ async function settleReservedOperation(
       uncappedEstimateMicros: uncappedCost,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
-      modelKey,
+      modelKey: accountingModelKey,
       errorCode: settlementErrorCode,
       usageRecordId: usage.id,
     },
@@ -334,7 +359,7 @@ async function releaseReservedOperation(
       capability: op.capability,
       feature: input.feature ?? op.feature,
       aiTaskType: input.aiTaskType,
-      modelKey: typeof input.modelKey === "string" ? input.modelKey : undefined,
+      modelKey: op.modelKey ?? undefined,
       estimatedCostMicros: 0,
       latencyMs: input.latencyMs,
       success: false,

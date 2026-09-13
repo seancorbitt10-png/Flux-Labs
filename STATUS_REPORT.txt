@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 20:01 UTC
+Updated: 2026-09-13 20:15 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -21,6 +21,8 @@ Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
        (reservationPlan + consumedTrialCapacity; never mutable Entitlement.plan)
     4) settlement cost clamped to reservedCostMicros WITH explicit
        COST_CEILING_EXCEEDED anomaly + uncappedEstimateMicros diagnostics
+    5) settlement accounting model uses immutable op.modelKey only
+       (registry-validated; input.modelKey cannot switch cost rows)
   Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
   Env cannot raise limits above envelope; clients cannot either.
   Ambiguous provider failures consume; safe non-execution releases.
@@ -82,6 +84,25 @@ Quality gates on remediation tip a0cbf7c / PR head a6c0097:
   migration 20260913191500_phase4_reservation_source_and_cost_anomaly applied
   production AI disabled by default (AI_PRODUCTION_ENABLED must be "true")
   GitHub CI: success (2/2)
+
+
+--------------------------------------------------------------------------------
+LATEST FIX — SETTLEMENT MODEL AUTHORITY
+--------------------------------------------------------------------------------
+
+Root cause: settleReservedOperation preferred input.modelKey over op.modelKey and
+cast/fell back to flux-standard, so finalize could switch cost-table rows and an
+invalid key could throw after dispatch leaving RESERVED.
+
+Fix:
+  - reservation persists resolveReservationModelKey(...) on AiUsageOperation
+  - settle uses only registry-validated op.modelKey for estimateCostMicros
+  - input.modelKey cannot replace accounting model (diagnostic-only if passed)
+  - missing/invalid stored modelKey fails closed (no flux-standard fallback)
+  - does not RELEASE solely due to accounting model mismatch
+
+Quality gates: tests 285; typecheck/lint/build pass; migrations up to date;
+production AI disabled by default.
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS

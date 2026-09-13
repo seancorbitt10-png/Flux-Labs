@@ -87,6 +87,18 @@ export function listInternalModelKeys(): readonly InternalModelKey[] {
   return INTERNAL_MODEL_KEYS;
 }
 
+/**
+ * Runtime type guard for InternalModelKey.
+ * Prefer this over TypeScript casts for accounting/security boundaries.
+ */
+export function isInternalModelKey(value: unknown): value is InternalModelKey {
+  return (
+    typeof value === "string" &&
+    (INTERNAL_MODEL_KEYS as readonly string[]).includes(value)
+  );
+}
+
+
 export function isO200kBaseVendorModelId(
   vendorModelId: string,
 ): vendorModelId is O200kBaseVendorModelId {

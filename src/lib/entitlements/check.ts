@@ -14,7 +14,10 @@ import {
   type PlanDefinition,
 } from "./plans";
 import type { InternalModelKey } from "@/lib/ai/types";
-import { reservationCostCeilingMicros } from "./cost-table";
+import {
+  reservationCostCeilingMicros,
+  resolveReservationModelKey,
+} from "./cost-table";
 
 export type ActiveEntitlement = {
   entitlement: Entitlement;
@@ -96,9 +99,15 @@ export async function reserveCapability(
     const plan = getPlanDefinition(entitlement.plan);
 
     // Conservative server-side financial hold (≠ vendor invoice).
-    const reservedCostMicros = reservationCostCeilingMicros({
+    // Persist the same server model used for the reservation ceiling.
+    // Settlement must read this immutable op.modelKey — never re-select.
+    const accountingModelKey = resolveReservationModelKey(
       capability,
       modelKey,
+    );
+    const reservedCostMicros = reservationCostCeilingMicros({
+      capability,
+      modelKey: accountingModelKey,
     });
     await assertFinancialBudgetAllows(
       tx,
@@ -129,7 +138,7 @@ export async function reserveCapability(
         reservedCostMicros,
         reservationPlan: entitlement.plan,
         consumedTrialCapacity,
-        modelKey: modelKey ?? null,
+        modelKey: accountingModelKey,
       },
     });
 

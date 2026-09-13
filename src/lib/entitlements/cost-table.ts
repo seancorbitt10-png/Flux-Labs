@@ -85,6 +85,13 @@ export function estimateCostMicros(args: {
   return Math.max(row.minCallMicros, tableEstimate, provider);
 }
 
+export function resolveReservationModelKey(
+  capability: UsageCapability,
+  modelKey?: InternalModelKey,
+): InternalModelKey {
+  return modelKey ?? defaultModelForCapability(capability);
+}
+
 function defaultModelForCapability(
   capability: UsageCapability,
 ): InternalModelKey {
@@ -119,7 +126,7 @@ export function reservationCostCeilingMicros(args: {
   capability: UsageCapability;
   modelKey?: InternalModelKey;
 }): number {
-  const modelKey = args.modelKey ?? defaultModelForCapability(args.capability);
+  const modelKey = resolveReservationModelKey(args.capability, args.modelKey);
   return estimateCostMicros({
     modelKey,
     inputTokens: reservationInputTokenCeiling(AI_REQUEST_ENVELOPE.maxInputTokens),

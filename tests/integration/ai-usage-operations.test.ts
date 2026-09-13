@@ -1467,6 +1467,170 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     expect(after.estimatedCostMicros).toBe(before.estimatedCostMicros);
   });
 
+
+  it("settlement accounting uses reservation modelKey, ignoring conflicting finalize input", async () => {
+    const user = await createTrialUser(`model-auth-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(reserved.modelKey).toBe("flux-standard");
+
+    const expected = estimateCostMicros({
+      modelKey: "flux-standard",
+      inputTokens: 2000,
+      outputTokens: 400,
+      providerEstimateMicros: 1,
+    });
+    const conflicting = estimateCostMicros({
+      modelKey: "flux-advanced",
+      inputTokens: 2000,
+      outputTokens: 400,
+      providerEstimateMicros: 1,
+    });
+    expect(conflicting).toBeGreaterThan(expected);
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      // Conflicting finalize input must NOT switch the cost table row.
+      modelKey: "flux-advanced",
+      inputTokens: 2000,
+      outputTokens: 400,
+      providerEstimateMicros: 1,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    expect(op.modelKey).toBe("flux-standard");
+    expect(op.estimatedCostMicros).toBe(expected);
+    expect(op.estimatedCostMicros).not.toBe(conflicting);
+    expect(op.estimatedCostMicros).toBeLessThanOrEqual(op.reservedCostMicros);
+  });
+
+  it("rejects invalid finalize modelKey as accounting authority", async () => {
+    const user = await createTrialUser(`model-bogus-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+      modelKey: "flux-standard",
+    });
+
+    const expected = estimateCostMicros({
+      modelKey: "flux-standard",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      modelKey: "not-a-real-model",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+
+    const op = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(op.status).toBe("SETTLED");
+    expect(op.modelKey).toBe("flux-standard");
+    expect(op.estimatedCostMicros).toBe(expected);
+  });
+
+  it("fails closed when reserved operation lacks a stored modelKey", async () => {
+    const user = await createTrialUser(`model-missing-${Date.now()}`);
+    const entitlement = await prisma.entitlement.findFirstOrThrow({
+      where: { userId: user.id },
+    });
+    const reservedCostMicros = reservationCostCeilingMicros({
+      capability: "AI_SESSION",
+      modelKey: "flux-standard",
+    });
+
+    // Controlled inconsistency: RESERVED row without reservation-time modelKey.
+    const op = await prisma.aiUsageOperation.create({
+      data: {
+        userId: user.id,
+        entitlementId: entitlement.id,
+        capability: "AI_SESSION",
+        feature: "ai.orchestration",
+        status: "RESERVED",
+        reservedCostMicros,
+        reservationPlan: "FREE_TRIAL",
+        consumedTrialCapacity: true,
+        modelKey: null,
+      },
+    });
+
+    await expect(
+      finalizeUsageReservation({
+        operationId: op.id,
+        userId: user.id,
+        outcome: "success",
+        modelKey: "flux-standard",
+        inputTokens: 10,
+        outputTokens: 5,
+      }),
+    ).rejects.toBeInstanceOf(EntitlementError);
+
+    const after = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: op.id },
+    });
+    // Must not silently fall back / settle, and must not RELEASE due to mismatch.
+    expect(after.status).toBe("RESERVED");
+    expect(after.estimatedCostMicros).toBe(0);
+    expect(after.errorCode).toBeNull();
+  });
+
+  it("persists resolved reservation modelKey even when begin omits modelKey", async () => {
+    const user = await createTrialUser(`model-default-${Date.now()}`);
+    const reservation = await beginUsageReservation({
+      userId: user.id,
+      capability: "AI_SESSION",
+      feature: "ai.orchestration",
+    });
+    const reserved = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(reserved.modelKey).toBe("flux-standard");
+
+    await finalizeUsageReservation({
+      operationId: reservation.operationId,
+      userId: user.id,
+      outcome: "success",
+      inputTokens: 100,
+      outputTokens: 50,
+      providerEstimateMicros: 10,
+    });
+
+    const settled = await prisma.aiUsageOperation.findUniqueOrThrow({
+      where: { id: reservation.operationId },
+    });
+    expect(settled.status).toBe("SETTLED");
+    expect(settled.modelKey).toBe("flux-standard");
+    expect(settled.estimatedCostMicros).toBe(
+      estimateCostMicros({
+        modelKey: "flux-standard",
+        inputTokens: 100,
+        outputTokens: 50,
+        providerEstimateMicros: 10,
+      }),
+    );
+  });
+
   it("keeps request fingerprints free of raw student text", () => {
     const message = "secret homework answer 42";
     const hash = createHash("sha256").update(message).digest("hex").slice(0, 16);
