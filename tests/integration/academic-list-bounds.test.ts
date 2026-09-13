@@ -165,6 +165,108 @@ describe("Slice 6 — bounded Class/Task retrieval", () => {
       expect(DEFAULT_LIST_TASKS).toBeLessThanOrEqual(MAX_LIST_TASKS);
     });
 
+    it("enforces the strict positive-integer class limit contract", async () => {
+      const user = await createEntitledUser(`cls-lim-${Date.now()}`);
+      for (let i = 0; i < 3; i += 1) {
+        await createClass({
+          actorUserId: user.id,
+          userId: user.id,
+          input: { name: `Limit Class ${i}`, term: "Fall 2026" },
+        });
+      }
+
+      const omitted = await listClasses({
+        actorUserId: user.id,
+        userId: user.id,
+      });
+      expect(omitted.length).toBe(3);
+
+      await expect(
+        listClasses({
+          actorUserId: user.id,
+          userId: user.id,
+          limit: 1,
+        }),
+      ).resolves.toHaveLength(1);
+
+      const atMax = await listClasses({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: MAX_LIST_CLASSES,
+      });
+      expect(atMax.length).toBe(3);
+
+      const overMax = await listClasses({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: MAX_LIST_CLASSES + 1,
+      });
+      expect(overMax.length).toBe(3);
+
+      for (const bad of [0, -1, 1.5, 5.9, Number.NaN, Number.POSITIVE_INFINITY]) {
+        await expect(
+          listClasses({
+            actorUserId: user.id,
+            userId: user.id,
+            limit: bad,
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+      }
+    });
+
+    it("enforces the strict positive-integer task limit contract", async () => {
+      const user = await createEntitledUser(`tsk-lim-${Date.now()}`);
+      for (let i = 0; i < 3; i += 1) {
+        await createTask({
+          actorUserId: user.id,
+          userId: user.id,
+          input: {
+            title: `Limit Task ${i}`,
+            status: "TODO",
+            dueAt: new Date(Date.now() + i * 86_400_000).toISOString(),
+          },
+        });
+      }
+
+      const omitted = await listTasks({
+        actorUserId: user.id,
+        userId: user.id,
+      });
+      expect(omitted.length).toBe(3);
+
+      await expect(
+        listTasks({
+          actorUserId: user.id,
+          userId: user.id,
+          limit: 1,
+        }),
+      ).resolves.toHaveLength(1);
+
+      const atMax = await listTasks({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: MAX_LIST_TASKS,
+      });
+      expect(atMax.length).toBe(3);
+
+      const overMax = await listTasks({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: MAX_LIST_TASKS + 1,
+      });
+      expect(overMax.length).toBe(3);
+
+      for (const bad of [0, -1, 1.5, 5.9, Number.NaN, Number.POSITIVE_INFINITY]) {
+        await expect(
+          listTasks({
+            actorUserId: user.id,
+            userId: user.id,
+            limit: bad,
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+      }
+    });
+
     it("rejects non-positive limits", async () => {
       const user = await createEntitledUser(`badlim-${Date.now()}`);
       await expect(
@@ -209,6 +311,129 @@ describe("Slice 6 — bounded Class/Task retrieval", () => {
       });
       expect(classes).toEqual([]);
       expect(tasks).toEqual([]);
+    });
+  });
+
+  describe("deterministic ordering tie-breakers", () => {
+    it("orders classes with identical term+name by id ASC and stays stable", async () => {
+      const user = await createEntitledUser(`ord-cls-${Date.now()}`);
+      const created = [];
+      for (let i = 0; i < 5; i += 1) {
+        created.push(
+          await createClass({
+            actorUserId: user.id,
+            userId: user.id,
+            input: {
+              name: "Identical Seminar",
+              term: "Fall 2026",
+            },
+          }),
+        );
+      }
+
+      const expectedIds = [...created]
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((c) => c.id);
+
+      const first = await listClasses({
+        actorUserId: user.id,
+        userId: user.id,
+        status: "ACTIVE",
+        limit: 3,
+      });
+      const second = await listClasses({
+        actorUserId: user.id,
+        userId: user.id,
+        status: "ACTIVE",
+        limit: 3,
+      });
+
+      expect(first.map((c) => c.id)).toEqual(expectedIds.slice(0, 3));
+      expect(second.map((c) => c.id)).toEqual(first.map((c) => c.id));
+    });
+
+    it("orders tasks with identical dueAt+createdAt by id ASC and stays stable", async () => {
+      const user = await createEntitledUser(`ord-tsk-${Date.now()}`);
+      const sharedDue = new Date("2030-01-15T12:00:00.000Z");
+      const sharedCreated = new Date("2026-01-01T00:00:00.000Z");
+
+      const created = [];
+      for (let i = 0; i < 5; i += 1) {
+        const task = await createTask({
+          actorUserId: user.id,
+          userId: user.id,
+          input: {
+            title: `Identical Due ${i}`,
+            status: "TODO",
+            dueAt: sharedDue.toISOString(),
+          },
+        });
+        // Force identical createdAt so only id remains as the differentiator.
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { createdAt: sharedCreated },
+        });
+        created.push(task);
+      }
+
+      const expectedIds = [...created]
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((t) => t.id);
+
+      const first = await listTasks({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: 3,
+      });
+      const second = await listTasks({
+        actorUserId: user.id,
+        userId: user.id,
+        limit: 3,
+      });
+
+      expect(first.map((t) => t.id)).toEqual(expectedIds.slice(0, 3));
+      expect(second.map((t) => t.id)).toEqual(first.map((t) => t.id));
+    });
+
+    it("keeps academicWorkspace deterministic when ambient candidates share order keys", async () => {
+      const user = await createEntitledUser(`ord-ws-${Date.now()}`);
+      const sharedDue = new Date("2031-06-01T09:00:00.000Z");
+      const sharedCreated = new Date("2026-02-01T00:00:00.000Z");
+
+      for (let i = 0; i < 4; i += 1) {
+        await createClass({
+          actorUserId: user.id,
+          userId: user.id,
+          input: { name: "Shared Name Class", term: "Fall 2026" },
+        });
+      }
+      for (let i = 0; i < 4; i += 1) {
+        const task = await createTask({
+          actorUserId: user.id,
+          userId: user.id,
+          input: {
+            title: `Shared Due Task ${i}`,
+            status: "TODO",
+            dueAt: sharedDue.toISOString(),
+          },
+        });
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { createdAt: sharedCreated },
+        });
+      }
+
+      const a = await assembleAcademicWorkspaceContext({
+        actorUserId: user.id,
+        userId: user.id,
+      });
+      const b = await assembleAcademicWorkspaceContext({
+        actorUserId: user.id,
+        userId: user.id,
+      });
+
+      expect(a.classes.map((c) => c.id)).toEqual(b.classes.map((c) => c.id));
+      expect(a.tasks.map((t) => t.id)).toEqual(b.tasks.map((t) => t.id));
     });
   });
 
