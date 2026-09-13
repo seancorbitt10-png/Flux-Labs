@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 19:00 UTC
+Updated: 2026-09-13 19:10 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -17,6 +17,8 @@ Phase 4 Implementation #2 (Slice 1 — Entitlement + Cost Hardening):
   Remediations applied:
     1) tokenizer-backed reservation cost (o200k_base via gpt-tokenizer)
     2) enforced model→vendor→encoding registry (fail-closed allowlist)
+    3) FREE_TRIAL-only trial capacity restore on release
+    4) settlement cost clamped to reservedCostMicros ceiling
   Authoritative AI_REQUEST_ENVELOPE shared by provider limits + reservedCostMicros.
   Env cannot raise limits above envelope; clients cannot either.
   Ambiguous provider failures consume; safe non-execution releases.
@@ -32,7 +34,7 @@ origin/main:              12f0b14 (includes merged PR #14 + PR #15)
 Working branch:           cursor/phase4-impl2-entitlement-hardening-399a
 Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/16
 PR state:                 draft, open, unmerged
-Branch tip / PR head:     ba9eb71 (ba9eb712824011c662539cb223dbf9632a6aba8c)
+Branch tip / PR head:     b2f2c53 (b2f2c53baaaa984e25660ca15ced643c5a196ad4)
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
 
@@ -50,81 +52,25 @@ Phase 4 Implementation #3+        NOT STARTED
 Later phases                      NOT STARTED
 
 --------------------------------------------------------------------------------
-IMPLEMENTATION #2 SUMMARY
+LATEST ACCOUNTING INTEGRITY FIXES
 --------------------------------------------------------------------------------
 
-Delivered:
-  - AiUsageOperation ledger (RESERVED → SETTLED | RELEASED)
-  - beginUsageReservation / finalizeUsageReservation server API
-  - Atomic trial counter reserve + paid-plan FOR UPDATE + held-op counting
-  - AI_REQUEST_ENVELOPE (maxInputTokens=8000 via o200k_base, maxOutputTokens=800)
-    as single source of truth
-  - Provider config clamped to envelope (env may only lower)
-  - reservedCostMicros derived from same token envelope (tokenizer-gated;
-    NOT a char/UTF-16 heuristic; previous ≤1-token-per-character claim removed)
-  - Verified model/encoding registry (`src/lib/ai/model-registry.ts`):
-      flux-fast     → gpt-4o-mini → o200k_base
-      flux-standard → gpt-4o-mini → o200k_base
-      flux-advanced → gpt-4o      → o200k_base
-    Env AI_MODEL_FLUX_* may only select allowlisted vendor IDs; others fail closed
-    before dispatch. assertO200kModel() is enforced (not a no-op).
-  - Invariant (for traffic allowed to reach the provider):
-      independently measured o200k_base billable input tokens
-        ≤ reservation input-token ceiling
-      ⇒ reservedCostMicros ≥ server-estimated cost at permitted maxima
-    (only for registry-verified o200k_base mappings)
-  - Failure matrix by executionCertainty:
-      not_dispatched → RELEASED (safe non-execution)
-      ambiguous / dispatched → SETTLED (consume; no free retry)
-  - Idempotent settlement/release; ownership checks (no IDOR)
-  - Clients cannot supply plan, cost, reservation amount, settlement outcome,
-    vendor model, encoding, provider, or raise envelope
-  - Orchestration wired to reserve → provider → certainty-driven finalize
-  - Production AI remains OFF unless explicitly gated (AI_PRODUCTION_ENABLED)
-  - Stub provider remains default and enforces the same envelope
-  - Quality gates on this branch tip:
-      tests 262 passed; typecheck/lint/build pass; migrations up to date
-      (no new migration in these remediations)
+Trial release:
+  Root cause: release always decremented Trial counters if a Trial row existed.
+  Fix: restore trial capacity only when the operation's linked entitlement.plan
+  is FREE_TRIAL (authoritative reservation source). Paid releases and orphan
+  Trial rows are untouched. Duplicate/terminal releases remain idempotent.
 
-NOT delivered (intentionally later):
-  - Real production AI enablement
-  - Stripe / billing / subscriptions
-  - Exact vendor invoice reconciliation
-  - Learning-first policy hardening (Slice 2)
-  - Study focus UX (Slice 3)
-  - Bounded Class/Task retrieval (Slice 6 — required before real-AI enablement)
-  - RAG, LMS, agents, mastery engine, admin systems
+Settlement ceiling:
+  Root cause: success settlement used max(table, providerEstimate, floor) without
+  clamping to reservedCostMicros, so anomalous provider estimates could settle
+  above the financial hold.
+  Fix: settled estimatedCostMicros = min(serverEstimate, reservedCostMicros).
+  Ambiguous/dispatched failures still SETTLE; not_dispatched still RELEASES.
+  Provider estimates cannot enlarge the reservation after dispatch.
 
---------------------------------------------------------------------------------
-REMEDIATION 1 — TOKENIZER RESERVATION COST
---------------------------------------------------------------------------------
-
-Root cause:
-  Reservation used an indefensible ≤1-token-per-character bound (JS .length =
-  UTF-16 units). Tests were tautological.
-
-Fix:
-  Server-side gpt-tokenizer with production encoding o200k_base.
-  Provider gate + reservedCostMicros share AI_REQUEST_ENVELOPE token ceilings.
-  UTF-16 unit cap (maxInputUtf16Units=64000) is DoS prefilter only — not a cost bound.
-
---------------------------------------------------------------------------------
-REMEDIATION 2 — MODEL/ENCODING REGISTRY ENFORCEMENT
---------------------------------------------------------------------------------
-
-Root cause:
-  assertO200kModel() was a no-op; AI_MODEL_FLUX_* could map internal keys to
-  arbitrary vendor IDs while tokenization still assumed o200k_base.
-
-Fix:
-  Explicit server registry binds internal key → vendor ID → encoding.
-  Provider config, tokenizer, and dispatch all resolve the same verified metadata.
-  Unsupported vendor IDs / unknown internal keys fail closed (not_dispatched).
-
-Limitations (do not overclaim):
-  Bound holds only for registry-verified o200k_base mappings (current allowlist:
-  gpt-4o-mini, gpt-4o). Exact vendor invoice reconciliation is NOT claimed.
-  o200k_base is NOT assumed for arbitrary future OpenAI models.
+Quality gates on this tip:
+  tests 277 passed; typecheck/lint/build pass; migrations up to date (no new migration)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
