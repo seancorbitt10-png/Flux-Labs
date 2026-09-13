@@ -14,7 +14,8 @@ Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
 
 Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
-  DRAFT PR — ready for independent review (NOT MERGED)
+  DRAFT PR #17 — ready for independent review (NOT MERGED)
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
   Changes:
     1) decideAssistancePolicy now meaningfully selects refuse_direct_completion
        and limited_answer (previously typed but never chosen)
@@ -32,7 +33,8 @@ REPOSITORY
 
 Working branch:           cursor/phase4-impl3-learning-policy-399a
 Base:                     main (includes merged PR #16)
-PR state:                 draft, open, unmerged (see PR after open)
+PR state:                 draft, open, unmerged
+Branch tip / PR head:     a90ca17 (a90ca17c31dbca34f1fbfa9dc7683dd67be9e752)
 Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
