@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-13 20:38 UTC
+Updated: 2026-09-13 20:58 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -14,28 +14,33 @@ Phase 4 Implementation #1 provider adapter (PR #15) MERGED.
 Phase 4 Implementation #2 entitlement/cost hardening (PR #16) MERGED.
 
 Phase 4 Implementation #3 (Slice 2 — Learning-First Policy Hardening):
-  DRAFT PR #17 — ready for independent review (NOT MERGED)
+  DRAFT PR #17 — awaiting independent review (NOT MERGED)
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/17
-  Changes:
-    1) decideAssistancePolicy now meaningfully selects refuse_direct_completion
-       and limited_answer (previously typed but never chosen)
-    2) Study learningIntent cue is server-validated and policy-consumed
-    3) Legitimate explain/hint/check_work/steps/attempt paths stay useful
-    4) Direct-completion asks refuse completion but still offer guided help
-    5) Bounded reference asks use limited_answer
-    6) Prompt modeContract + reply control-text stripping
-  Production AI remains DISABLED by default.
-  No RAG, embeddings, billing, Slice 6 Class/Task retrieval, or UI redesign.
+  Branch:                   cursor/phase4-impl3-learning-policy-399a
+  Head:                     33fbced (33fbced18bdcb8404e85cf90b24c39b7b4ed48be)
+  Summary:
+    - decideAssistancePolicy selects refuse_direct_completion / limited_answer
+    - Study learningIntent is server-validated
+    - Legitimate explain/hint/check_work/steps/attempt paths remain useful
+    - Production AI remains DISABLED by default
+
+Phase 4 Implementation #4 (Slice 3 — Study Focus UX):
+  NOT STARTED
+  Blocked until approved Slice 2 (PR #17) is merged into main.
+  Per implementation instructions: start only from main after Slice 2 merges.
+
+Production AI remains DISABLED by default.
+No RAG, embeddings, billing, Slice 6, or unrelated work in flight.
 
 --------------------------------------------------------------------------------
 REPOSITORY
 --------------------------------------------------------------------------------
 
+origin/main tip:          269fe8e (includes merged PR #16; does NOT include PR #17)
 Working branch:           cursor/phase4-impl3-learning-policy-399a
-Base:                     main (includes merged PR #16)
-Draft PR:                 https://github.com/seancorbitt10-png/Flux-Labs/pull/17
-PR state:                 draft, open, unmerged
-Branch tip / PR head:     7834967 (7834967abca3c7924ae040a16ee86d6689243f33)
+Draft PR #17:             https://github.com/seancorbitt10-png/Flux-Labs/pull/17
+PR #17 state:             draft, open, unmerged
+PR #17 head:              33fbced (33fbced18bdcb8404e85cf90b24c39b7b4ed48be)
 Production AI:            disabled unless AI_PRODUCTION_ENABLED=true
 
 Repo: https://github.com/seancorbitt10-png/Flux-Labs
@@ -50,53 +55,17 @@ Phase 4 Architecture/Planning     MERGED — PR #14
 Phase 4 Implementation #1         MERGED — PR #15
 Phase 4 Implementation #2         MERGED — PR #16
 Phase 4 Implementation #3         DRAFT — learning-first policy hardening (PR #17)
-Phase 4 Implementation #4+        NOT STARTED
+Phase 4 Implementation #4         BLOCKED — Study Focus UX (awaits PR #17 merge)
 Slice 6 (Class/Task retrieval)    REQUIRED before production AI enablement
-
---------------------------------------------------------------------------------
-SLICE 2 POLICY BEHAVIOR
---------------------------------------------------------------------------------
-
-Authoritative path:
-  Study action → parseStudyIntent → composeStudyUserMessage
-  → runAIOrchestration → routeAITask → decideAssistancePolicy
-  → buildOrchestrationMessages → provider → validateProviderCompletion
-
-refuse_direct_completion:
-  Selected when the message asks Flux to produce finished academic work
-  (e.g. do my homework / write my essay / answer only / solve this for me)
-  without a learning-forward posture. Directive still offers hint/steps/attempt.
-
-limited_answer:
-  Selected for bounded reference asks (formula/definition/reminder) that unblock
-  learning without completing the submission.
-
-Over-refusal prevention:
-  explain / hint / check_work / steps / attempt Study intents and concept teaching
-  remain teach/hint/check_work/break_into_steps. Concept “how to approach”
-  questions are not refused.
-
-Client authority:
-  assistanceMode / learningIntent / systemDirective rejected on Study payloads.
-  Orchestration still rejects caller-supplied assistanceMode/taskType/prompt fields.
-
---------------------------------------------------------------------------------
-QUALITY GATES
---------------------------------------------------------------------------------
-
-tests 298 passed
-typecheck pass
-lint pass
-production build pass
-prisma migrate status: Database schema is up to date (no new migration)
-production AI disabled by default (AI_PRODUCTION_ENABLED must be "true")
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of Phase 4 Implementation #3 PR #17 (do not merge until review)
-2. Do NOT enable production real AI until Slice 6 is complete
-3. Do NOT start Slice 3 / Slice 6 / billing / RAG from this PR
+1. Independent review of Phase 4 Implementation #3 PR #17
+2. Merge PR #17 only after approved review
+3. Then start Phase 4 Implementation #4 / Slice 3 (Study Focus UX) from main
+4. Do NOT enable production real AI until Slice 6 is complete
+5. Do NOT start Slice 3/6/billing/RAG while PR #17 remains unmerged
 
 ================================================================================
