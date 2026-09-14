@@ -15,9 +15,10 @@
 | `DATABASE_URL` | yes | PostgreSQL connection |
 | `AUTH_SECRET` | yes | Auth.js secret |
 | `AUTH_URL` | yes | Canonical app URL |
-| `AI_PRODUCTION_ENABLED` | no | Explicit production AI gate (`true` to allow non-stub). Default: off |
-| `AI_PROVIDER` | no | Server provider kind: `stub` (default) or `openai` (requires production gate) |
-| `OPENAI_API_KEY` | no | OpenAI API key — server-only; ignored unless production gate + `AI_PROVIDER=openai` |
+| `AI_PRODUCTION_ENABLED` | no | Explicit production AI gate (`true` required). Default: off |
+| `AI_PRODUCTION_CONFIRM` | no | Accidental-enablement safeguard; must be exactly `ENABLE_REAL_AI` when production is enabled |
+| `AI_PROVIDER` | no | Server provider kind: `stub` (default) or `openai` (required when production enabled) |
+| `OPENAI_API_KEY` | no | OpenAI API key — server-only; required when production AI is enabled |
 | `OPENAI_BASE_URL` | no | OpenAI API base URL (default `https://api.openai.com/v1`) |
 | `AI_TIMEOUT_MS` | no | Upstream request timeout (default 25000; clamped 1000–120000) |
 | `AI_MAX_OUTPUT_TOKENS` | no | Server max completion tokens (default **800**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 800) |
@@ -32,12 +33,21 @@
 Production AI stays **disabled** unless **all** of the following are true:
 
 1. `AI_PRODUCTION_ENABLED=true`
-2. `AI_PROVIDER=openai`
-3. `OPENAI_API_KEY` is set
+2. `AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI`
+3. `AI_PROVIDER=openai`
+4. `OPENAI_API_KEY` is set
+5. Internal model keys resolve through the authoritative model registry
+6. `OPENAI_BASE_URL` is a valid https URL (default `https://api.openai.com/v1`)
 
-Otherwise the runtime uses the **stub** provider (safe default for CI and local).
+If `AI_PRODUCTION_ENABLED=true` but any required condition is missing or invalid,
+configuration **fails closed** with `AIProviderConfigError` — the runtime does
+**not** silently fall back to the stub while the production flag is on.
+
+When the production flag is off (default), the runtime uses the **stub**
+provider (safe default for CI and local).
 
 Presence of an API key alone does **not** enable production AI.
+`AI_PRODUCTION_CONFIRM` alone does **not** enable production AI.
 
 ## Secrets
 
@@ -88,6 +98,6 @@ Server-side only:
   - ambiguous / dispatched provider failure → SETTLE (consume)
 - Clients cannot supply plan, remaining usage, reservation amount, cost, settlement outcome, or operation id
 - Settlement/release is idempotent by server-generated operation id
-- Production AI remains gated by `AI_PRODUCTION_ENABLED` (default off)
+- Production AI remains gated by `AI_PRODUCTION_ENABLED` + `AI_PRODUCTION_CONFIRM` + provider/key/registry (default off; fail closed when flag on but incomplete)
 - Exact vendor billing reconciliation remains future work
 

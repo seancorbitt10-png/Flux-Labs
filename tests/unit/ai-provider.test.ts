@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AI_PRODUCTION_CONFIRM_VALUE,
   AI_PROVIDER_DEFAULTS,
+  getAIProductionGateStatus,
   isProductionAIEnabled,
+  isProductionAIReady,
   resolveAIProviderConfig,
 } from "@/lib/ai/provider-config";
 import { AI_REQUEST_ENVELOPE } from "@/lib/ai/request-envelope";
@@ -25,6 +28,20 @@ import { toClientError } from "@/lib/errors";
 import { assertNoClientStudyAuthority } from "@/lib/study/client-guards";
 import type { AICompletionRequest } from "@/lib/ai/types";
 
+
+/** Fully valid production-enablement env (no live network). */
+function productionReadyEnv(
+  overrides: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
+  return {
+    AI_PRODUCTION_ENABLED: "true",
+    AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+    AI_PROVIDER: "openai",
+    OPENAI_API_KEY: "sk-live-test",
+    ...overrides,
+  };
+}
+
 const baseRequest: AICompletionRequest = {
   modelKey: "flux-standard",
   messages: [
@@ -43,6 +60,7 @@ afterEach(() => {
 describe("AI provider configuration gate", () => {
   it("keeps production AI disabled by default", () => {
     expect(isProductionAIEnabled({})).toBe(false);
+    expect(isProductionAIReady({})).toBe(false);
     expect(isProductionAIEnabled({ OPENAI_API_KEY: "sk-test" })).toBe(false);
     expect(
       isProductionAIEnabled({
@@ -50,34 +68,118 @@ describe("AI provider configuration gate", () => {
         OPENAI_API_KEY: "sk-test",
       }),
     ).toBe(false);
+    expect(
+      isProductionAIReady({
+        AI_PROVIDER: "openai",
+        OPENAI_API_KEY: "sk-test",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+      }),
+    ).toBe(false);
   });
 
-  it("requires explicit AI_PRODUCTION_ENABLED=true for openai", () => {
+  it("requires explicit production flag + confirm + openai + key", () => {
     const stubbed = resolveAIProviderConfig({
       AI_PROVIDER: "openai",
       OPENAI_API_KEY: "sk-test",
     });
     expect(stubbed.kind).toBe("stub");
     expect(stubbed.openaiApiKey).toBeNull();
+    expect(stubbed.productionEnabled).toBe(false);
 
-    const enabled = resolveAIProviderConfig({
-      AI_PRODUCTION_ENABLED: "true",
-      AI_PROVIDER: "openai",
-      OPENAI_API_KEY: "sk-live",
-    });
+    const enabled = resolveAIProviderConfig(productionReadyEnv());
     expect(enabled.kind).toBe("openai");
-    expect(enabled.openaiApiKey).toBe("sk-live");
+    expect(enabled.openaiApiKey).toBe("sk-live-test");
+    expect(enabled.productionEnabled).toBe(true);
     expect(enabled.timeoutMs).toBe(AI_PROVIDER_DEFAULTS.timeoutMs);
+    expect(isProductionAIReady(productionReadyEnv())).toBe(true);
   });
 
-  it("falls back to stub when production enabled but provider is stub", () => {
-    const config = resolveAIProviderConfig({
-      AI_PRODUCTION_ENABLED: "true",
-      AI_PROVIDER: "stub",
-      OPENAI_API_KEY: "sk-live",
+  it("fails closed when production enabled but provider is not openai", () => {
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+        AI_PROVIDER: "stub",
+        OPENAI_API_KEY: "sk-live",
+      }),
+    ).toThrow(AIProviderConfigError);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+        OPENAI_API_KEY: "sk-live",
+      }),
+    ).toThrow(/AI_PROVIDER must be openai/i);
+  });
+
+  it("fails closed when production enabled without confirmation safeguard", () => {
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PROVIDER: "openai",
+        OPENAI_API_KEY: "sk-live",
+      }),
+    ).toThrow(/AI_PRODUCTION_CONFIRM/i);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: "true",
+        AI_PROVIDER: "openai",
+        OPENAI_API_KEY: "sk-live",
+      }),
+    ).toThrow(/AI_PRODUCTION_CONFIRM/i);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: "enable_real_ai",
+        AI_PROVIDER: "openai",
+        OPENAI_API_KEY: "sk-live",
+      }),
+    ).toThrow(/AI_PRODUCTION_CONFIRM/i);
+  });
+
+  it("fails closed when production enabled without OPENAI_API_KEY", () => {
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+        AI_PROVIDER: "openai",
+      }),
+    ).toThrow(/OPENAI_API_KEY/i);
+  });
+
+  it("fails closed on non-https OPENAI_BASE_URL when production enabled", () => {
+    expect(() =>
+      resolveAIProviderConfig(
+        productionReadyEnv({ OPENAI_BASE_URL: "http://api.openai.com/v1" }),
+      ),
+    ).toThrow(/https/i);
+
+    expect(() =>
+      resolveAIProviderConfig(
+        productionReadyEnv({ OPENAI_BASE_URL: "not-a-url" }),
+      ),
+    ).toThrow(AIProviderConfigError);
+  });
+
+  it("does not treat API key alone or confirm alone as production-ready", () => {
+    expect(
+      getAIProductionGateStatus({
+        OPENAI_API_KEY: "sk-x",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+        AI_PROVIDER: "openai",
+      }).ready,
+    ).toBe(false);
+
+    const provider = createAIProviderFromConfig({
+      OPENAI_API_KEY: "sk-x",
+      AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
+      AI_PROVIDER: "openai",
     });
-    expect(config.kind).toBe("stub");
-    expect(config.openaiApiKey).toBeNull();
+    expect(provider).toBeInstanceOf(StubAIProvider);
   });
 });
 
@@ -100,9 +202,21 @@ describe("provider factory", () => {
     expect(() =>
       createAIProviderFromConfig({
         AI_PRODUCTION_ENABLED: "true",
+        AI_PRODUCTION_CONFIRM: AI_PRODUCTION_CONFIRM_VALUE,
         AI_PROVIDER: "openai",
       }),
     ).toThrow(AIProviderConfigError);
+  });
+
+  it("returns OpenAIChatProvider when production gate is fully satisfied", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const provider = createAIProviderFromConfig(productionReadyEnv());
+    expect(provider).toBeInstanceOf(OpenAIChatProvider);
+    expect(provider.id).toBe("openai");
+    expect(info).toHaveBeenCalledWith(
+      expect.stringContaining("Production AI provider active"),
+    );
+    info.mockRestore();
   });
 
   it("getAIProvider caches env resolution until reset", async () => {

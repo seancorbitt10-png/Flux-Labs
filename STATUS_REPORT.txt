@@ -2,89 +2,78 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-14 00:03 UTC
+Updated: 2026-09-14 00:25 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 PRs #14–#18 MERGED on main.
+Phase 4 PRs #14–#18 and #20 MERGED on main (tip includes Slice 6).
 
-Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
-  DRAFT PR #20 — remediation applied, CI green, NOT MERGED
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/20
-  Branch:                   cursor/phase4-impl5-bounded-retrieval-399a
-  Base main:                8c269f06239dfb2160bd339bc3e6a5a59583262c
-  PR head SHA:              e34586d755fda1f6953697c16d1a46f5432f379e
-  Remediation code SHA:     31c3d7f05b0c5e4c973a16fe23d389b97ce5b7e6
-  State:                    OPEN / draft / mergedAt=null
-  CI:                       SUCCESS (verify ×2)
+Phase 4 Implementation #6 (Production AI Enablement):
+  DRAFT PR — NOT MERGED
+  Branch:                   cursor/phase4-impl6-production-ai-enablement-399a
+  Base main:                d5177cdf94bec4e4057d5766eade41fd22355a40
 
-Also open (docs-only, stale relative to Slice 6):
-  PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
+  Makes real OpenAI inference *enableable* through explicit server config.
+  Default remains OFF. Incomplete production config fails closed.
 
-Production AI: DISABLED (AI_PRODUCTION_ENABLED unset; isProductionAIEnabled=false)
+  Production AI remains DISABLED in this environment
+  (AI_PRODUCTION_ENABLED unset; isProductionAIReady=false).
 
-PR #20 remains UNMERGED and requires another independent review.
-DO NOT MERGE. DO NOT ENABLE PRODUCTION AI.
+  No migration. No RAG / billing / Slice 4–5 extras. No Student Model auto-writes.
 
 --------------------------------------------------------------------------------
-WHAT IS ON MAIN
+PRODUCTION ENABLEMENT CONTRACT
 --------------------------------------------------------------------------------
 
-Phase 0–3: foundation, student model, study experience, academic workspace UI
-Phase 4:
-  #14 architecture
-  #15 provider adapter
-  #16 entitlement / accounting
-  #17 learning-first policy
-  #18 Study Focus UX (Slice 3) — tip of main
+ALL required for OpenAI path:
+
+  1. AI_PRODUCTION_ENABLED=true
+  2. AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI
+  3. AI_PROVIDER=openai
+  4. OPENAI_API_KEY present
+  5. Model registry resolves internal keys (allowlisted vendor IDs only)
+  6. OPENAI_BASE_URL is valid https (default https://api.openai.com/v1)
+
+If AI_PRODUCTION_ENABLED=true but any condition fails:
+  → AIProviderConfigError (not_dispatched)
+  → NO silent stub substitution
+  → NO silent provider/model swap
+
+When flag is off (default): stub provider (CI/local safe).
+
+Ops: one-time console.info when OpenAI provider is successfully activated
+(never logs secrets).
+
+Preserved unchanged:
+  - entitlement reserve → provider → settle
+  - learning-first policy (PR #17)
+  - Study focus + bounded academic workspace (PR #18 / #20)
+  - AI_REQUEST_ENVELOPE / tokenizer / model registry
+  - proposal/write-back boundary
+  - client cannot select provider/model/key/limits
 
 --------------------------------------------------------------------------------
-PR #20 — SLICE 6 + REMEDIATION
+QUALITY GATES (local)
 --------------------------------------------------------------------------------
 
-Core Slice 6:
-  - listClasses / listTasks never unbounded
-  - Classes default 50 / max 100; Tasks default 100 / max 200
-  - AI ambient query bounded; focus via getClass/getTask merge-first
-  - Budgets unchanged: maxClasses=8, maxTasks=12, maxCalendarItems=14
-
-Remediation (independent review findings):
-  1. Deterministic ORDER BY tie-breakers
-     Classes: term DESC, name ASC, id ASC
-     Tasks:   dueAt ASC, createdAt DESC, id ASC
-  2. Strict positive-integer limit contract
-     undefined → default
-     finite integer ≥ 1 → accept; > max → clamp
-     0 / negative / fractional / NaN / Infinity → ValidationError
-
-No migration. No RAG / billing / Slice 4–5 / production AI enablement.
-
---------------------------------------------------------------------------------
-QUALITY GATES
---------------------------------------------------------------------------------
-
-Local (at remediation):
-  Tests:            338 passed
-  Typecheck:        pass
-  Lint:             pass
-  Production build: pass
-  Prisma:           up to date (no new migration)
-
-GitHub CI @ e34586d:
-  verify: SUCCESS
-  verify: SUCCESS
+Tests:            343 passed (26 files)
+Typecheck:        pass
+Lint:             pass
+Production build: pass
+Prisma status:    up to date (no new migration)
+Production AI:    disabled (default)
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of PR #20
+1. Independent review of Implementation #6 / draft PR
 2. Merge only after approved review
-3. Do NOT enable production AI
-4. Do NOT start RAG / billing / Slice 4–5 from this PR
-5. Optional: close or refresh stale docs PR #19
+3. Do NOT flip production env vars in shared environments without ops review
+4. Do NOT enable production AI by default
+5. Do NOT start RAG / billing / autonomous agents from this PR
 
 ================================================================================
