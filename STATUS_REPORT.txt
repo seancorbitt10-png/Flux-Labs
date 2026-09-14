@@ -16,7 +16,8 @@ default. CI remains non-billable.
 
 Branch:     cursor/phase4-prod-ai-readiness-smoke-399a
 Base main:  1ca024b539ed77180c6a42b8fd33d9044a361a4e  (PR #21 merge)
-PR:         (draft — see GitHub after open)
+Head SHA:   399d4e3d6718106b13deeac80047c6aaba7c07ea
+PR:         https://github.com/seancorbitt10-png/Flux-Labs/pull/22
 Status:     DRAFT / DO NOT MERGE until independent review
 
 --------------------------------------------------------------------------------
