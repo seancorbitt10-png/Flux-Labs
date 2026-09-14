@@ -13,6 +13,28 @@ import {
   updateTaskInputSchema,
 } from "./validation";
 
+/** Hard ceiling — clients cannot request more than this. */
+export const MAX_LIST_TASKS = 200;
+/** Default page size when callers omit limit (never unbounded). */
+export const DEFAULT_LIST_TASKS = 100;
+
+/**
+ * Slice 6 limit contract: omitted → default; otherwise finite positive integer.
+ * Non-integers (1.5, 5.9), non-finite (NaN, Infinity), and < 1 are rejected.
+ * Integers above max are clamped (never raised past the hard ceiling).
+ */
+function resolveTaskListLimit(requested: number | undefined): number {
+  if (requested === undefined) return DEFAULT_LIST_TASKS;
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    throw new ValidationError("limit must be a positive integer.");
+  }
+  return Math.min(requested, MAX_LIST_TASKS);
+}
+
 export type AcademicWriteOptions = {
   db?: Prisma.TransactionClient;
 };
@@ -74,7 +96,14 @@ export async function listTasks(args: {
   actorUserId: string;
   userId: string;
   status?: TaskStatus;
+  /** When set, restricts to these statuses (takes precedence over status). */
+  statuses?: TaskStatus[];
   classId?: string | null;
+  /**
+   * Server-enforced page size. Omitted → DEFAULT_LIST_TASKS.
+   * Clamped to MAX_LIST_TASKS (never unbounded).
+   */
+  limit?: number;
 }): Promise<Task[]> {
   assertResourceOwner(args.userId, args.actorUserId);
 
@@ -86,13 +115,22 @@ export async function listTasks(args: {
     });
   }
 
+  const take = resolveTaskListLimit(args.limit);
+  const statusFilter = args.statuses?.length
+    ? { status: { in: args.statuses } }
+    : args.status
+      ? { status: args.status }
+      : {};
+
   return prisma.task.findMany({
     where: {
       userId: args.userId,
-      ...(args.status ? { status: args.status } : {}),
+      ...statusFilter,
       ...(args.classId ? { classId: args.classId } : {}),
     },
-    orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
+    // Total order: semantic dueAt/createdAt, then stable unique id tie-breaker.
+    orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }, { id: "asc" }],
+    take,
   });
 }
 

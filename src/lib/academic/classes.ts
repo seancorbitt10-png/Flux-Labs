@@ -8,6 +8,32 @@ import {
   updateClassInputSchema,
 } from "./validation";
 
+/** Hard ceiling — clients cannot request more than this. */
+export const MAX_LIST_CLASSES = 100;
+/** Default page size when callers omit limit (never unbounded). */
+export const DEFAULT_LIST_CLASSES = 50;
+
+/**
+ * Slice 6 limit contract: omitted → default; otherwise finite positive integer.
+ * Non-integers (1.5, 5.9), non-finite (NaN, Infinity), and < 1 are rejected.
+ * Integers above max are clamped (never raised past the hard ceiling).
+ */
+function resolveListLimit(
+  requested: number | undefined,
+  max: number,
+  fallback: number,
+): number {
+  if (requested === undefined) return fallback;
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    throw new ValidationError("limit must be a positive integer.");
+  }
+  return Math.min(requested, max);
+}
+
 export type AcademicWriteOptions = {
   db?: Prisma.TransactionClient;
 };
@@ -44,15 +70,28 @@ export async function listClasses(args: {
   actorUserId: string;
   userId: string;
   status?: ClassStatus;
+  /**
+   * Server-enforced page size. Omitted → DEFAULT_LIST_CLASSES.
+   * Clamped to MAX_LIST_CLASSES (never unbounded).
+   */
+  limit?: number;
 }): Promise<Class[]> {
   assertResourceOwner(args.userId, args.actorUserId);
+
+  const take = resolveListLimit(
+    args.limit,
+    MAX_LIST_CLASSES,
+    DEFAULT_LIST_CLASSES,
+  );
 
   return prisma.class.findMany({
     where: {
       userId: args.userId,
       ...(args.status ? { status: args.status } : {}),
     },
-    orderBy: [{ term: "desc" }, { name: "asc" }],
+    // Total order: semantic term/name, then stable unique id tie-breaker.
+    orderBy: [{ term: "desc" }, { name: "asc" }, { id: "asc" }],
+    take,
   });
 }
 

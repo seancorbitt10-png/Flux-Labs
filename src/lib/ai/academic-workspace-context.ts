@@ -48,6 +48,15 @@ export const ACADEMIC_WORKSPACE_BUDGETS: AcademicWorkspaceBudgetsApplied = {
   maxLinkedConceptIds: 5,
 };
 
+/**
+ * Query-layer ceilings for AI assembly (Slice 6).
+ * Focus rows are loaded via getClass/getTask and merged in — these limits
+ * bound the ambient candidate sets only. Never unbounded findMany.
+ */
+export const AI_CLASS_QUERY_LIMIT = ACADEMIC_WORKSPACE_BUDGETS.maxClasses;
+/** Candidate pool for open-task ranking (≥ maxTasks; still hard-bounded). */
+export const AI_TASK_QUERY_LIMIT = ACADEMIC_WORKSPACE_BUDGETS.maxTasks * 3;
+
 const OPEN_TASK_STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS"];
 
 function truncate(value: string, max: number): TruncatedText {
@@ -251,21 +260,24 @@ export async function assembleAcademicWorkspaceContext(
     );
   }
 
-  const [activeClasses, allTasks] = await Promise.all([
+  // Slice 6: bound Class/Task retrieval at the query layer.
+  // Focus rows are loaded above via getClass/getTask and merged in below.
+  const [activeClasses, openTaskCandidates] = await Promise.all([
     listClasses({
       actorUserId: input.actorUserId,
       userId: input.userId,
       status: "ACTIVE",
+      limit: AI_CLASS_QUERY_LIMIT,
     }),
     listTasks({
       actorUserId: input.actorUserId,
       userId: input.userId,
+      statuses: OPEN_TASK_STATUSES,
+      limit: AI_TASK_QUERY_LIMIT,
     }),
   ]);
 
-  const allOpenTasks = allTasks.filter((t) =>
-    OPEN_TASK_STATUSES.includes(t.status),
-  );
+  const allOpenTasks = openTaskCandidates;
 
   const classById = new Map<string, Class>();
   for (const c of activeClasses) classById.set(c.id, c);
