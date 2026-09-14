@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:ai-smoke": "tsx --tsconfig tsconfig.json scripts/ai-production-smoke.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

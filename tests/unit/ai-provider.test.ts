@@ -214,7 +214,12 @@ describe("provider factory", () => {
     expect(provider).toBeInstanceOf(OpenAIChatProvider);
     expect(provider.id).toBe("openai");
     expect(info).toHaveBeenCalledWith(
-      expect.stringContaining("Production AI provider active"),
+      "[flux-ai-ops]",
+      expect.objectContaining({
+        event: "provider_selected",
+        provider: "openai",
+        outcome: "production_active",
+      }),
     );
     info.mockRestore();
   });

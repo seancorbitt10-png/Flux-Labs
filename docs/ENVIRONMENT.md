@@ -49,6 +49,60 @@ provider (safe default for CI and local).
 Presence of an API key alone does **not** enable production AI.
 `AI_PRODUCTION_CONFIRM` alone does **not** enable production AI.
 
+## Kill switch
+
+To immediately disable real OpenAI dispatch:
+
+```bash
+AI_PRODUCTION_ENABLED=false
+```
+
+With the flag off (or unset), `getAIProvider()` resolves the **stub**. If a
+long-lived process previously cached an OpenAI provider, the next
+`getAIProvider()` call detects the gate is no longer ready, drops the cache,
+and returns the stub — no OpenAI request is dispatched.
+
+Operators should still restart long-lived workers after credential rotation.
+
+## Manual production AI smoke test
+
+CI and `npm test` **never** contact OpenAI.
+
+Authorized operators may run a **manual**, opt-in smoke that incurs real API cost:
+
+```bash
+AI_SMOKE_TEST_ALLOW=1 \
+AI_PRODUCTION_ENABLED=true \
+AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI \
+AI_PROVIDER=openai \
+OPENAI_API_KEY=... \
+npm run test:ai-smoke
+```
+
+Requirements:
+
+- `AI_SMOKE_TEST_ALLOW=1` (key alone is insufficient)
+- Full production gate must be ready
+- Fails closed if the gate is incomplete (does **not** silently use stub)
+- Uses `flux-fast` with a tiny output budget
+- Never prints or logs the API key / confirm secret
+- Not exposed as a public HTTP endpoint
+
+After testing, disable real AI:
+
+```bash
+AI_PRODUCTION_ENABLED=false
+```
+
+## AI operational logging
+
+Safe to log: provider id, outcome category, internal model key, latency,
+accounting outcome, non-secret operation ids.
+
+Never log: API keys, Authorization headers, confirm secrets, raw student
+prompts, or raw provider payloads that may contain student content.
+
+
 ## Secrets
 
 Never commit `.env` / `.env.local`. Never ship provider API keys to the browser.
