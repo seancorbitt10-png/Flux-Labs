@@ -8,7 +8,10 @@
  * Never import provider-config secrets into client components.
  */
 
-import { createAIProviderFromConfig } from "./provider-factory";
+import {
+  createAIProviderFromConfig,
+  resetProductionAIActivationLog,
+} from "./provider-factory";
 import { StubAIProvider } from "./providers/stub";
 import type { AIProvider } from "./types";
 
@@ -42,4 +45,5 @@ export function setAIProvider(next: AIProvider): void {
 export function resetAIProvider(): void {
   overrideProvider = null;
   cachedProvider = null;
+  resetProductionAIActivationLog();
 }

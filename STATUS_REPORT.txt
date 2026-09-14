@@ -2,32 +2,37 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-14 00:03 UTC
+Updated: 2026-09-14 00:40 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 PRs #14–#18 MERGED on main.
+Phase 4 PRs #14–#18 and #20 MERGED on main.
 
-Phase 4 Implementation #5 (Slice 6 — Bounded Class/Task Retrieval):
-  DRAFT PR #20 — remediation applied, CI green, NOT MERGED
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/20
-  Branch:                   cursor/phase4-impl5-bounded-retrieval-399a
-  Base main:                8c269f06239dfb2160bd339bc3e6a5a59583262c
-  PR head SHA:              e34586d755fda1f6953697c16d1a46f5432f379e
-  Remediation code SHA:     31c3d7f05b0c5e4c973a16fe23d389b97ce5b7e6
+main tip:                   d5177cdf94bec4e4057d5766eade41fd22355a40
+                            (includes Slice 6 bounded Class/Task retrieval)
+
+Phase 4 Implementation #6 (Production AI Enablement):
+  DRAFT PR #21 — CI green, NOT MERGED
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/21
+  Branch:                   cursor/phase4-impl6-production-ai-enablement-399a
+  Base main:                d5177cdf94bec4e4057d5766eade41fd22355a40
+  Head SHA:                 9ae36b38397575cef1ccffc83ef554f01e2907e1
   State:                    OPEN / draft / mergedAt=null
   CI:                       SUCCESS (verify ×2)
 
-Also open (docs-only, stale relative to Slice 6):
+Also open (stale docs-only):
   PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
 
-Production AI: DISABLED (AI_PRODUCTION_ENABLED unset; isProductionAIEnabled=false)
+Production AI: DISABLED
+  AI_PRODUCTION_ENABLED unset
+  isProductionAIEnabled({}) = false
+  isProductionAIReady({}) = false
 
-PR #20 remains UNMERGED and requires another independent review.
-DO NOT MERGE. DO NOT ENABLE PRODUCTION AI.
+PR #21 remains UNMERGED and requires independent review.
+DO NOT MERGE. DO NOT ENABLE PRODUCTION AI without ops review.
 
 --------------------------------------------------------------------------------
 WHAT IS ON MAIN
@@ -39,41 +44,44 @@ Phase 4:
   #15 provider adapter
   #16 entitlement / accounting
   #17 learning-first policy
-  #18 Study Focus UX (Slice 3) — tip of main
+  #18 Study Focus UX (Slice 3)
+  #20 Bounded Class/Task retrieval (Slice 6)
 
 --------------------------------------------------------------------------------
-PR #20 — SLICE 6 + REMEDIATION
+PR #21 — PRODUCTION AI ENABLEMENT
 --------------------------------------------------------------------------------
 
-Core Slice 6:
-  - listClasses / listTasks never unbounded
-  - Classes default 50 / max 100; Tasks default 100 / max 200
-  - AI ambient query bounded; focus via getClass/getTask merge-first
-  - Budgets unchanged: maxClasses=8, maxTasks=12, maxCalendarItems=14
+Makes real OpenAI inference *enableable* through explicit server config.
+Default remains OFF. Incomplete production config fails closed.
 
-Remediation (independent review findings):
-  1. Deterministic ORDER BY tie-breakers
-     Classes: term DESC, name ASC, id ASC
-     Tasks:   dueAt ASC, createdAt DESC, id ASC
-  2. Strict positive-integer limit contract
-     undefined → default
-     finite integer ≥ 1 → accept; > max → clamp
-     0 / negative / fractional / NaN / Infinity → ValidationError
+Required (ALL):
+  1. AI_PRODUCTION_ENABLED=true
+  2. AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI
+  3. AI_PROVIDER=openai
+  4. OPENAI_API_KEY present
+  5. Registry-valid models
+  6. OPENAI_BASE_URL valid https
 
-No migration. No RAG / billing / Slice 4–5 / production AI enablement.
+If flag on but incomplete → AIProviderConfigError (no silent stub).
+If flag off → stub (CI/local safe).
+API key alone never enables production AI.
+
+Preserved: entitlements (#16), policy (#17), focus + bounds (#18/#20),
+envelope/tokenizer/registry, proposal boundary.
+No migration. No RAG / billing / agents / production-on-by-default.
 
 --------------------------------------------------------------------------------
 QUALITY GATES
 --------------------------------------------------------------------------------
 
-Local (at remediation):
-  Tests:            338 passed
+Local (at head):
+  Tests:            343 passed
   Typecheck:        pass
   Lint:             pass
   Production build: pass
   Prisma:           up to date (no new migration)
 
-GitHub CI @ e34586d:
+GitHub CI @ 9ae36b3:
   verify: SUCCESS
   verify: SUCCESS
 
@@ -81,10 +89,10 @@ GitHub CI @ e34586d:
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent re-review of PR #20
+1. Independent review of PR #21
 2. Merge only after approved review
-3. Do NOT enable production AI
-4. Do NOT start RAG / billing / Slice 4–5 from this PR
+3. Do NOT enable production AI env vars without ops review
+4. Do NOT start RAG / billing / autonomous agents from this PR
 5. Optional: close or refresh stale docs PR #19
 
 ================================================================================

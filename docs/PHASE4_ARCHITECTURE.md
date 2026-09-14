@@ -594,7 +594,7 @@ Do **not** implement these now. Prefer small PRs.
 - **Tests:** Adapter unit tests with mocked HTTP; factory selection; CI remains stub.  
 - **DoD:** Orchestration can complete a Study turn via real provider in a controlled env; stub path unchanged for CI.  
 - **User-visible:** Still feature-flag/env gated until Slice 1 UX polish — may be internal-only initially.  
-- **Implementation status:** **Implementation #1** — provider abstraction + gated OpenAI adapter + stub default. Production AI remains **OFF** unless explicitly configured (`AI_PRODUCTION_ENABLED=true`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`).
+- **Implementation status:** **Implementation #1** — provider abstraction + gated OpenAI adapter + stub default. **Implementation #6** hardens enablement: production requires `AI_PRODUCTION_ENABLED=true` + `AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI` + `AI_PROVIDER=openai` + `OPENAI_API_KEY` + registry/https base URL; incomplete production config fails closed (no silent stub). Default remains **OFF**.
 
 ### Slice 1 — Entitlement & cost hardening under real spend
 
@@ -663,6 +663,18 @@ Do **not** implement these now. Prefer small PRs.
 - **DoD:** AI assembly cannot pull unbounded Class/Task sets from the database; production real-AI flag/env must not be enabled without this.  
 - **User-visible:** None required (quality/cost/safety).  
 - **Not optional:** Do not treat this as deferrable polish after production AI launch.
+
+
+### Implementation #6 — Production AI enablement (controlled)
+
+**Status:** Draft implementation — makes real OpenAI inference *enableable* through explicit server configuration. Default remains **OFF**. Does not redesign entitlement, policy, Study focus, or bounded retrieval.
+
+- **Responsibility:** Fail-closed production gate + accidental-enablement confirm + factory/ops safeguards; wire existing OpenAI adapter without weakening accounting/policy.
+- **Required env (all):** `AI_PRODUCTION_ENABLED=true`, `AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`, registry-valid models, https `OPENAI_BASE_URL`.
+- **Fail closed:** If the production flag is on but any required condition fails → `AIProviderConfigError` (`not_dispatched`); never silently stub or swap provider/model.
+- **Preserves:** PR #15–#18/#20 paths (policy, entitlements, focus, bounded retrieval, envelope, tokenizer, registry).
+- **Non-goals:** RAG, billing, autonomous agents, second model registry, LLM judge, production AI on by default.
+
 
 ---
 
