@@ -64,11 +64,18 @@ and returns the stub — no OpenAI request is dispatched.
 
 Operators should still restart long-lived workers after credential rotation.
 
-## Manual production AI smoke test
+## Manual production AI smoke test (Study path)
 
 CI and `npm test` **never** contact OpenAI.
 
-Authorized operators may run a **manual**, opt-in smoke that incurs real API cost:
+Authorized operators may run a **manual**, opt-in smoke that incurs real API cost.
+The smoke exercises the **existing Study orchestration path** (not a direct
+provider.complete() call):
+
+isolated smoke actor (server-owned) → `executeStudyTurnForActor` (same post-auth
+seam as `sendStudyTurnAction`) → validation / learning-first policy / context
+assembly → entitlement reservation → OpenAI provider → response validation →
+settlement → client-safe errors.
 
 ```bash
 AI_SMOKE_TEST_ALLOW=1 \
@@ -84,9 +91,16 @@ Requirements:
 - `AI_SMOKE_TEST_ALLOW=1` (key alone is insufficient)
 - Full production gate must be ready
 - Fails closed if the gate is incomplete (does **not** silently use stub)
-- Uses `flux-fast` with a tiny output budget
-- Never prints or logs the API key / confirm secret
+- Uses the authoritative model registry route (typically `flux-fast` for a
+  minimal learning-first ask) with the existing production envelope ceilings
+- Never prints or logs the API key / confirm secret / raw student content
 - Not exposed as a public HTTP endpoint
+- Creates a temporary isolated FREE_TRIAL smoke identity server-side; does not
+  accept a client-supplied userId
+
+Limitation: the CLI cannot invoke the Next.js cookie session boundary; it uses
+the shared post-auth Study service entrypoint (`executeStudyTurnForActor`) that
+`sendStudyTurnAction` calls after `requireUserId`.
 
 After testing, disable real AI:
 
@@ -96,11 +110,13 @@ AI_PRODUCTION_ENABLED=false
 
 ## AI operational logging
 
-Safe to log: provider id, outcome category, internal model key, latency,
-accounting outcome, non-secret operation ids.
+Safe to log: known provider ids (`openai` | `stub`), known outcome categories,
+internal model key, latency, accounting outcome, non-secret operation ids,
+execution certainty (`not_dispatched` | `ambiguous` | `dispatched`).
 
 Never log: API keys, Authorization headers, confirm secrets, raw student
 prompts, or raw provider payloads that may contain student content.
+Controlled fields reject unknown values rather than silently coercing them.
 
 
 ## Secrets

@@ -241,6 +241,7 @@ describe("manual smoke-test safety contract", () => {
     });
     const printed = info.mock.calls.map((c) => JSON.stringify(c)).join("\n");
     expect(printed).not.toContain("sk-should-not-appear");
+    expect(printed).toContain("log_suppressed");
     info.mockRestore();
   });
 
@@ -251,12 +252,29 @@ describe("manual smoke-test safety contract", () => {
       provider: "openai",
       modelKey: "flux-fast",
       outcome: "success",
+      executionCertainty: "dispatched",
       latencyMs: 12,
       detail: "chars=40",
     });
     expect(info).toHaveBeenCalled();
     const printed = info.mock.calls.map((c) => JSON.stringify(c)).join("\n");
     expect(printed).toContain("flux-fast");
+    expect(printed).toContain("dispatched");
+    expect(printed).not.toContain("log_suppressed");
     info.mockRestore();
+  });
+
+  it("assertNoSecretLeak catches API key and confirm-token leakage", async () => {
+    const { assertNoSecretLeak, SmokePreconditionsError } = await import(
+      "@/lib/ai/production-smoke"
+    );
+    process.env.OPENAI_API_KEY = "sk-readiness-leak-probe";
+    process.env.AI_PRODUCTION_CONFIRM = AI_PRODUCTION_CONFIRM_VALUE;
+    expect(() =>
+      assertNoSecretLeak("err sk-readiness-leak-probe"),
+    ).toThrow(SmokePreconditionsError);
+    expect(() =>
+      assertNoSecretLeak(`x=${AI_PRODUCTION_CONFIRM_VALUE}`),
+    ).toThrow(/AI_PRODUCTION_CONFIRM/);
   });
 });
