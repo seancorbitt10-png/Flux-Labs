@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-15 00:23 UTC
+Updated: 2026-09-15 00:52 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -15,13 +15,11 @@ main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
                             (includes production AI enablement from PR #21)
 
 Phase 4 operational readiness / smoke hardening:
-  DRAFT PR #22 — CI green, NOT MERGED
+  DRAFT PR #22 — remediation in progress / NOT MERGED
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
   Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
   Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
-  Head SHA:                 360a31d4a1eed39feb8b92a409065f936ea8fed2
   State:                    OPEN / draft / mergedAt=null
-  CI:                       SUCCESS (verify ×2)
 
 Also open (stale docs-only):
   PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
@@ -31,7 +29,7 @@ Production AI: DISABLED by default
   isProductionAIEnabled({}) = false
   isProductionAIReady({}) = false
 
-PR #22 remains UNMERGED and requires independent review.
+PR #22 remains UNMERGED and requires independent review after this remediation.
 DO NOT MERGE. DO NOT ENABLE PRODUCTION AI without ops review.
 
 --------------------------------------------------------------------------------
@@ -57,22 +55,37 @@ Real OpenAI is enableable only with the full server gate:
   https OPENAI_BASE_URL
 
 --------------------------------------------------------------------------------
-PR #22 — OPERATIONAL READINESS + MANUAL SMOKE
+PR #22 — REMEDIATION: STUDY-PATH OPERATIONAL SMOKE
 --------------------------------------------------------------------------------
 
-Purpose: prove the existing real-AI path is operationally safe; not a feature expansion.
+Purpose: prove one deliberately authorized real-AI Study request travels the
+same production orchestration path as normal Study traffic. Not a feature
+expansion.
 
-Includes:
-  1. Kill-switch cache invalidation (AI_PRODUCTION_ENABLED=false → stub)
-  2. Safe ops logging (no keys / prompts / raw provider payloads)
-  3. Manual smoke harness: npm run test:ai-smoke
-     - requires AI_SMOKE_TEST_ALLOW=1 AND full production gate
-     - never runs from npm test / CI
-     - never runs from API key alone
-     - fails closed (no silent stub)
-     - flux-fast + tiny output budget
-  4. Hardening tests (kill switch, fail-closed gate, rate-limit settle,
-     client error normalization, smoke opt-in, ops-log secret refusal)
+Remediation addresses independent-review findings:
+  HIGH  — smoke no longer calls provider.complete() directly; it enters
+          executeStudyTurnForActor (shared with sendStudyTurnAction post-auth)
+  MEDIUM — ops-log provider/outcome/executionCertainty narrowed to known unions
+  MEDIUM — assertNoSecretLeak now fails closed on API key AND confirm-token leaks
+
+Smoke path exercised:
+  isolated FREE_TRIAL smoke actor (server-owned)
+  → executeStudyTurnForActor
+  → validation + learning-first policy + context assembly
+  → entitlement reservation → authoritative model registry → OpenAI
+  → response validation → settlement/accounting → client-safe errors
+
+Limitation (documented): CLI cannot invoke the Next.js cookie session boundary;
+it uses the shared post-auth Study service entrypoint that sendStudyTurnAction
+calls after requireUserId.
+
+Safety unchanged:
+  - AI_SMOKE_TEST_ALLOW=1 required (key alone insufficient)
+  - full production gate required; fails closed (no silent stub)
+  - refuses CI=true / GITHUB_ACTIONS=true
+  - never part of npm test
+  - no secrets printed
+  - no production-on-by-default
 
 No migration. No RAG / billing / agents. No production-on-by-default.
 
@@ -80,22 +93,19 @@ No migration. No RAG / billing / agents. No production-on-by-default.
 QUALITY GATES
 --------------------------------------------------------------------------------
 
-Local (at head):
-  Tests:            353 passed
+Local (this remediation):
+  Tests:            376 passed
   Typecheck:        pass
   Lint:             pass
   Production build: pass
   Prisma:           up to date (no new migration)
-
-GitHub CI @ 360a31d:
-  verify: SUCCESS
-  verify: SUCCESS
+  Manual smoke fail-closed without opt-in / without full gate: verified
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #22
+1. Independent review of PR #22 remediation
 2. Merge only after approved review
 3. Do NOT enable production AI env vars without ops review
 4. Do NOT start RAG / billing / autonomous agents from this PR
