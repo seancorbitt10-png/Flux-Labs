@@ -10,6 +10,7 @@ import {
   type AIProviderEnv,
 } from "./provider-config";
 import { AIProviderConfigError } from "./provider-errors";
+import { logAIOps } from "./ops-log";
 import { OpenAIChatProvider } from "./providers/openai-chat";
 import { StubAIProvider } from "./providers/stub";
 import type { AIProvider } from "./types";
@@ -53,10 +54,12 @@ export function createAIProviderFromConfig(
       if (!loggedProductionActivation) {
         loggedProductionActivation = true;
         // Ops visibility only — never log the API key or confirm secret.
-        console.info(
-          "[flux-ai] Production AI provider active (openai). " +
-            "Stub is not in use. Confirm ops intent before serving traffic.",
-        );
+        logAIOps({
+          event: "provider_selected",
+          provider: "openai",
+          outcome: "production_active",
+          detail: "stub_not_in_use",
+        });
       }
       return provider;
     } catch (error) {

@@ -2,36 +2,39 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-14 00:40 UTC
+Updated: 2026-09-15 01:34 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 PRs #14–#18 and #20 MERGED on main.
+Phase 4 PRs #14–#18, #20, #21 MERGED on main.
 
-main tip:                   d5177cdf94bec4e4057d5766eade41fd22355a40
-                            (includes Slice 6 bounded Class/Task retrieval)
+main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
+                            (includes production AI enablement from PR #21)
 
-Phase 4 Implementation #6 (Production AI Enablement):
-  DRAFT PR #21 — CI green, NOT MERGED
-  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/21
-  Branch:                   cursor/phase4-impl6-production-ai-enablement-399a
-  Base main:                d5177cdf94bec4e4057d5766eade41fd22355a40
-  Head SHA:                 9ae36b38397575cef1ccffc83ef554f01e2907e1
+Phase 4 operational readiness / Study-path smoke remediation:
+  DRAFT PR #22 — NOT MERGED
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
+  Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
+  Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
+  Head SHA:                 878ac0a9775da47fd87f547072c95c4d603b3e08
+  Remediation code SHA:     a8c95f15ee4cb57eeceb70120f4fa132676ab12e
   State:                    OPEN / draft / mergedAt=null
-  CI:                       SUCCESS (verify ×2)
+  Mergeable:                MERGEABLE
+  CI @ fe50a74:             SUCCESS (verify ×2)
+  CI @ 878ac0a (docs):      running / pending at report time
 
 Also open (stale docs-only):
   PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
 
-Production AI: DISABLED
+Production AI: DISABLED by default
   AI_PRODUCTION_ENABLED unset
   isProductionAIEnabled({}) = false
   isProductionAIReady({}) = false
 
-PR #21 remains UNMERGED and requires independent review.
+PR #22 remains UNMERGED and requires independent review.
 DO NOT MERGE. DO NOT ENABLE PRODUCTION AI without ops review.
 
 --------------------------------------------------------------------------------
@@ -46,50 +49,71 @@ Phase 4:
   #17 learning-first policy
   #18 Study Focus UX (Slice 3)
   #20 Bounded Class/Task retrieval (Slice 6)
+  #21 Production AI enablement (fail-closed gate; default OFF)
+
+Real OpenAI is enableable only with the full server gate:
+  AI_PRODUCTION_ENABLED=true
+  AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI
+  AI_PROVIDER=openai
+  OPENAI_API_KEY present
+  registry-valid models
+  https OPENAI_BASE_URL
 
 --------------------------------------------------------------------------------
-PR #21 — PRODUCTION AI ENABLEMENT
+PR #22 — REMEDIATION: STUDY-PATH OPERATIONAL SMOKE
 --------------------------------------------------------------------------------
 
-Makes real OpenAI inference *enableable* through explicit server config.
-Default remains OFF. Incomplete production config fails closed.
+Purpose: prove one deliberately authorized real-AI Study request travels the
+same production orchestration path as normal Study traffic. Not a feature
+expansion.
 
-Required (ALL):
-  1. AI_PRODUCTION_ENABLED=true
-  2. AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI
-  3. AI_PROVIDER=openai
-  4. OPENAI_API_KEY present
-  5. Registry-valid models
-  6. OPENAI_BASE_URL valid https
+Remediation addressed independent-review findings:
+  HIGH  — smoke no longer calls provider.complete() directly; it enters
+          executeStudyTurnForActor (shared with sendStudyTurnAction post-auth)
+  MEDIUM — ops-log provider/outcome/executionCertainty narrowed to known unions
+  MEDIUM — assertNoSecretLeak now fails closed on API key AND confirm-token leaks
 
-If flag on but incomplete → AIProviderConfigError (no silent stub).
-If flag off → stub (CI/local safe).
-API key alone never enables production AI.
+Smoke path exercised:
+  isolated FREE_TRIAL smoke actor (server-owned)
+  → executeStudyTurnForActor
+  → validation + learning-first policy + context assembly
+  → entitlement reservation → authoritative model registry → OpenAI
+  → response validation → settlement/accounting → client-safe errors
 
-Preserved: entitlements (#16), policy (#17), focus + bounds (#18/#20),
-envelope/tokenizer/registry, proposal boundary.
-No migration. No RAG / billing / agents / production-on-by-default.
+Limitation (documented): CLI cannot invoke the Next.js cookie session boundary;
+it uses the shared post-auth Study service entrypoint that sendStudyTurnAction
+calls after requireUserId.
+
+Safety unchanged:
+  - AI_SMOKE_TEST_ALLOW=1 required (key alone insufficient)
+  - full production gate required; fails closed (no silent stub)
+  - refuses CI=true / GITHUB_ACTIONS=true
+  - never part of npm test
+  - no secrets printed
+  - no production-on-by-default
+
+No migration. No RAG / billing / agents. No production-on-by-default.
 
 --------------------------------------------------------------------------------
 QUALITY GATES
 --------------------------------------------------------------------------------
 
-Local (at head):
-  Tests:            343 passed
+Local (at head 878ac0a):
+  Tests:            376 passed
   Typecheck:        pass
   Lint:             pass
   Production build: pass
   Prisma:           up to date (no new migration)
 
-GitHub CI @ 9ae36b3:
-  verify: SUCCESS
-  verify: SUCCESS
+GitHub CI:
+  @ fe50a74 (remediation + prior STATUS stamp): SUCCESS (verify ×2)
+  @ 878ac0a (this STATUS_REPORT docs update): pending at report time
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
 --------------------------------------------------------------------------------
 
-1. Independent review of PR #21
+1. Independent review of PR #22 remediation
 2. Merge only after approved review
 3. Do NOT enable production AI env vars without ops review
 4. Do NOT start RAG / billing / autonomous agents from this PR

@@ -521,6 +521,7 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
       AIProviderUpstreamError,
       AIProviderInvalidResponseError,
       AIProviderLimitError,
+      AIProviderRateLimitError,
     } = await import("@/lib/ai/provider-errors");
 
     expect(settlementOutcomeForProviderError(new AIProviderConfigError("x"))).toBe(
@@ -534,6 +535,9 @@ describe("Phase 4 Implementation #2 — usage reservation/settlement", () => {
     ).toBe("failed_consumed");
     expect(
       settlementOutcomeForProviderError(new AIProviderUpstreamError()),
+    ).toBe("failed_consumed");
+    expect(
+      settlementOutcomeForProviderError(new AIProviderRateLimitError()),
     ).toBe("failed_consumed");
     expect(
       settlementOutcomeForProviderError(new AIProviderInvalidResponseError()),
