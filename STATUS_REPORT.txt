@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-15 00:54 UTC
+Updated: 2026-09-15 01:33 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -14,13 +14,15 @@ Phase 4 PRs #14–#18, #20, #21 MERGED on main.
 main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
                             (includes production AI enablement from PR #21)
 
-Phase 4 operational readiness / smoke hardening:
-  DRAFT PR #22 — Study-path smoke remediation pushed / NOT MERGED
+Phase 4 operational readiness / Study-path smoke remediation:
+  DRAFT PR #22 — CI green, NOT MERGED
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
   Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
   Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
-  Head SHA:                 6e2154f09b6cf0402eafa6b2fb1b766528c53698
+  Head SHA:                 fe50a742e52896ca43c620d35cc9fe2f1471b6b4
   State:                    OPEN / draft / mergedAt=null
+  CI:                       SUCCESS (verify ×2)
+  Mergeable:                MERGEABLE
 
 Also open (stale docs-only):
   PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
@@ -30,7 +32,7 @@ Production AI: DISABLED by default
   isProductionAIEnabled({}) = false
   isProductionAIReady({}) = false
 
-PR #22 remains UNMERGED and requires independent review after this remediation.
+PR #22 remains UNMERGED and requires independent review.
 DO NOT MERGE. DO NOT ENABLE PRODUCTION AI without ops review.
 
 --------------------------------------------------------------------------------
@@ -63,7 +65,7 @@ Purpose: prove one deliberately authorized real-AI Study request travels the
 same production orchestration path as normal Study traffic. Not a feature
 expansion.
 
-Remediation addresses independent-review findings:
+Remediation addressed independent-review findings:
   HIGH  — smoke no longer calls provider.complete() directly; it enters
           executeStudyTurnForActor (shared with sendStudyTurnAction post-auth)
   MEDIUM — ops-log provider/outcome/executionCertainty narrowed to known unions
@@ -94,13 +96,16 @@ No migration. No RAG / billing / agents. No production-on-by-default.
 QUALITY GATES
 --------------------------------------------------------------------------------
 
-Local (this remediation):
+Local (at head fe50a74):
   Tests:            376 passed
   Typecheck:        pass
   Lint:             pass
   Production build: pass
   Prisma:           up to date (no new migration)
-  Manual smoke fail-closed without opt-in / without full gate: verified
+
+GitHub CI @ fe50a74:
+  verify: SUCCESS
+  verify: SUCCESS
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
