@@ -1,102 +1,104 @@
 ================================================================================
-FLUX LABS — STATUS REPORT
+FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
-Updated: 2026-09-14 (production AI operational readiness / smoke hardening)
+
+Updated: 2026-09-15 00:23 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
 --------------------------------------------------------------------------------
 
-Phases 0–3 COMPLETE.
-Phase 4 #14–#18, #20, #21 MERGED on main.
+Phases 0–3 COMPLETE on main.
+Phase 4 PRs #14–#18, #20, #21 MERGED on main.
 
-This branch: production-readiness / operational smoke-test hardening for the
-existing real-AI path. NOT a feature expansion. Production AI remains OFF by
-default. CI remains non-billable.
+main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
+                            (includes production AI enablement from PR #21)
 
-Branch:     cursor/phase4-prod-ai-readiness-smoke-399a
-Base main:  1ca024b539ed77180c6a42b8fd33d9044a361a4e  (PR #21 merge)
-Head SHA:   399d4e3d6718106b13deeac80047c6aaba7c07ea
-PR:         https://github.com/seancorbitt10-png/Flux-Labs/pull/22
-Status:     DRAFT / DO NOT MERGE until independent review
+Phase 4 operational readiness / smoke hardening:
+  DRAFT PR #22 — CI green, NOT MERGED
+  PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
+  Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
+  Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
+  Head SHA:                 360a31d4a1eed39feb8b92a409065f936ea8fed2
+  State:                    OPEN / draft / mergedAt=null
+  CI:                       SUCCESS (verify ×2)
 
---------------------------------------------------------------------------------
-WHAT THIS PASS ADDS
---------------------------------------------------------------------------------
+Also open (stale docs-only):
+  PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
 
-1. Kill-switch cache invalidation
-   - AI_PRODUCTION_ENABLED=false drops any cached OpenAI provider on next
-     getAIProvider() and returns stub (no restart required for subsequent
-     requests in-process).
+Production AI: DISABLED by default
+  AI_PRODUCTION_ENABLED unset
+  isProductionAIEnabled({}) = false
+  isProductionAIReady({}) = false
 
-2. Safe ops logging helper (src/lib/ai/ops-log.ts)
-   - Structured ops events only
-   - Refuses details that look like secrets
-   - Never logs prompts / raw provider payloads / API keys
-
-3. Manual smoke harness (scripts/ai-production-smoke.ts)
-   - npm run test:ai-smoke
-   - Requires AI_SMOKE_TEST_ALLOW=1 AND full production gate
-   - Never runs from npm test / CI
-   - Never runs merely because OPENAI_API_KEY exists
-   - Fails closed (no silent stub) if gate incomplete
-   - Uses flux-fast + tiny maxTokens
-   - Never prints the API key
-
-4. Hardening tests (tests/unit/ai-production-readiness.test.ts + patches)
-   - Kill switch after cached OpenAI
-   - Incomplete gate fail-closed matrix
-   - Rate-limit → failed_consumed settlement mapping
-   - Client error normalization (no secret leak)
-   - Smoke opt-in contract
-   - Ops log secret refusal
+PR #22 remains UNMERGED and requires independent review.
+DO NOT MERGE. DO NOT ENABLE PRODUCTION AI without ops review.
 
 --------------------------------------------------------------------------------
-MANUAL SMOKE REQUIREMENTS
+WHAT IS ON MAIN
 --------------------------------------------------------------------------------
 
-AI_SMOKE_TEST_ALLOW=1 \
-AI_PRODUCTION_ENABLED=true \
-AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI \
-AI_PROVIDER=openai \
-OPENAI_API_KEY=... \
-npm run test:ai-smoke
+Phase 0–3: foundation, student model, study experience, academic workspace UI
+Phase 4:
+  #14 architecture
+  #15 provider adapter
+  #16 entitlement / accounting
+  #17 learning-first policy
+  #18 Study Focus UX (Slice 3)
+  #20 Bounded Class/Task retrieval (Slice 6)
+  #21 Production AI enablement (fail-closed gate; default OFF)
 
-Afterwards:
-AI_PRODUCTION_ENABLED=false
-
-WARNING: incurs real OpenAI cost. Authorized operators only.
-
---------------------------------------------------------------------------------
-QUALITY GATES (local)
---------------------------------------------------------------------------------
-
-Tests:            353 passed (27 files)
-Typecheck:        pass
-Lint:             pass
-Production build: pass
-Prisma status:    up to date (10 migrations; no new migration)
-Smoke without allow: FAIL closed (expected)
-Smoke with allow, no key: FAIL closed (expected)
-Production AI default: DISABLED
+Real OpenAI is enableable only with the full server gate:
+  AI_PRODUCTION_ENABLED=true
+  AI_PRODUCTION_CONFIRM=ENABLE_REAL_AI
+  AI_PROVIDER=openai
+  OPENAI_API_KEY present
+  registry-valid models
+  https OPENAI_BASE_URL
 
 --------------------------------------------------------------------------------
-REMAINING KNOWN RISKS
+PR #22 — OPERATIONAL READINESS + MANUAL SMOKE
 --------------------------------------------------------------------------------
 
-- Exact OpenAI invoice reconciliation is still not claimed (server reservation
-  ceiling remains authoritative).
-- Credential rotation still benefits from process restart after env change.
-- Live OpenAI smoke is intentionally manual; CI never proves live egress.
-- setAIProvider remains a server/test DI hook — must never be exposed to clients.
+Purpose: prove the existing real-AI path is operationally safe; not a feature expansion.
+
+Includes:
+  1. Kill-switch cache invalidation (AI_PRODUCTION_ENABLED=false → stub)
+  2. Safe ops logging (no keys / prompts / raw provider payloads)
+  3. Manual smoke harness: npm run test:ai-smoke
+     - requires AI_SMOKE_TEST_ALLOW=1 AND full production gate
+     - never runs from npm test / CI
+     - never runs from API key alone
+     - fails closed (no silent stub)
+     - flux-fast + tiny output budget
+  4. Hardening tests (kill switch, fail-closed gate, rate-limit settle,
+     client error normalization, smoke opt-in, ops-log secret refusal)
+
+No migration. No RAG / billing / agents. No production-on-by-default.
 
 --------------------------------------------------------------------------------
-NEXT
+QUALITY GATES
 --------------------------------------------------------------------------------
 
-1. Independent review of this draft PR
-2. Do NOT merge until approved
-3. Do NOT enable production AI in shared environments from this PR
-4. Do NOT start RAG / billing / agents from this work
+Local (at head):
+  Tests:            353 passed
+  Typecheck:        pass
+  Lint:             pass
+  Production build: pass
+  Prisma:           up to date (no new migration)
+
+GitHub CI @ 360a31d:
+  verify: SUCCESS
+  verify: SUCCESS
+
+--------------------------------------------------------------------------------
+NEXT ACTIONS
+--------------------------------------------------------------------------------
+
+1. Independent review of PR #22
+2. Merge only after approved review
+3. Do NOT enable production AI env vars without ops review
+4. Do NOT start RAG / billing / autonomous agents from this PR
+5. Optional: close or refresh stale docs PR #19
 
 ================================================================================
