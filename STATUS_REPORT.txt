@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-15 01:33 UTC
+Updated: 2026-09-15 01:34 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -15,14 +15,16 @@ main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
                             (includes production AI enablement from PR #21)
 
 Phase 4 operational readiness / Study-path smoke remediation:
-  DRAFT PR #22 — CI green, NOT MERGED
+  DRAFT PR #22 — NOT MERGED
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
   Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
   Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
-  Head SHA:                 fe50a742e52896ca43c620d35cc9fe2f1471b6b4
+  Head SHA:                 878ac0a9775da47fd87f547072c95c4d603b3e08
+  Remediation code SHA:     a8c95f15ee4cb57eeceb70120f4fa132676ab12e
   State:                    OPEN / draft / mergedAt=null
-  CI:                       SUCCESS (verify ×2)
   Mergeable:                MERGEABLE
+  CI @ fe50a74:             SUCCESS (verify ×2)
+  CI @ 878ac0a (docs):      running / pending at report time
 
 Also open (stale docs-only):
   PR #19 — docs STATUS_REPORT after PR #18 merge (draft)
@@ -96,16 +98,16 @@ No migration. No RAG / billing / agents. No production-on-by-default.
 QUALITY GATES
 --------------------------------------------------------------------------------
 
-Local (at head fe50a74):
+Local (at head 878ac0a):
   Tests:            376 passed
   Typecheck:        pass
   Lint:             pass
   Production build: pass
   Prisma:           up to date (no new migration)
 
-GitHub CI @ fe50a74:
-  verify: SUCCESS
-  verify: SUCCESS
+GitHub CI:
+  @ fe50a74 (remediation + prior STATUS stamp): SUCCESS (verify ×2)
+  @ 878ac0a (this STATUS_REPORT docs update): pending at report time
 
 --------------------------------------------------------------------------------
 NEXT ACTIONS
