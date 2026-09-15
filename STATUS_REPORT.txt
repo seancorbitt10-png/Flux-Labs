@@ -2,7 +2,7 @@
 FLUX LABS — PROJECT STATUS REPORT
 ================================================================================
 
-Updated: 2026-09-15 00:52 UTC
+Updated: 2026-09-15 00:54 UTC
 
 --------------------------------------------------------------------------------
 BOTTOM LINE
@@ -15,10 +15,11 @@ main tip:                   1ca024b539ed77180c6a42b8fd33d9044a361a4e
                             (includes production AI enablement from PR #21)
 
 Phase 4 operational readiness / smoke hardening:
-  DRAFT PR #22 — remediation in progress / NOT MERGED
+  DRAFT PR #22 — Study-path smoke remediation pushed / NOT MERGED
   PR:                       https://github.com/seancorbitt10-png/Flux-Labs/pull/22
   Branch:                   cursor/phase4-prod-ai-readiness-smoke-399a
   Base main:                1ca024b539ed77180c6a42b8fd33d9044a361a4e
+  Head SHA:                 6e2154f09b6cf0402eafa6b2fb1b766528c53698
   State:                    OPEN / draft / mergedAt=null
 
 Also open (stale docs-only):
