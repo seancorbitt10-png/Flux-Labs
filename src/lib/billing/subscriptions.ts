@@ -18,7 +18,7 @@ function subscriptionPriceId(
 }
 
 function entitlementStatusForSubscription(
-  status: Stripe.Subscription.Status,
+  status: Stripe.Subscription["status"],
 ): "ACTIVE" | "SUSPENDED" | "CANCELLED" | "EXPIRED" {
   switch (status) {
     case "active":
