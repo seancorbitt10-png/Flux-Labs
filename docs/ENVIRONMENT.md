@@ -24,9 +24,9 @@
 | `AI_MAX_OUTPUT_TOKENS` | no | Server max completion tokens (default **800**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 800) |
 | `AI_MAX_INPUT_TOKENS` | no | Server max billable input tokens via o200k_base (default **8000**; hard-capped by `AI_REQUEST_ENVELOPE`, cannot exceed 8000) |
 | `AI_MAX_INPUT_UTF16_UNITS` | no | Optional DoS prefilter on JS UTF-16 code units (default **64000**; not a token-cost bound) |
-| `AI_MODEL_FLUX_FAST` | no | Allowlisted vendor model id for internal `flux-fast` (default `gpt-4o-mini`; must be verified o200k_base) |
-| `AI_MODEL_FLUX_STANDARD` | no | Allowlisted vendor model id for internal `flux-standard` (default `gpt-4o-mini`; must be verified o200k_base) |
-| `AI_MODEL_FLUX_ADVANCED` | no | Allowlisted vendor model id for internal `flux-advanced` (default `gpt-4o`; must be verified o200k_base) |
+| `AI_MODEL_FLUX_FAST` | no | Allowlisted mini-tier vendor model id for internal `flux-fast` (default `gpt-4o-mini`; must be verified o200k_base) |
+| `AI_MODEL_FLUX_STANDARD` | no | Allowlisted mini-tier vendor model id for internal `flux-standard` (default `gpt-4o-mini`; must be verified o200k_base) |
+| `AI_MODEL_FLUX_ADVANCED` | no | Allowlisted advanced-tier vendor model id for internal `flux-advanced` (default `gpt-4o`; must be verified o200k_base) |
 
 ## AI production gate
 
@@ -154,6 +154,16 @@ Server-enforced in `src/lib/ai/model-registry.ts`:
 - Current allowlisted vendor IDs: `gpt-4o-mini`, `gpt-4o` (both verified `o200k_base`)
 - `AI_MODEL_FLUX_*` may only select from that allowlist; other values throw `AIProviderConfigError` (`not_dispatched`)
 - Clients never choose vendor model ID, encoding, provider, or reservation amount
+
+## Verified model pricing tiers
+
+The server-side model registry binds each internal model key to a pricing tier as well as a verified vendor model and tokenizer encoding:
+
+- `flux-fast` → mini tier → `gpt-4o-mini` → `o200k_base`
+- `flux-standard` → mini tier → `gpt-4o-mini` → `o200k_base`
+- `flux-advanced` → advanced tier → `gpt-4o` → `o200k_base`
+
+`AI_MODEL_FLUX_*` may only select a vendor model allowlisted for that internal key and pricing tier. Cross-tier remaps fail closed with `AIProviderConfigError` before provider dispatch. The registry, not this document, is authoritative.
 
 ## AI usage accounting (Phase 4 Implementation #2)
 
