@@ -61,6 +61,8 @@ export async function POST(request: Request) {
 
         case "customer.subscription.created":
         case "customer.subscription.updated":
+        case "customer.subscription.paused":
+        case "customer.subscription.resumed":
           await syncStripeSubscription(
             tx,
             event.data.object as Stripe.Subscription,
