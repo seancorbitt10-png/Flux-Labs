@@ -87,8 +87,7 @@ Implemented:
   - Model-to-cost mapping safety
   - Study-path operational smoke infrastructure
 
-Still intentionally not started as separate product slices:
-  - Additional Study focus UX work beyond the existing focus support
+Still intentionally not started as a separate product slice:
   - Fuller guided tutoring-loop UX polish
 
 Production AI enablement remains a deliberate operational step, not an
