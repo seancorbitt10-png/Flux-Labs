@@ -92,7 +92,7 @@ Did not introduce real LLM providers, LMS integrations, billing, a generalized r
 
 Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
-Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost override safety guard and learning-first proposal-safety changes are implemented and verified in the current working tree, but remain uncommitted.
+Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, and bounded Class/Task retrieval are now implemented on `main`; final local verification of the latest checkpoint is pending.
 
 ### Chosen objective
 
@@ -103,12 +103,12 @@ Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement
 | Slice | Name | Status |
 |-------|------|--------|
 | 0 | Production AI provider adapter | MERGED (PR #15) |
-| 1 | Entitlement & cost hardening under real spend | **Implemented locally — verified; uncommitted** |
-| 2 | Learning-first prompt & policy hardening | **Implemented locally — verified; uncommitted** |
+| 1 | Entitlement & cost hardening under real spend | **Implemented on `main`; final local verification pending** |
+| 2 | Learning-first prompt & policy hardening | **Implemented on `main`; final local verification pending** |
 | 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
 | 4 | Guided tutoring loop UX | NOT STARTED |
-| 5 | Meaningful proposal generation | **Implemented locally — verified; uncommitted** |
-| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented on main** |
+| 5 | Meaningful proposal generation | **Implemented on `main`; final local verification pending** |
+| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented on `main`; final local verification pending** |
 
 ### Implementation #1 completed (Slice 0)
 
