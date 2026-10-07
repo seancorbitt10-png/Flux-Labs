@@ -148,6 +148,14 @@ export function resolveVerifiedVendorModelId(
   const vendorModelId =
     configuredVendorModelId?.trim() || mapping.vendorModelId;
 
+  const vendorPricingTier = pricingTierForVendorModelId(vendorModelId);
+  if (vendorPricingTier !== mapping.pricingTier) {
+    throw new AIProviderConfigError(
+      `Vendor model "${vendorModelId}" has pricing tier "${vendorPricingTier ?? "unknown"}", ` +
+        `but internal key "${internalModelKey}" requires "${mapping.pricingTier}".`,
+    );
+  }
+
   if (!mapping.allowedVendorModelIds.includes(vendorModelId)) {
     throw new AIProviderConfigError(
       `Vendor model "${vendorModelId}" is not allowlisted for internal key "${internalModelKey}". ` +
@@ -165,14 +173,6 @@ export function resolveVerifiedVendorModelId(
   if (mapping.encoding === "o200k_base" && !isO200kBaseVendorModelId(vendorModelId)) {
     throw new AIProviderConfigError(
       `Vendor model "${vendorModelId}" is not verified for o200k_base.`,
-    );
-  }
-
-  const vendorPricingTier = pricingTierForVendorModelId(vendorModelId);
-  if (vendorPricingTier !== mapping.pricingTier) {
-    throw new AIProviderConfigError(
-      `Vendor model "${vendorModelId}" has pricing tier "${vendorPricingTier ?? "unknown"}", ` +
-        `but internal key "${internalModelKey}" requires "${mapping.pricingTier}".`,
     );
   }
 
