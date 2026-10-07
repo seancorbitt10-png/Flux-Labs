@@ -62,5 +62,5 @@ export function stripProposalFencesFromReply(reply: string): string {
   }
 
   cleaned = cleaned.replaceAll(AI_PROPOSALS_FENCE_END, "");
-  return cleaned.replace(/\\n{3,}/g, "\\n\\n").trim();
+  return cleaned.replace(/\n{3,}/g, "\n\n").trim();
 }
