@@ -6,6 +6,7 @@ export const navItems = [
   { href: "/study", label: "Study" },
   { href: "/resources", label: "Resources" },
   { href: "/progress", label: "Progress" },
+  { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
 ] as const;
 
