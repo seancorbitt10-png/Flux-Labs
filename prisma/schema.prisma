@@ -549,7 +549,7 @@ model Entitlement {
   status     EntitlementStatus @default(ACTIVE)
   startsAt   DateTime          @default(now())
   endsAt     DateTime?
-  externalSubscriptionId String?
+  externalSubscriptionId String? @unique
   metadata               Json?
 
   createdAt DateTime @default(now())
