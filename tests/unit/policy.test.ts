@@ -269,6 +269,36 @@ describe("policy → prompt contract", () => {
   });
 });
 
+describe("check-work learning insight contract", () => {
+  it("allows at most one bounded misconception signal for check_work", () => {
+    const messages = buildOrchestrationMessages({
+      taskType: "tutoring",
+      assistanceMode: "check_work",
+      systemDirective: "Check the student's reasoning.",
+      assembled: emptyAssembled(),
+      userMessage: "I got 12 because I added the denominators.",
+    });
+    const system = messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("OPTIONAL_LEARNING_INSIGHT");
+    expect(system).toContain("MISCONCEPTION_SIGNAL");
+    expect(system).toContain("at most one");
+    expect(system).toContain("target.conceptId=null");
+  });
+
+  it("does not add the misconception proposal contract to hint mode", () => {
+    const messages = buildOrchestrationMessages({
+      taskType: "tutoring",
+      assistanceMode: "hint",
+      systemDirective: "Give one hint.",
+      assembled: emptyAssembled(),
+      userMessage: "I am stuck.",
+    });
+    const system = messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).not.toContain("OPTIONAL_LEARNING_INSIGHT");
+    expect(system).not.toContain("MISCONCEPTION_SIGNAL");
+  });
+});
+
 describe("control text must not leak to students", () => {
   it("strips STUDENT_DATA fences and assistanceMode lines from replies", () => {
     const leaked = [
