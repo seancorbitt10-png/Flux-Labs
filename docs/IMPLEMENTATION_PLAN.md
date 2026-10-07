@@ -10,7 +10,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
 | 3 | Classes / tasks / calendar + academic AI context | **Done** |
-| 4 | Production AI foundation + guided Study intelligence | **Architecture + Impl. #1 merged. Impl. #2 implemented and locally verified; production AI still OFF** |
+| 4 | Production AI foundation + guided Study intelligence | **Implemented on main; production AI OFF** |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
 | 7 | Proactive agent | Planned |
@@ -92,7 +92,7 @@ Did not introduce real LLM providers, LMS integrations, billing, a generalized r
 
 Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
-Current source snapshot: Slices 0–3, 5, and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, bounded Class/Task retrieval, and related orchestration hardening are implemented on `main`. The latest synchronized checkpoint was locally verified with the full test suite, typecheck, lint, and production build.
+Current source snapshot: Slices 0–6, controlled production-AI enablement, the Study-path production smoke harness, model-to-cost safety, learning-first proposal-safety changes, bounded Class/Task retrieval, and guided Study contextual next actions are implemented on `main`. Production AI remains disabled by default.
 
 ### Chosen objective
 
@@ -106,7 +106,7 @@ Current source snapshot: Slices 0–3, 5, and 6, controlled production-AI enable
 | 1 | Entitlement & cost hardening under real spend | **Implemented and locally verified on `main`** |
 | 2 | Learning-first prompt & policy hardening | **Implemented and locally verified on `main`** |
 | 3 | Study focus UX (`classId` / `taskId`) | **Implemented on `main` (PR #18)** |
-| 4 | Guided tutoring loop UX | NOT STARTED |
+| 4 | Guided tutoring loop UX | **Implemented and locally verified on `main`** |
 | 5 | Meaningful proposal generation | **Implemented and locally verified on `main`** |
 | 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented and locally verified on `main`** |
 
@@ -121,7 +121,18 @@ Current source snapshot: Slices 0–3, 5, and 6, controlled production-AI enable
 
 Production AI is **not** enabled. Presence of an API key alone does not activate it.
 
-See `docs/PHASE4_ARCHITECTURE.md` §19–§20 and `docs/ENVIRONMENT.md` for gates and remaining slices.
+See `docs/PHASE4_ARCHITECTURE.md` §19–§20 and `docs/ENVIRONMENT.md` for gates and remaining operational work.
+
+### Guided Study loop (Slice 4)
+
+Implemented on `main`:
+
+- Shared `nextStudyIntents` transition map keeps suggested next actions aligned with supported Study intents.
+- Study surfaces contextual next actions after the latest assistant turn instead of requiring students to discover every tutoring mode manually.
+- Suggestions include bounded alternatives such as hint, steps, attempt, and check-work based on the current learning interaction.
+- The UI preserves the open-ended Study input; contextual actions are additive rather than replacing free-form interaction.
+- Unit coverage verifies supported intent transitions.
+- Full local verification currently passes: 30/30 test files, 386/386 tests, typecheck, lint, and production build.
 
 ### Phase 4 non-goals
 
@@ -131,7 +142,7 @@ Do not add RAG/embeddings/vector DBs, spaced-repetition engines, multi-agent/aut
 
 1. Architecture/design — **done** (PR #14 merged)
 2. Independent review and corrections — **done**
-3. Small implementation slices (separate PRs) — **current package verified on main**
+3. Small implementation slices (separate PRs) — **current package implemented on main**
 4. Tests + typecheck + lint + build (+ migration checks only if a slice introduces schema) — **passed for the current package**
 5. Independent review each slice — **completed for the current merged package**
 6. Merge only after review clearance — **completed for the current package**
