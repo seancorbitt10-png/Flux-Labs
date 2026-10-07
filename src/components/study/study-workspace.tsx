@@ -521,8 +521,9 @@ export function StudyWorkspace({
                         <span>Participation requested</span>
                       ) : null}
                     </p>
-                    {(() => {
+                    {turn.id === turns[turns.length - 1]?.id ? (() => {
                       const priorUser = [...turns]
+                        .slice(0, -1)
                         .reverse()
                         .find((candidate) => candidate.role === "user");
                       const sourceIntent = priorUser?.meta?.intent ?? "ask";
