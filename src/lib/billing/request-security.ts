@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { billingApplicationUrl } from "@/lib/billing/stripe";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 
@@ -16,11 +15,4 @@ export function assertBillingRateLimit(userId: string): void {
     limit: 10,
     windowMs: 60_000,
   });
-}
-
-export function billingErrorResponse(message: string) {
-  return NextResponse.json(
-    { error: "BILLING_UNAVAILABLE", message },
-    { status: 503 },
-  );
 }
