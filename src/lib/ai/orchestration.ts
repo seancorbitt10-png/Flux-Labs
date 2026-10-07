@@ -10,7 +10,10 @@ import { prisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/errors";
 import { assembleAIContext } from "./context-assembly";
 import { decideAssistancePolicy } from "./policy";
-import { ingestProposalsFromProviderReply } from "./proposals";
+import {
+  ingestProposalsFromProviderReply,
+  stripProposalFencesFromReply,
+} from "./proposals";
 import { buildOrchestrationMessages } from "./prompt";
 import { getAIProvider } from "./provider";
 import { validateProviderCompletion } from "./response-validation";
@@ -168,6 +171,33 @@ export async function runAIOrchestration(
       throw error;
     }
 
+    // Proposal control data is parsed server-side but must never reach the student.
+    const studentReply = stripProposalFencesFromReply(validated.text);
+    if (!studentReply) {
+      await finalizeUsageReservation({
+        operationId: reservation.operationId,
+        userId: actorUserId,
+        outcome: "failed_consumed",
+        feature: "ai.orchestration",
+        aiTaskType: route.taskType,
+        modelKey: route.modelKey,
+        inputTokens: completion.inputTokens,
+        outputTokens: completion.outputTokens,
+        providerEstimateMicros: completion.estimatedCostMicros,
+        latencyMs: completion.latencyMs,
+        errorCode: "PROVIDER_OUTPUT_EMPTY_AFTER_SANITIZATION",
+        metadata: {
+          assistanceMode: policy.mode,
+          routeReason: route.reason,
+          policyReason: policy.reason,
+          contextVersion: assembled.version,
+        },
+      });
+      throw new ValidationError(
+        "Provider reply contained no student-facing content after sanitization.",
+      );
+    }
+
     await finalizeUsageReservation({
       operationId: reservation.operationId,
       userId: actorUserId,
@@ -204,7 +234,7 @@ export async function runAIOrchestration(
     // Controlled proposal ingest — PENDING only; never auto-mutates Student Model.
     const ingested = await ingestProposalsFromProviderReply({
       actorUserId,
-      reply: validated.text,
+      reply: studentReply,
       aiInteractionId: interaction.id,
     });
 
