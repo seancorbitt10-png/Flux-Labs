@@ -33,3 +33,5 @@ export {
   type IngestProposalsResult,
   type IngestedProposalView,
 } from "./service";
+
+export { stripProposalFencesFromReply } from "./extract";
