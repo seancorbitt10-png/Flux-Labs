@@ -65,6 +65,18 @@ function buildFocusSummary(args: {
   return parts.join(" · ");
 }
 
+
+function nextStudyIntents(intent: StudyIntent): StudyIntent[] {
+  switch (intent) {
+    case "ask": return ["hint", "steps", "attempt"];
+    case "explain": return ["hint", "attempt", "check_work"];
+    case "hint": return ["attempt", "check_work", "steps"];
+    case "steps": return ["attempt", "check_work", "hint"];
+    case "attempt": return ["check_work", "hint", "steps"];
+    case "check_work": return ["attempt", "explain", "hint"];
+    default: return ["hint", "steps", "attempt"];
+  }
+}
 export function StudyWorkspace({
   initialBootstrap,
   initialClassId = "",
@@ -497,17 +509,50 @@ export function StudyWorkspace({
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{turn.content}</p>
                 {turn.role === "assistant" && turn.meta ? (
-                  <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-foreground/50">
-                    {turn.meta.assistanceMode ? (
-                      <span>Mode: {turn.meta.assistanceMode}</span>
-                    ) : null}
-                    {turn.meta.taskType ? (
-                      <span>Task: {turn.meta.taskType}</span>
-                    ) : null}
-                    {turn.meta.requiresStudentParticipation ? (
-                      <span>Participation requested</span>
-                    ) : null}
-                  </p>
+                  <>
+                    <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-foreground/50">
+                      {turn.meta.assistanceMode ? (
+                        <span>Mode: {turn.meta.assistanceMode}</span>
+                      ) : null}
+                      {turn.meta.taskType ? (
+                        <span>Task: {turn.meta.taskType}</span>
+                      ) : null}
+                      {turn.meta.requiresStudentParticipation ? (
+                        <span>Participation requested</span>
+                      ) : null}
+                    </p>
+                    {(() => {
+                      const priorUser = [...turns]
+                        .reverse()
+                        .find((candidate) => candidate.role === "user");
+                      const sourceIntent = priorUser?.meta?.intent ?? "ask";
+                      const nextIntents = nextStudyIntents(sourceIntent);
+                      return (
+                        <div className="mt-3 rounded-md border border-foreground/10 bg-foreground/[0.02] px-2.5 py-2">
+                          <p className="text-xs font-medium text-foreground/65">Next step</p>
+                          <p className="mt-0.5 text-xs text-foreground/50">
+                            Keep working in the same session with one of these actions.
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {nextIntents.map((nextIntent) => (
+                              <button
+                                key={nextIntent}
+                                type="button"
+                                className="min-h-9 rounded-md border border-foreground/15 bg-background px-2.5 text-xs text-foreground/80 hover:border-foreground/30"
+                                disabled={pending}
+                                onClick={() => {
+                                  setIntent(nextIntent);
+                                  setStatusMessage(`Next action: ${STUDY_INTENT_LABELS[nextIntent]}. Add your own response or attempt, then send it.`);
+                                }}
+                              >
+                                {STUDY_INTENT_LABELS[nextIntent]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 ) : null}
               </article>
             ))}
