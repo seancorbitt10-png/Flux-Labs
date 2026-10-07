@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { prisma } from "@/lib/db/prisma";
 import { requireUserId } from "@/lib/auth/session";
 import { getActiveEntitlement } from "@/lib/entitlements/check";
+import { getPlanDefinition } from "@/lib/entitlements/plans";
+import { getCustomerPlanPriceUsd } from "@/lib/billing/config";
 import { BillingControls } from "@/components/billing/billing-controls";
 
 export const metadata = { title: "Billing" };
@@ -17,6 +19,21 @@ export default async function BillingPage() {
   ]);
 
   const activePlan = entitlement?.entitlement.plan ?? null;
+  const plans = (["PLUS", "PRO"] as const).map((tier) => {
+    const definition = getPlanDefinition(tier);
+    return {
+      tier,
+      label: definition.label,
+      priceUsd: getCustomerPlanPriceUsd(tier),
+      summary:
+        tier === "PLUS"
+          ? "Core Flux experience"
+          : "Higher academic usage and advanced tutoring",
+      aiSessions: definition.limits.aiSessions,
+      documentAnalyses: definition.limits.documentAnalyses,
+      advancedTutoring: definition.limits.advancedTutoring,
+    };
+  });
 
   return (
     <div className="animate-fade-up max-w-2xl space-y-8">
@@ -46,6 +63,7 @@ export default async function BillingPage() {
         <BillingControls
           activePlan={activePlan}
           hasBillingAccount={Boolean(user?.stripeCustomerId)}
+          plans={plans}
         />
       </section>
 
