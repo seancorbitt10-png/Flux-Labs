@@ -27,10 +27,14 @@ import type { InternalModelKey } from "@/lib/ai/types";
 /** Tokenizer encodings this server knows how to enforce. */
 export type VerifiedTokenizerEncoding = "o200k_base";
 
+export type ModelPricingTier = "mini" | "advanced";
+
 export type VerifiedModelMapping = {
   internalModelKey: InternalModelKey;
   /** Default vendor model ID when env does not override. */
   vendorModelId: string;
+  /** Cost tier assumed by the server-side reservation cost table. */
+  pricingTier: ModelPricingTier;
   /**
    * Vendor model IDs env may select for this internal key.
    * Every ID in this list is verified to use `encoding`.
@@ -62,19 +66,22 @@ export const VERIFIED_MODEL_ENCODING_REGISTRY: Record<
   "flux-fast": {
     internalModelKey: "flux-fast",
     vendorModelId: "gpt-4o-mini",
-    allowedVendorModelIds: O200K_BASE_VENDOR_MODEL_ALLOWLIST,
+    pricingTier: "mini",
+    allowedVendorModelIds: ["gpt-4o-mini"],
     encoding: "o200k_base",
   },
   "flux-standard": {
     internalModelKey: "flux-standard",
     vendorModelId: "gpt-4o-mini",
-    allowedVendorModelIds: O200K_BASE_VENDOR_MODEL_ALLOWLIST,
+    pricingTier: "mini",
+    allowedVendorModelIds: ["gpt-4o-mini"],
     encoding: "o200k_base",
   },
   "flux-advanced": {
     internalModelKey: "flux-advanced",
     vendorModelId: "gpt-4o",
-    allowedVendorModelIds: O200K_BASE_VENDOR_MODEL_ALLOWLIST,
+    pricingTier: "advanced",
+    allowedVendorModelIds: ["gpt-4o"],
     encoding: "o200k_base",
   },
 };
@@ -98,6 +105,12 @@ export function isInternalModelKey(value: unknown): value is InternalModelKey {
   );
 }
 
+
+function pricingTierForVendorModelId(vendorModelId: string): ModelPricingTier | null {
+  if (vendorModelId === "gpt-4o-mini") return "mini";
+  if (vendorModelId === "gpt-4o") return "advanced";
+  return null;
+}
 
 export function isO200kBaseVendorModelId(
   vendorModelId: string,
@@ -152,6 +165,14 @@ export function resolveVerifiedVendorModelId(
   if (mapping.encoding === "o200k_base" && !isO200kBaseVendorModelId(vendorModelId)) {
     throw new AIProviderConfigError(
       `Vendor model "${vendorModelId}" is not verified for o200k_base.`,
+    );
+  }
+
+  const vendorPricingTier = pricingTierForVendorModelId(vendorModelId);
+  if (vendorPricingTier !== mapping.pricingTier) {
+    throw new AIProviderConfigError(
+      `Vendor model "${vendorModelId}" has pricing tier "${vendorPricingTier ?? "unknown"}", ` +
+        `but internal key "${internalModelKey}" requires "${mapping.pricingTier}".`,
     );
   }
 
