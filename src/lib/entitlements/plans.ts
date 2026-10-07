@@ -2,14 +2,14 @@
  * Plan and entitlement configuration.
  *
  * Limits live here (not hard-coded in UI) so they can change without
- * rewriting application logic. Phase 9 will wire billing; Phase 1 stores
- * entitlement state and enforces checks server-side.
+ * rewriting application logic. Billing prices also live here as the
+ * product-level source of truth; Stripe Price IDs remain environment secrets.
  */
 
 import type { PlanTier, UsageCapability } from "@prisma/client";
 
 export type CapabilityLimits = {
-  aiSessions: number | null; // null = unlimited within budget
+  aiSessions: number | null;
   documentAnalyses: number | null;
   advancedTutoring: number | null;
   /** Soft AI budget in USD micros (1e-6 USD). null = no soft cap. */
@@ -20,21 +20,26 @@ export type PlanDefinition = {
   tier: PlanTier;
   label: string;
   description: string;
-  /** User-facing capabilities — never expose model names as the product abstraction */
+  /** Monthly customer price in USD cents. null for non-paid tiers. */
+  monthlyPriceCents: number | null;
   capabilities: string[];
   limits: CapabilityLimits;
   trialDays?: number;
 };
 
 /**
- * Experimental trial numbers — configurable, not permanently locked.
- * Target envelope: ~$1 avg AI cost / trial user, max ~$1.50–$2.00.
+ * Approved billing economics:
+ * - Plus: $8/month
+ * - Pro: $12/month
+ *
+ * Existing capability allowances remain unchanged.
  */
 export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   FREE_TRIAL: {
     tier: "FREE_TRIAL",
     label: "Trial",
     description: "7-day controlled trial of the full product experience.",
+    monthlyPriceCents: null,
     capabilities: [
       "Guided AI tutoring",
       "Academic workspace",
@@ -44,7 +49,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       aiSessions: 10,
       documentAnalyses: 3,
       advancedTutoring: 1,
-      aiBudgetMicros: 2_000_000, // $2.00 soft ceiling
+      aiBudgetMicros: 2_000_000,
     },
     trialDays: 7,
   },
@@ -52,6 +57,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     tier: "PLUS",
     label: "Plus",
     description: "Expanded study assistance and planning.",
+    monthlyPriceCents: 800,
     capabilities: [
       "Guided AI tutoring",
       "Study planning",
@@ -69,6 +75,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     tier: "PRO",
     label: "Pro",
     description: "Full academic operating system capabilities.",
+    monthlyPriceCents: 1200,
     capabilities: [
       "Everything in Plus",
       "Advanced tutoring workflows",
@@ -99,7 +106,6 @@ export function capabilityToLimitKey(
     case "ADVANCED_TUTORING":
       return "advancedTutoring";
     case "GENERAL":
-      // Billable AI must never use GENERAL as an unlimited escape hatch.
       return "aiSessions";
     default:
       return "aiSessions";
