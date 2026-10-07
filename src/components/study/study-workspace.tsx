@@ -11,6 +11,7 @@ import {
 } from "@/lib/study/actions";
 import {
   MAX_STUDY_MESSAGE,
+  nextStudyIntents,
   STUDY_INTENT_LABELS,
   STUDY_INTENTS,
   type StudyIntent,
@@ -66,17 +67,6 @@ function buildFocusSummary(args: {
 }
 
 
-function nextStudyIntents(intent: StudyIntent): StudyIntent[] {
-  switch (intent) {
-    case "ask": return ["hint", "steps", "attempt"];
-    case "explain": return ["hint", "attempt", "check_work"];
-    case "hint": return ["attempt", "check_work", "steps"];
-    case "steps": return ["attempt", "check_work", "hint"];
-    case "attempt": return ["check_work", "hint", "steps"];
-    case "check_work": return ["attempt", "explain", "hint"];
-    default: return ["hint", "steps", "attempt"];
-  }
-}
 export function StudyWorkspace({
   initialBootstrap,
   initialClassId = "",
