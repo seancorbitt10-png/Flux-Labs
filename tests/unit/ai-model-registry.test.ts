@@ -108,27 +108,47 @@ describe("verified model/encoding registry", () => {
     ).toThrow(AIProviderConfigError);
   });
 
-  it("allows only allowlisted env vendor model overrides", () => {
-    const ok = resolveAIProviderConfig({
-      AI_MODEL_FLUX_FAST: "gpt-4o",
+  it("enforces per-key pricing tiers for env vendor model overrides", () => {
+    expect(() =>
+      resolveVerifiedVendorModelId("flux-fast", "gpt-4o"),
+    ).toThrow(/pricing tier/i);
+
+    expect(() =>
+      resolveVerifiedVendorModelId("flux-standard", "gpt-4o"),
+    ).toThrow(/pricing tier/i);
+
+    expect(() =>
+      resolveVerifiedVendorModelId("flux-advanced", "gpt-4o-mini"),
+    ).toThrow(/pricing tier/i);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_MODEL_FLUX_FAST: "gpt-4o",
+      }),
+    ).toThrow(AIProviderConfigError);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_MODEL_FLUX_STANDARD: "gpt-4o",
+      }),
+    ).toThrow(AIProviderConfigError);
+
+    expect(() =>
+      resolveAIProviderConfig({
+        AI_MODEL_FLUX_ADVANCED: "gpt-4o-mini",
+      }),
+    ).toThrow(AIProviderConfigError);
+
+    const config = resolveAIProviderConfig({
+      AI_MODEL_FLUX_FAST: "gpt-4o-mini",
       AI_MODEL_FLUX_STANDARD: "gpt-4o-mini",
-      AI_MODEL_FLUX_ADVANCED: "gpt-4o-mini",
+      AI_MODEL_FLUX_ADVANCED: "gpt-4o",
     });
-    expect(ok.modelIds["flux-fast"]).toBe("gpt-4o");
-    expect(ok.modelIds["flux-standard"]).toBe("gpt-4o-mini");
-    expect(ok.modelIds["flux-advanced"]).toBe("gpt-4o-mini");
-
-    expect(() =>
-      resolveAIProviderConfig({
-        AI_MODEL_FLUX_STANDARD: "gpt-4-turbo",
-      }),
-    ).toThrow(AIProviderConfigError);
-
-    expect(() =>
-      resolveAIProviderConfig({
-        AI_MODEL_FLUX_ADVANCED: "claude-3-opus",
-      }),
-    ).toThrow(AIProviderConfigError);
+    expect(config.modelIds).toEqual({
+      "flux-fast": "gpt-4o-mini",
+      "flux-standard": "gpt-4o-mini",
+      "flux-advanced": "gpt-4o",
+    });
   });
 
   it("does not let clients inject vendor model / provider authority", () => {
