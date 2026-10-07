@@ -12,6 +12,7 @@ describe("plan entitlements config", () => {
     expect(trial.limits.documentAnalyses).toBe(3);
     expect(trial.limits.advancedTutoring).toBe(1);
     expect(trial.limits.aiBudgetMicros).toBeLessThanOrEqual(2_000_000);
+    expect(trial.monthlyPriceCents).toBeNull();
   });
 
   it("maps capabilities to limit keys", () => {
@@ -20,9 +21,13 @@ describe("plan entitlements config", () => {
     expect(capabilityToLimitKey("GENERAL")).toBe("aiSessions");
   });
 
-  it("exposes user-facing capabilities without requiring model names", () => {
+  it("locks the approved paid prices", () => {
     const plus = getPlanDefinition("PLUS");
-    expect(plus.capabilities.length).toBeGreaterThan(0);
     expect(plus.label).toBe("Plus");
+    expect(plus.monthlyPriceCents).toBe(800);
+
+    const pro = getPlanDefinition("PRO");
+    expect(pro.label).toBe("Pro");
+    expect(pro.monthlyPriceCents).toBe(1200);
   });
 });
