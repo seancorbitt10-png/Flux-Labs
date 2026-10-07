@@ -92,7 +92,7 @@ Did not introduce real LLM providers, LMS integrations, billing, a generalized r
 
 Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
-Current source snapshot: Slices 0–2, 5, and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, bounded Class/Task retrieval, and related orchestration hardening are implemented on `main`. The latest synchronized checkpoint was locally verified with the full test suite, typecheck, lint, and production build.
+Current source snapshot: Slices 0–3, 5, and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, bounded Class/Task retrieval, and related orchestration hardening are implemented on `main`. The latest synchronized checkpoint was locally verified with the full test suite, typecheck, lint, and production build.
 
 ### Chosen objective
 
@@ -105,7 +105,7 @@ Current source snapshot: Slices 0–2, 5, and 6, controlled production-AI enable
 | 0 | Production AI provider adapter | MERGED (PR #15) |
 | 1 | Entitlement & cost hardening under real spend | **Implemented and locally verified on `main`** |
 | 2 | Learning-first prompt & policy hardening | **Implemented and locally verified on `main`** |
-| 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
+| 3 | Study focus UX (`classId` / `taskId`) | **Implemented on `main` (PR #18)** |
 | 4 | Guided tutoring loop UX | NOT STARTED |
 | 5 | Meaningful proposal generation | **Implemented and locally verified on `main`** |
 | 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented and locally verified on `main`** |
