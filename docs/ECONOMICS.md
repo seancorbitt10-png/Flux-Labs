@@ -1,29 +1,25 @@
 # Economics
 
-## Targets (planning, not hard-coded assumptions)
+## Approved customer pricing
 
-- Gross margin: ~60%+ near term; design toward 70–80% where practical
-- Trial AI/variable cost: ~≤ $1 average / trial user
-- Trial max exposure envelope: ~$1.50–$2.00 / trial user
+- Plus: **$8/month**
+- Pro: **$12/month**
 
-## Critical question
+## Current maximum modeled usage
 
-Can Flux recover acquisition + trial cost within the **first paid month** at acceptable gross margin?
+The current implemented capability allowances produce the following conservative AI
+cost ceilings using the existing Flux token envelope and cost table:
 
-Do **not** build around unlimited free AI.
+- Plus AI maximum: approximately **$0.77**
+- Pro AI maximum: approximately **$2.91**
 
-## Instrumentation (Phase 1 foundation)
+Using the conservative payment-cost model used for planning, both paid tiers remain
+above the approved **60% minimum variable gross-margin floor**.
 
-`usage_records` captures:
+This is a variable COGS model, not a full company P&L. Hosting, taxes, refunds, disputes,
+and other business expenses remain separate.
 
-- capability / feature / task type
-- internal model key
-- tokens (when available)
-- estimated cost micros
-- latency / success
+## Non-negotiable rule
 
-This enables future COGS-per-user / per-feature / per-trial analysis.
-
-## Before expensive features
-
-Estimate requests/user, tokens, model cost, retrieval/storage, worst-case, and plan placement.
+No price, allowance, or AI-consuming feature may be changed during implementation without
+explicit approval. New paid functionality must be modeled before exposure to customers.
