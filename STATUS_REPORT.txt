@@ -87,8 +87,7 @@ Implemented:
   - Model-to-cost mapping safety
   - Study-path operational smoke infrastructure
 
-Still intentionally not started as a separate product slice:
-  - Fuller guided tutoring-loop UX polish
+Phase 4 product slices 0–6 are now implemented on main. Guided Study now surfaces contextual next actions; production AI remains disabled until the deliberate operational enablement step.
 
 Production AI enablement remains a deliberate operational step, not an
 automatic consequence of merging code.
@@ -100,9 +99,10 @@ NEXT ACTIONS
 1. Keep production AI OFF until the operational enablement decision is made.
 2. If real-model validation is desired, perform the controlled provider smoke
    only after the required paid API infrastructure is intentionally configured.
-3. Continue Phase 4 guided Study UX only if it is prioritized before later
-   roadmap phases.
-4. Do not start RAG, billing, autonomous agents, or unrelated expansion as
+3. Perform final local verification of the guided-loop change after syncing main.
+4. If verification is clean, move to the controlled real-provider smoke test and
+   deployment preparation; real API use requires deliberate paid infrastructure.
+5. Do not start RAG, billing, autonomous agents, or unrelated expansion as
    substitutes for validating the core Study product.
 
 ================================================================================
