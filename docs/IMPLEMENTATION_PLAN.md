@@ -10,7 +10,7 @@ Develop incrementally. Do not build the entire product in one pass.
 | 1 | Foundation (shell, auth, DB, AI abstraction, entitlements, docs, tests) | **Done** |
 | 2 | Student model + onboarding + knowledge foundation + Study experience | **Done** |
 | 3 | Classes / tasks / calendar + academic AI context | **Done** |
-| 4 | Production AI foundation + guided Study intelligence | **Architecture + Impl #1 merged. Impl #2 (entitlement/cost hardening) in progress — production AI still OFF**|
+| 4 | Production AI foundation + guided Study intelligence | **Architecture + Impl. #1 merged. Impl. #2 implemented and locally verified; production AI still OFF** |
 | 5 | Resources / document intelligence | Planned |
 | 6 | Study workflows / progress / mastery | Planned |
 | 7 | Proactive agent | Planned |
@@ -92,6 +92,8 @@ Did not introduce real LLM providers, LMS integrations, billing, a generalized r
 
 Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
+Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost override safety guard and learning-first proposal-safety changes are implemented and verified in the current working tree, but remain uncommitted.
+
 ### Chosen objective
 
 **Production AI foundation (prerequisite slice) + guided Study intelligence** — the first real learning-first tutoring experience on the existing Study path (hints, steps, check-work, attempt-oriented interactions).
@@ -101,12 +103,12 @@ Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTUR
 | Slice | Name | Status |
 |-------|------|--------|
 | 0 | Production AI provider adapter | MERGED (PR #15) |
-| 1 | Entitlement & cost hardening under real spend | **Implementation #2 — this PR** |
-| 2 | Learning-first prompt & policy hardening | NOT STARTED |
+| 1 | Entitlement & cost hardening under real spend | **Implemented locally — verified; uncommitted** |
+| 2 | Learning-first prompt & policy hardening | **Implemented locally — verified; uncommitted** |
 | 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
 | 4 | Guided tutoring loop UX | NOT STARTED |
-| 5 | Meaningful proposal generation | NOT STARTED |
-| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | NOT STARTED |
+| 5 | Meaningful proposal generation | **Implemented locally — verified; uncommitted** |
+| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented on main** |
 
 ### Implementation #1 completed (Slice 0)
 
