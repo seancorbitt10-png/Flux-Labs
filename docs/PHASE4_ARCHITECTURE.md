@@ -1,7 +1,7 @@
 # Phase 4 Architecture — Production AI + Guided Study Intelligence
 
-**Status:** ARCHITECTURE MERGED (PR #14). Implementation #1 MERGED (PR #15). Implementation #2 (entitlement/cost hardening) in progress — production AI remains **DISABLED**.
-**Baseline:** `main` after PR #14 merge (Phase 4 architecture)  
+**Status:** ARCHITECTURE MERGED (PR #14). Implementation #1 MERGED (PR #15). Phase 4 learning-first, proposal-safety, and model/cost hardening are implemented on `main` and remain production-gated — production AI is **DISABLED**.
+**Baseline:** `main` after PR #22 plus the current Phase 4 safety/hardening commits  
 **Date:** 2026-09-12  
 **Scope of this document:** planning reference — feature code lands in separate implementation PRs
 
