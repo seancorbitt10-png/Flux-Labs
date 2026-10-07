@@ -149,9 +149,12 @@ export function resolveVerifiedVendorModelId(
     configuredVendorModelId?.trim() || mapping.vendorModelId;
 
   const vendorPricingTier = pricingTierForVendorModelId(vendorModelId);
-  if (vendorPricingTier !== mapping.pricingTier) {
+  if (
+    vendorPricingTier !== null &&
+    vendorPricingTier !== mapping.pricingTier
+  ) {
     throw new AIProviderConfigError(
-      `Vendor model "${vendorModelId}" has pricing tier "${vendorPricingTier ?? "unknown"}", ` +
+      `Vendor model "${vendorModelId}" has pricing tier "${vendorPricingTier}", ` +
         `but internal key "${internalModelKey}" requires "${mapping.pricingTier}".`,
     );
   }
