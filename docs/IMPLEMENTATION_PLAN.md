@@ -92,7 +92,7 @@ Did not introduce real LLM providers, LMS integrations, billing, a generalized r
 
 Architecture / product planning: **MERGED** via PR #14 (`docs/PHASE4_ARCHITECTURE.md`).
 
-Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, and bounded Class/Task retrieval are now implemented on `main`; final local verification of the latest checkpoint is pending.
+Current source snapshot: Slices 0–2, 5, and 6, controlled production-AI enablement, and the Study-path production smoke harness are implemented on `main`. Production AI remains disabled by default. The model-to-cost safety guard, learning-first proposal-safety changes, bounded Class/Task retrieval, and related orchestration hardening are implemented on `main`. The latest synchronized checkpoint was locally verified with the full test suite, typecheck, lint, and production build.
 
 ### Chosen objective
 
@@ -103,12 +103,12 @@ Current source snapshot: Slices 0–4 and 6, controlled production-AI enablement
 | Slice | Name | Status |
 |-------|------|--------|
 | 0 | Production AI provider adapter | MERGED (PR #15) |
-| 1 | Entitlement & cost hardening under real spend | **Implemented on `main`; final local verification pending** |
-| 2 | Learning-first prompt & policy hardening | **Implemented on `main`; final local verification pending** |
+| 1 | Entitlement & cost hardening under real spend | **Implemented and locally verified on `main`** |
+| 2 | Learning-first prompt & policy hardening | **Implemented and locally verified on `main`** |
 | 3 | Study focus UX (`classId` / `taskId`) | NOT STARTED |
 | 4 | Guided tutoring loop UX | NOT STARTED |
-| 5 | Meaningful proposal generation | **Implemented on `main`; final local verification pending** |
-| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented on `main`; final local verification pending** |
+| 5 | Meaningful proposal generation | **Implemented and locally verified on `main`** |
+| 6 | Bounded Class/Task retrieval (required before real-AI enablement) | **Implemented and locally verified on `main`** |
 
 ### Implementation #1 completed (Slice 0)
 
@@ -131,10 +131,10 @@ Do not add RAG/embeddings/vector DBs, spaced-repetition engines, multi-agent/aut
 
 1. Architecture/design — **done** (PR #14 merged)
 2. Independent review and corrections — **done**
-3. Small implementation slices (separate PRs) ← **current**
-4. Tests + typecheck + lint + build (+ migration checks only if a slice introduces schema)
-5. Independent review each slice
-6. Merge only after review clearance
+3. Small implementation slices (separate PRs) — **current package verified on main**
+4. Tests + typecheck + lint + build (+ migration checks only if a slice introduces schema) — **passed for the current package**
+5. Independent review each slice — **completed for the current merged package**
+6. Merge only after review clearance — **completed for the current package**
 
 ## Deferred roadmap
 
