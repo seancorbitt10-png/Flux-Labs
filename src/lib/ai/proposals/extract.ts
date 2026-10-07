@@ -32,3 +32,35 @@ export function extractProposalPayloadFromReply(
     return null;
   }
 }
+
+
+/**
+ * Remove server-owned proposal fences from the student-facing reply.
+ *
+ * Complete fenced proposal payloads are removed entirely. An unterminated
+ * opening fence removes the remainder of the reply so malformed provider
+ * control data cannot leak to the student. Stray closing fences are removed.
+ */
+export function stripProposalFencesFromReply(reply: string): string {
+  if (typeof reply !== "string") return "";
+
+  let cleaned = reply;
+  while (true) {
+    const start = cleaned.indexOf(AI_PROPOSALS_FENCE_START);
+    if (start < 0) break;
+
+    const contentStart = start + AI_PROPOSALS_FENCE_START.length;
+    const end = cleaned.indexOf(AI_PROPOSALS_FENCE_END, contentStart);
+    if (end < 0) {
+      cleaned = cleaned.slice(0, start);
+      break;
+    }
+
+    cleaned =
+      cleaned.slice(0, start) +
+      cleaned.slice(end + AI_PROPOSALS_FENCE_END.length);
+  }
+
+  cleaned = cleaned.replaceAll(AI_PROPOSALS_FENCE_END, "");
+  return cleaned.replace(/\\n{3,}/g, "\\n\\n").trim();
+}
