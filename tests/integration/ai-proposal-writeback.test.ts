@@ -693,6 +693,9 @@ describe("AI proposal / write-back pipeline", () => {
       expect(result.proposals).toHaveLength(1);
       expect(result.proposals[0]?.type).toBe("GOAL_UPDATE");
       expect(result.proposals[0]?.status).toBe("PENDING");
+      expect(result.reply).toBe("Here is a coaching reply.");
+      expect(result.reply).not.toContain(AI_PROPOSALS_FENCE_START);
+      expect(result.reply).not.toContain(AI_PROPOSALS_FENCE_END);
       expect(await prisma.studentGoal.count({ where: { userId: user.id } })).toBe(
         0,
       );
