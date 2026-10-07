@@ -56,9 +56,11 @@ export function stripProposalFencesFromReply(reply: string): string {
       break;
     }
 
-    cleaned =
-      cleaned.slice(0, start) +
-      cleaned.slice(end + AI_PROPOSALS_FENCE_END.length);
+    const before = cleaned.slice(0, start).replace(/\\n$/, "");
+    const after = cleaned
+      .slice(end + AI_PROPOSALS_FENCE_END.length)
+      .replace(/^\\n/, "");
+    cleaned = before + after;
   }
 
   cleaned = cleaned.replaceAll(AI_PROPOSALS_FENCE_END, "");
