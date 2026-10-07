@@ -67,6 +67,18 @@ export function composeStudyUserMessage(args: {
   }
 }
 
+export function nextStudyIntents(intent: StudyIntent): StudyIntent[] {
+  switch (intent) {
+    case "ask": return ["hint", "steps", "attempt"];
+    case "explain": return ["hint", "attempt", "check_work"];
+    case "hint": return ["attempt", "check_work", "steps"];
+    case "steps": return ["attempt", "check_work", "hint"];
+    case "attempt": return ["check_work", "hint", "steps"];
+    case "check_work": return ["attempt", "explain", "hint"];
+    default: return ["hint", "steps", "attempt"];
+  }
+}
+
 export function parseStudyIntent(raw: unknown): StudyIntent {
   if (typeof raw !== "string" || !(STUDY_INTENTS as readonly string[]).includes(raw)) {
     throw new ValidationError("Invalid study intent.");
