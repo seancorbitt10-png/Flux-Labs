@@ -89,6 +89,12 @@ export async function syncStripeSubscription(
   });
 
   if (active) {
+    if (active.plan === "FREE_TRIAL" && status !== "ACTIVE") {
+      // Do not consume or replace a live app trial merely because a Stripe
+      // Checkout session created an incomplete/failed subscription.
+      return;
+    }
+
     if (active.plan === "FREE_TRIAL") {
       await tx.entitlement.update({
         where: { id: active.id },
