@@ -60,7 +60,7 @@ export function stripProposalFencesFromReply(reply: string): string {
     const after = cleaned
       .slice(end + AI_PROPOSALS_FENCE_END.length)
       .replace(/^\n/, "");
-    cleaned = before + after;
+    cleaned = before + "\n" + after;
   }
 
   cleaned = cleaned.replaceAll(AI_PROPOSALS_FENCE_END, "");
