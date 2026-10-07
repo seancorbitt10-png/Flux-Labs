@@ -18,9 +18,10 @@
  * lower them. Clients cannot raise them. Reservation cost uses the same
  * token envelope (tokenizer-gated).
  *
- * Vendor model env vars (AI_MODEL_FLUX_*) may only select allowlisted IDs
- * verified for o200k_base in `@/lib/ai/model-registry`. Unsupported IDs fail
- * closed at config resolution — before provider dispatch.
+ * Vendor model env vars (AI_MODEL_FLUX_*) may only select IDs allowlisted for
+ * that internal key and its server pricing tier, all verified for o200k_base in
+ * `@/lib/ai/model-registry`. Unsupported or cross-tier IDs fail closed at
+ * config resolution — before provider dispatch.
  *
  * Never import this module from client components.
  */
