@@ -9,10 +9,11 @@ BOTTOM LINE
 --------------------------------------------------------------------------------
 
 Phases 0–3 COMPLETE on main.
-Phase 4 architecture and the current hardening package are on main.
+Phase 4 architecture, production-AI foundation, and guided Study intelligence
+slices 0–6 are implemented on main.
 
-main tip:                   ef8a4909603a86c9da5654e5578f2abefccb41f7
-                            (docs: mark Phase 4 hardening as implemented on main)
+main tip:                   d5ff7d7f8ad6325ec924f32a79c74a63bf231e7c
+                            (fix: preserve proposal prose separator)
 
 There are currently no open pull requests for Flux Labs.
 
@@ -36,7 +37,8 @@ Phase 4:
   #18 Study Focus UX
   #20 bounded Class/Task retrieval
   #21 production-AI fail-closed enablement
-  Current hardening package:
+  Current hardening/product package:
+    - guided Study contextual next actions
     - model-to-cost pricing-tier safety
     - proposal control-data fencing/sanitization
     - learning-insight contract bounds
@@ -60,19 +62,21 @@ by default.
 QUALITY VERIFICATION
 --------------------------------------------------------------------------------
 
-Latest local verification performed before reconciliation to main:
+Latest local verification on synchronized main:
 
-  Full test suite:     380 passed
-  Typecheck:           pass
-  Lint:                pass
-  Production build:    pass
-  Prisma migrations:   up to date / no new migration required
+  Focused regression suite: 51/51 passed
+  Full test suite:           386/386 passed
+  Test files:                30/30 passed
+  Typecheck:                 pass
+  Lint:                      pass
+  Production build:          pass
+  Static pages generated:   18/18
+  Prisma migrations:         up to date / no new migration required
 
-Focused model-registry verification also passed:
-  9/9 tests
+The full verification required no production API call and therefore incurred
+no provider inference cost.
 
-The verification covered the synchronized Phase 4 implementation now present
-on main. No production API call was required for these checks.
+The latest GitHub commit currently has no reported CI status entries.
 
 --------------------------------------------------------------------------------
 CURRENT PHASE 4 STATE
@@ -86,8 +90,10 @@ Implemented:
   - Bounded Class/Task retrieval
   - Model-to-cost mapping safety
   - Study-path operational smoke infrastructure
+  - Guided Study contextual next actions
 
-Phase 4 product slices 0–6 are now implemented on main. Guided Study now surfaces contextual next actions; production AI remains disabled until the deliberate operational enablement step.
+Phase 4 product slices 0–6 are implemented on main and locally verified.
+Production AI remains disabled until the deliberate operational enablement step.
 
 Production AI enablement remains a deliberate operational step, not an
 automatic consequence of merging code.
@@ -97,12 +103,15 @@ NEXT ACTIONS
 --------------------------------------------------------------------------------
 
 1. Keep production AI OFF until the operational enablement decision is made.
-2. If real-model validation is desired, perform the controlled provider smoke
+2. Complete production hosting/database configuration for the deployment target.
+3. Configure production authentication URL/secret and required server
+   environment variables.
+4. If real-model validation is desired, perform the controlled provider smoke
    only after the required paid API infrastructure is intentionally configured.
-3. Perform final local verification of the guided-loop change after syncing main.
-4. If verification is clean, move to the controlled real-provider smoke test and
-   deployment preparation; real API use requires deliberate paid infrastructure.
-5. Do not start RAG, billing, autonomous agents, or unrelated expansion as
+5. After deployment infrastructure is connected, run a production health/auth
+   smoke with production AI still OFF.
+6. Enable real AI only as a separate, explicitly approved operational step.
+7. Do not start RAG, billing, autonomous agents, or unrelated expansion as
    substitutes for validating the core Study product.
 
 ================================================================================
