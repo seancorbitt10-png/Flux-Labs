@@ -542,7 +542,7 @@ export function StudyWorkspace({
                           </div>
                         </div>
                       );
-                    })()}
+                    })() : null}
                   </>
                 ) : null}
               </article>
