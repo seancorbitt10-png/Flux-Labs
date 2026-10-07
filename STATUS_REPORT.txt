@@ -95,6 +95,33 @@ Implemented:
 Phase 4 product slices 0–6 are implemented on main and locally verified.
 Production AI remains disabled until the deliberate operational enablement step.
 
+--------------------------------------------------------------------------------
+BILLING BRANCH — IN PROGRESS (NOT ON MAIN)
+--------------------------------------------------------------------------------
+
+Branch: billing/plus-pro
+
+Approved paid pricing locked for implementation:
+  Plus: $8/month
+  Pro:  $12/month
+
+Billing implementation on this branch currently includes:
+  - Stripe server SDK dependency
+  - Stripe Price ID configuration with server-side exact-price validation
+  - Hosted Checkout subscription creation
+  - Billing Portal session creation
+  - Stripe webhook signature verification
+  - Idempotent webhook event persistence
+  - Subscription status → Flux entitlement synchronization
+  - Stripe customer ↔ Flux user mapping
+  - Billing UI and navigation
+  - Automated price + 60% minimum variable-margin tests
+
+No live Stripe credentials, prices, or webhook secrets have been added.
+Premium remains intentionally unimplemented until an explicit product decision.
+Package-lock regeneration and full local verification are still required before
+this branch can be merged into main.
+
 Production AI enablement remains a deliberate operational step, not an
 automatic consequence of merging code.
 
