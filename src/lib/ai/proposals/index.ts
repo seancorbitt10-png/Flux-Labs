@@ -20,6 +20,7 @@ export {
   AI_PROPOSALS_FENCE_END,
   AI_PROPOSALS_FENCE_START,
   extractProposalPayloadFromReply,
+  stripProposalFencesFromReply,
 } from "./extract";
 
 export {
@@ -34,4 +35,3 @@ export {
   type IngestedProposalView,
 } from "./service";
 
-export { stripProposalFencesFromReply } from "./extract";
