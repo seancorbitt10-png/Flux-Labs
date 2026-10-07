@@ -234,7 +234,7 @@ export async function runAIOrchestration(
     // Controlled proposal ingest — PENDING only; never auto-mutates Student Model.
     const ingested = await ingestProposalsFromProviderReply({
       actorUserId,
-      reply: studentReply,
+      reply: validated.text,
       aiInteractionId: interaction.id,
     });
 
@@ -242,7 +242,7 @@ export async function runAIOrchestration(
       taskType: route.taskType,
       assistanceMode: policy.mode,
       modelKey: completion.modelKey,
-      reply: validated.text,
+      reply: studentReply,
       requiresStudentParticipation: policy.requiresStudentParticipation,
       replyTruncated: validated.truncated,
       contextVersion: assembled.version,
