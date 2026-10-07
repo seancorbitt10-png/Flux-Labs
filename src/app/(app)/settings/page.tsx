@@ -51,9 +51,15 @@ export default async function SettingsPage() {
             : "No active plan"}
         </p>
         <p className="text-xs text-foreground/50">
-          Billing integration arrives in Phase 9. Limits are enforced
-          server-side today.
+          Billing is managed from the dedicated billing page. Limits remain
+          enforced server-side.
         </p>
+        <a
+          href="/billing"
+          className="inline-flex rounded-md border border-foreground/15 px-4 py-2 text-sm font-medium hover:border-foreground/30"
+        >
+          View billing
+        </a>
       </section>
 
       <section className="space-y-3 border-t border-foreground/10 pt-6">
