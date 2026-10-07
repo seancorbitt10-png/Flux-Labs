@@ -5,7 +5,7 @@ import {
   bindStripeCustomerToUser,
   syncStripeSubscription,
 } from "@/lib/billing/subscriptions";
-import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
+import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";\n\nexport const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
