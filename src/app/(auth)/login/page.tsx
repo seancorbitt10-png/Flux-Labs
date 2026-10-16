@@ -17,6 +17,14 @@ export default function LoginPage() {
         </div>
         <LoginForm />
         <p className="text-sm font-medium text-muted">
+          <Link
+            href="/forgot-password"
+            className="font-semibold text-accent underline-offset-2 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </p>
+        <p className="text-sm font-medium text-muted">
           No account?{" "}
           <Link
             href="/register"
