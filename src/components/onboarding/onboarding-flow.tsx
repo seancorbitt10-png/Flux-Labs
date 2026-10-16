@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   bootstrapOnboardingAction,
   completeOnboardingAction,
-  dismissOnboardingAction,
   submitOnboardingAnswerAction,
 } from "@/lib/onboarding/actions";
 import {
@@ -152,18 +151,8 @@ export function OnboardingFlow({ initial }: Props) {
   }
 
   function dismiss() {
-    if (!bootstrap.session) return;
-    startTransition(async () => {
-      const result = await dismissOnboardingAction({
-        sessionId: bootstrap.session!.id,
-      });
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      setDoneView("dismissed");
-      router.refresh();
-    });
+    // Leave the in-progress session intact so saved answers can be resumed later.
+    router.push("/home");
   }
 
   function addTag(raw: string) {
@@ -508,7 +497,7 @@ export function OnboardingFlow({ initial }: Props) {
           className="px-0 sm:px-4"
           onClick={dismiss}
         >
-          Skip setup for now
+          Set up later
         </Button>
         <Button
           type="button"
