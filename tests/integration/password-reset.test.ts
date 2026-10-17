@@ -253,4 +253,59 @@ describe("password reset flow", () => {
     expect(result.ok).toBe(false);
     expect(result.message).toMatch(/invalid or expired/i);
   });
+
+  it("allows only one concurrent reset to succeed for the same token", async () => {
+    const original = "original-password-1";
+    const user = await createUser(`race-${Date.now()}`, original);
+    const token = `concurrent-token-${user.id}`;
+    await prisma.verificationToken.create({
+      data: {
+        identifier: passwordResetIdentifier(user.email),
+        token: hashPasswordResetToken(token),
+        expires: new Date(Date.now() + 30 * 60_000),
+      },
+    });
+
+    const passwords = [
+      "concurrent-password-a",
+      "concurrent-password-b",
+      "concurrent-password-c",
+    ];
+    const results = await Promise.all(
+      passwords.map((password) =>
+        resetPassword(
+          null,
+          form({
+            email: user.email,
+            token,
+            password,
+          }),
+        ),
+      ),
+    );
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toHaveLength(2);
+    for (const failed of results.filter((result) => !result.ok)) {
+      expect(failed.message).toMatch(/invalid or expired/i);
+    }
+
+    const updated = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+    const matches = await Promise.all(
+      passwords.map((password) =>
+        bcrypt.compare(password, updated.passwordHash ?? ""),
+      ),
+    );
+    expect(matches.filter(Boolean)).toHaveLength(1);
+    expect(await bcrypt.compare(original, updated.passwordHash ?? "")).toBe(
+      false,
+    );
+
+    const leftover = await prisma.verificationToken.findMany({
+      where: { identifier: passwordResetIdentifier(user.email) },
+    });
+    expect(leftover).toHaveLength(0);
+  });
 });

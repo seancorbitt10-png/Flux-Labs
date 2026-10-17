@@ -16,6 +16,13 @@ import {
 
 export type ResetResult = { ok: boolean; message: string };
 
+class PasswordResetTokenError extends Error {
+  constructor() {
+    super("invalid-or-expired-reset-token");
+    this.name = "PasswordResetTokenError";
+  }
+}
+
 async function resolveRateLimitIp(): Promise<string> {
   try {
     return await getRequestIp();
@@ -130,35 +137,49 @@ export async function resetPassword(
   try {
     const identifier = passwordResetIdentifier(email);
     const hashedToken = hashPasswordResetToken(token);
-    const record = await prisma.verificationToken.findFirst({
-      where: { identifier, token: hashedToken, expires: { gt: new Date() } },
-    });
-    if (!record) {
-      return {
-        ok: false,
-        message: "This reset link is invalid or expired. Request a new one.",
-      };
-    }
+    // Hash before opening the transaction so bcrypt latency does not hold
+    // the token row lock. Concurrent callers still serialize on FOR UPDATE.
     const passwordHash = await bcrypt.hash(password, 12);
     await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        Array<{ identifier: string; token: string; expires: Date }>
+      >`
+        SELECT identifier, token, expires
+        FROM verification_tokens
+        WHERE identifier = ${identifier} AND token = ${hashedToken}
+        FOR UPDATE
+      `;
+      const record = locked[0];
+      if (!record || record.expires.getTime() <= Date.now()) {
+        throw new PasswordResetTokenError();
+      }
       const user = await tx.user.findUnique({
         where: { email },
         select: { id: true },
       });
-      if (!user) throw new Error("Invalid reset request");
+      if (!user) throw new PasswordResetTokenError();
       await tx.user.update({
         where: { id: user.id },
         data: { passwordHash },
       });
-      await tx.verificationToken.deleteMany({
+      const consumed = await tx.verificationToken.deleteMany({
         where: { identifier, token: hashedToken },
       });
+      if (consumed.count !== 1) {
+        throw new PasswordResetTokenError();
+      }
     });
     return {
       ok: true,
       message: "Password updated. You can now sign in with your new password.",
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof PasswordResetTokenError) {
+      return {
+        ok: false,
+        message: "This reset link is invalid or expired. Request a new one.",
+      };
+    }
     return {
       ok: false,
       message: "We couldn't reset your password. Request a new link and try again.",
