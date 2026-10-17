@@ -30,6 +30,33 @@
 | `AI_MODEL_FLUX_STANDARD` | no | Allowlisted mini-tier vendor model id for internal `flux-standard` (default `gpt-4o-mini`; must be verified o200k_base) |
 | `AI_MODEL_FLUX_ADVANCED` | no | Allowlisted advanced-tier vendor model id for internal `flux-advanced` (default `gpt-4o`; must be verified o200k_base) |
 
+## Password-reset email delivery
+
+Reset emails are sent through Resend from `requestPasswordReset`. The public
+response is always the same generic message, so **failures are only visible in
+server logs**. Search your log drain (Vercel → Logs) for `[flux-password-reset]`.
+Each request emits one JSON line with an `outcome`:
+
+| `outcome` | Meaning | What to check |
+|-----------|---------|---------------|
+| `resend_accepted` | Resend accepted the email (`resendMessageId` is logged) | Resend → Emails → find that id for delivery/bounce status |
+| `resend_rejected` | Resend returned 4xx; `httpStatus`, `resendErrorName`, `resendErrorMessage` explain why. Unused token is deleted | e.g. 403 "domain is not verified" → verify the sending domain's DNS records in Resend; 401 → API key invalid/restricted |
+| `resend_unavailable` / `resend_timeout` / `resend_network_error` | Outcome is **ambiguous** — the email may still have been sent. Token is kept (hashed, 30 min, single-use) | Resend → Emails; retry later |
+| `config_missing_api_key` / `config_missing_from` / `config_invalid_from` | `RESEND_API_KEY` or `RESET_EMAIL_FROM` unset or malformed (`noreply@domain` or `Name <noreply@domain>`) | Vercel env vars (Production scope); redeploy after changing |
+| `config_missing_base_url` / `config_base_url_not_https` / `config_base_url_invalid` | `AUTH_URL` (or `NEXTAUTH_URL`) unset, not https, or not a valid URL | Vercel env vars. Sign-in works without `AUTH_URL` (`trustHost`), so this can fail silently |
+| `rate_limited` | Per-IP (5/h) or per-email (3/h) limit; `rateLimitScope` says which. `ipKnown:false` means all such requests share one bucket | Proxy forwarding of `x-forwarded-for` |
+| `account_not_found` | No account for that email (normal) | — |
+| `lookup_failed` / `token_persist_failed` / `token_cleanup_failed` | Database error; `errorCode` is the Prisma code | Database availability |
+
+Logs never contain email addresses, API keys, reset tokens, reset URLs, or
+authorization headers. `emailRef` is a keyed (HMAC with `AUTH_SECRET`) 12-hex
+reference so repeated attempts for one address can be correlated; `baseHost`
+shows which hostname reset links are built from.
+
+`AUTH_URL` should be the canonical public origin users actually land on. If the
+apex domain redirects to `www` (or the reverse), set `AUTH_URL` to the final
+host so reset links do not depend on a redirect.
+
 ## AI production gate
 
 Production AI stays **disabled** unless **all** of the following are true:
