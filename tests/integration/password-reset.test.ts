@@ -31,12 +31,9 @@ function form(data: Record<string, string>): FormData {
 
 async function cleanup() {
   const where = { email: { endsWith: "@fluxlabs.test" } };
-  const users = await prisma.user.findMany({ where, select: { email: true } });
-  for (const user of users) {
-    await prisma.verificationToken.deleteMany({
-      where: { identifier: passwordResetIdentifier(user.email) },
-    });
-  }
+  await prisma.verificationToken.deleteMany({
+    where: { identifier: { startsWith: "password-reset:" } },
+  });
   await prisma.user.deleteMany({ where });
 }
 
@@ -63,13 +60,14 @@ describe("password reset flow", () => {
     }
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     resetRateLimits();
     for (const key of ENV_KEYS) {
       delete process.env[key];
     }
+    await cleanup();
   });
 
   it("returns a generic success when email config is missing and does not store a token", async () => {
@@ -212,10 +210,11 @@ describe("password reset flow", () => {
 
   it("rejects an invalid token", async () => {
     const user = await createUser(`invalid-${Date.now()}`);
+    const storedToken = `real-token-${user.id}`;
     await prisma.verificationToken.create({
       data: {
         identifier: passwordResetIdentifier(user.email),
-        token: hashPasswordResetToken("real-token"),
+        token: hashPasswordResetToken(storedToken),
         expires: new Date(Date.now() + 30 * 60_000),
       },
     });
@@ -234,7 +233,7 @@ describe("password reset flow", () => {
 
   it("rejects an expired token", async () => {
     const user = await createUser(`expired-${Date.now()}`);
-    const token = "expired-plain-token";
+    const token = `expired-plain-token-${user.id}`;
     await prisma.verificationToken.create({
       data: {
         identifier: passwordResetIdentifier(user.email),
