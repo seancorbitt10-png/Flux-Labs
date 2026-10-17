@@ -12,29 +12,15 @@ import {
   SUBJECT_SUGGESTIONS,
   type ClientOnboardingQuestion,
 } from "@/lib/onboarding/catalog";
+import {
+  isOnboardingDraftReady,
+  persistableDeferDraft,
+} from "@/lib/onboarding/defer-draft";
 import type { OnboardingBootstrap } from "@/lib/onboarding/session";
 
 type Props = {
   initial: OnboardingBootstrap;
 };
-
-function isAnswerReady(
-  question: ClientOnboardingQuestion,
-  value: unknown,
-): boolean {
-  switch (question.answerType) {
-    case "enum":
-      return typeof value === "string" && value.length > 0;
-    case "string":
-      return typeof value === "string" && value.trim().length > 0;
-    case "string_array":
-      return Array.isArray(value) && value.length > 0;
-    case "boolean":
-      return typeof value === "boolean";
-    default:
-      return false;
-  }
-}
 
 export function OnboardingFlow({ initial }: Props) {
   const router = useRouter();
@@ -105,7 +91,7 @@ export function OnboardingFlow({ initial }: Props) {
     if (!bootstrap.session || !question) return;
     setError(null);
 
-    if (!skipped && !isAnswerReady(question, draft)) {
+    if (!skipped && !isOnboardingDraftReady(question, draft)) {
       setError("Please answer this question, or skip it.");
       return;
     }
@@ -150,9 +136,30 @@ export function OnboardingFlow({ initial }: Props) {
     });
   }
 
-  function dismiss() {
-    // Leave the in-progress session intact so saved answers can be resumed later.
-    router.push("/home");
+  function deferSetup() {
+    // Do not dismiss/complete the session. Persist valid in-progress edits,
+    // then leave so the student can use the app and resume later.
+    if (!bootstrap.session || !question) {
+      router.push("/home");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const toSave = persistableDeferDraft(question, draft, tagInput);
+      if (toSave !== null) {
+        const result = await submitOnboardingAnswerAction({
+          sessionId: bootstrap.session!.id,
+          questionId: question.questionId,
+          skipped: false,
+          answer: toSave,
+        });
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
+      }
+      router.push("/home");
+    });
   }
 
   function addTag(raw: string) {
@@ -251,7 +258,8 @@ export function OnboardingFlow({ initial }: Props) {
     );
   }
 
-  const canContinue = isAnswerReady(question, draft);
+  const canContinue = isOnboardingDraftReady(question, draft);
+  const allAnsweredOrSkipped = bootstrap.progress.remaining === 0;
 
   return (
     <div className="animate-fade-up max-w-xl space-y-5">
@@ -454,6 +462,13 @@ export function OnboardingFlow({ initial }: Props) {
         ) : null}
       </section>
 
+      {allAnsweredOrSkipped ? (
+        <p className="text-sm text-foreground/65">
+          Every question has been answered or skipped. Finish setup to complete,
+          or choose Set up later and resume from here.
+        </p>
+      ) : null}
+
       {error ? (
         <p className="text-sm text-danger" role="alert">
           {error}
@@ -495,7 +510,7 @@ export function OnboardingFlow({ initial }: Props) {
           variant="ghost"
           disabled={pending}
           className="px-0 sm:px-4"
-          onClick={dismiss}
+          onClick={deferSetup}
         >
           Set up later
         </Button>

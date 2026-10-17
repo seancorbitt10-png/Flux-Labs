@@ -506,13 +506,18 @@ export async function dismissOnboardingSession(args: {
   return dismissed;
 }
 
-/** Post-auth soft-gate destination — never blocks AI after dismiss/complete. */
+/**
+ * Post-auth soft-gate destination.
+ * First-time users (never started) go to Academic setup.
+ * In-progress / deferred sessions do not trap the student — they use the app
+ * and resume from nav. Dismissed and completed also go home.
+ */
 export async function resolvePostAuthPath(args: {
   actorUserId: string;
   userId: string;
 }): Promise<"/onboarding" | "/home"> {
   const { gate } = await resolveOnboardingGate(args);
-  if (gate === "needed" || gate === "in_progress") {
+  if (gate === "needed") {
     return "/onboarding";
   }
   return "/home";

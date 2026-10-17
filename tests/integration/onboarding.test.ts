@@ -690,4 +690,119 @@ describe("Phase 2 Implementation #4 — onboarding + student setup", () => {
     });
     expect(session.version).toBe(ONBOARDING_VERSION);
   });
+
+  it("keeps a deferred IN_PROGRESS session resumable with answers intact", async () => {
+    const user = await createUser(`defer-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.level",
+      answer: "undergrad",
+    });
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.setting",
+      skipped: true,
+    });
+
+    const afterLeave = await prisma.onboardingSession.findUniqueOrThrow({
+      where: { id: session.id },
+      include: { answers: true },
+    });
+    expect(afterLeave.status).toBe("IN_PROGRESS");
+    expect(afterLeave.completedAt).toBeNull();
+    expect(afterLeave.answers).toHaveLength(2);
+
+    const profile = await prisma.studentProfile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(profile.onboardingSkippedAt).toBeNull();
+    expect(profile.onboardingCompletedAt).toBeNull();
+
+    expect(
+      await resolvePostAuthPath({
+        actorUserId: user.id,
+        userId: user.id,
+      }),
+    ).toBe("/home");
+
+    const resumed = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    expect(resumed.id).toBe(session.id);
+    expect(resumed.status).toBe("IN_PROGRESS");
+
+    const bootstrap = await getOnboardingBootstrap({
+      actorUserId: user.id,
+      userId: user.id,
+      ensureSession: true,
+    });
+    const catalog = getOnboardingCatalog(ONBOARDING_VERSION);
+    expect(bootstrap.gate).toBe("in_progress");
+    expect(bootstrap.session?.id).toBe(session.id);
+    expect(bootstrap.answers["academic.level"]?.answer).toBe("undergrad");
+    expect(bootstrap.answers["academic.setting"]?.skipped).toBe(true);
+    expect(bootstrap.progress.answeredOrSkipped).toBe(2);
+    expect(bootstrap.progress.firstUnansweredIndex).toBe(
+      catalog.questions.findIndex((q) => q.questionId === "academic.target_band"),
+    );
+    expect(
+      catalog.questions[bootstrap.progress.firstUnansweredIndex]?.questionId,
+    ).toBe("academic.target_band");
+  });
+
+  it("does not restart when every question is answered or skipped but setup is unfinished", async () => {
+    const user = await createUser(`allq-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    const catalog = getOnboardingCatalog(ONBOARDING_VERSION);
+    for (const question of catalog.questions) {
+      await submitOnboardingAnswer({
+        actorUserId: user.id,
+        userId: user.id,
+        sessionId: session.id,
+        questionId: question.questionId,
+        skipped: true,
+      });
+    }
+
+    const bootstrap = await getOnboardingBootstrap({
+      actorUserId: user.id,
+      userId: user.id,
+      ensureSession: true,
+    });
+    expect(bootstrap.session?.id).toBe(session.id);
+    expect(bootstrap.session?.status).toBe("IN_PROGRESS");
+    expect(bootstrap.progress.remaining).toBe(0);
+    expect(bootstrap.progress.answeredOrSkipped).toBe(catalog.questions.length);
+    expect(bootstrap.progress.firstUnansweredIndex).toBe(
+      catalog.questions.length - 1,
+    );
+    expect(
+      await resolvePostAuthPath({
+        actorUserId: user.id,
+        userId: user.id,
+      }),
+    ).toBe("/home");
+  });
+
+  it("does not trap first-run users away from Academic setup", async () => {
+    const user = await createUser(`needed-${Date.now()}`);
+    expect(
+      await resolvePostAuthPath({
+        actorUserId: user.id,
+        userId: user.id,
+      }),
+    ).toBe("/onboarding");
+  });
 });
