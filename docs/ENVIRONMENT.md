@@ -14,7 +14,9 @@
 |------|----------|---------|
 | `DATABASE_URL` | yes | PostgreSQL connection |
 | `AUTH_SECRET` | yes | Auth.js secret |
-| `AUTH_URL` | yes | Canonical app URL |
+| `AUTH_URL` | yes | Canonical app URL (password-reset emails require a public **https** URL) |
+| `RESEND_API_KEY` | no | Server-only Resend key for password-reset email. Not required for sign-in. Never expose to the client. |
+| `RESET_EMAIL_FROM` | no | Verified Resend From address for password-reset email (e.g. `Flux Labs <no-reply@your-domain>`) |
 | `AI_PRODUCTION_ENABLED` | no | Explicit production AI gate (`true` required). Default: off |
 | `AI_PRODUCTION_CONFIRM` | no | Accidental-enablement safeguard; must be exactly `ENABLE_REAL_AI` when production is enabled |
 | `AI_PROVIDER` | no | Server provider kind: `stub` (default) or `openai` (required when production enabled) |

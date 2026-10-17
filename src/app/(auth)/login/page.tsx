@@ -24,6 +24,13 @@ export default function LoginPage() {
           >
             Create one
           </Link>
+          {" · "}
+          <Link
+            href="/forgot-password"
+            className="font-semibold text-accent underline-offset-2 hover:underline"
+          >
+            Forgot password?
+          </Link>
         </p>
       </div>
     </div>
