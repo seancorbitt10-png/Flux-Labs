@@ -3,7 +3,12 @@ import { LoginForm } from "@/components/auth/auth-forms";
 
 export const metadata = { title: "Sign in" };
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ reset?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { reset } = await searchParams;
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="pointer-events-none absolute inset-0 bg-atmosphere" />
@@ -15,6 +20,11 @@ export default function LoginPage() {
             Continue to your academic workspace.
           </p>
         </div>
+        {reset === "success" ? (
+          <p role="status" className="rounded-lg border border-foreground/10 bg-canvas px-3 py-2 text-sm font-medium">
+            Your password was updated. Sign in with your new password.
+          </p>
+        ) : null}
         <LoginForm />
         <p className="text-sm font-medium text-muted">
           No account?{" "}

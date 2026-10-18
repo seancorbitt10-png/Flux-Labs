@@ -10,6 +10,7 @@ import {
   requestPasswordReset,
   resetPassword,
 } from "@/lib/auth/password-reset-actions";
+import { isPublicPath } from "@/lib/auth/public-paths";
 import { resetRateLimits } from "@/lib/security/rate-limit";
 
 const prisma = new PrismaClient();
@@ -19,6 +20,8 @@ const ENV_KEYS = [
   "RESET_EMAIL_FROM",
   "AUTH_URL",
   "NEXTAUTH_URL",
+  "VERCEL_ENV",
+  "VERCEL_PROJECT_PRODUCTION_URL",
 ] as const;
 
 function form(data: Record<string, string>): FormData {
@@ -177,6 +180,7 @@ describe("password reset flow", () => {
         email: user.email,
         token: plainToken,
         password: nextPassword,
+        confirmPassword: nextPassword,
       }),
     );
     expect(first.ok).toBe(true);
@@ -202,6 +206,7 @@ describe("password reset flow", () => {
         email: user.email,
         token: plainToken,
         password: "another-password-9",
+        confirmPassword: "another-password-9",
       }),
     );
     expect(second.ok).toBe(false);
@@ -225,6 +230,7 @@ describe("password reset flow", () => {
         email: user.email,
         token: "wrong-token",
         password: "new-password-1",
+        confirmPassword: "new-password-1",
       }),
     );
     expect(result.ok).toBe(false);
@@ -248,6 +254,7 @@ describe("password reset flow", () => {
         email: user.email,
         token,
         password: "new-password-1",
+        confirmPassword: "new-password-1",
       }),
     );
     expect(result.ok).toBe(false);
@@ -279,6 +286,7 @@ describe("password reset flow", () => {
             email: user.email,
             token,
             password,
+            confirmPassword: password,
           }),
         ),
       ),
@@ -307,5 +315,198 @@ describe("password reset flow", () => {
       where: { identifier: passwordResetIdentifier(user.email) },
     });
     expect(leftover).toHaveLength(0);
+  });
+
+  describe("emailed link round trip", () => {
+    function captureEmail() {
+      const sent: { text: string; html: string } = { text: "", html: "" };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body ?? "{}")) as {
+            text?: string;
+            html?: string;
+          };
+          sent.text = body.text ?? "";
+          sent.html = body.html ?? "";
+          return { ok: true } as Response;
+        }),
+      );
+      return sent;
+    }
+
+    function configureEmail(env: Record<string, string> = {}) {
+      process.env.RESEND_API_KEY = "re_test_not_real";
+      process.env.RESET_EMAIL_FROM = "Flux Labs <no-reply@example.com>";
+      process.env.AUTH_URL = "https://www.example.com";
+      for (const [key, value] of Object.entries(env)) {
+        process.env[key] = value;
+      }
+    }
+
+    function parseLink(text: string) {
+      const raw = text.match(/https:\/\/[^\s"<]+/)?.[0] ?? "";
+      const url = new URL(raw);
+      return {
+        url,
+        token: url.searchParams.get("token") ?? "",
+        email: url.searchParams.get("email") ?? "",
+      };
+    }
+
+    it("links to the public /reset-password page on the configured origin", async () => {
+      const user = await createUser(`link-${Date.now()}`);
+      configureEmail();
+      const sent = captureEmail();
+
+      await requestPasswordReset(null, form({ email: user.email }));
+
+      const link = parseLink(sent.text);
+      expect(link.url.origin).toBe("https://www.example.com");
+      expect(link.url.pathname).toBe("/reset-password");
+      expect(link.url.pathname).not.toMatch(/login/);
+      expect(link.email).toBe(user.email);
+      expect(link.token.length).toBeGreaterThan(20);
+      expect(isPublicPath(link.url.pathname)).toBe(true);
+    });
+
+    it("uses the production domain instead of a stale per-deployment AUTH_URL", async () => {
+      const user = await createUser(`stale-${Date.now()}`);
+      configureEmail({
+        AUTH_URL: "https://flux-labs-p5zoqtxaj-jarvis-d61f.vercel.app",
+        VERCEL_ENV: "production",
+        VERCEL_PROJECT_PRODUCTION_URL: "www.example.com",
+      });
+      const sent = captureEmail();
+
+      await requestPasswordReset(null, form({ email: user.email }));
+
+      expect(parseLink(sent.text).url.origin).toBe("https://www.example.com");
+      expect(sent.text).not.toContain("vercel.app");
+    });
+
+    it("completes request -> reset -> sign-in credentials, then rejects reuse of the consumed token", async () => {
+      const original = "original-password-1";
+      const user = await createUser(`trip-${Date.now()}`, original);
+      configureEmail();
+      const sent = captureEmail();
+
+      await requestPasswordReset(null, form({ email: user.email }));
+      const { token, email } = parseLink(sent.text);
+
+      const nextPassword = "round-trip-password-9";
+      const ok = await resetPassword(
+        null,
+        form({
+          email,
+          token,
+          password: nextPassword,
+          confirmPassword: nextPassword,
+        }),
+      );
+      expect(ok.ok).toBe(true);
+      const updated = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      expect(await bcrypt.compare(nextPassword, updated.passwordHash ?? "")).toBe(
+        true,
+      );
+
+      const reuse = await resetPassword(
+        null,
+        form({
+          email,
+          token,
+          password: "attacker-password-9",
+          confirmPassword: "attacker-password-9",
+        }),
+      );
+      expect(reuse.ok).toBe(false);
+      expect(reuse.message).toMatch(/invalid or expired/i);
+      const after = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      expect(after.passwordHash).toBe(updated.passwordHash);
+    });
+  });
+
+  describe("input validation before the token is touched", () => {
+    async function seedToken(suffix: string) {
+      const user = await createUser(`${suffix}-${Date.now()}`);
+      const token = `validation-token-${user.id}`;
+      await prisma.verificationToken.create({
+        data: {
+          identifier: passwordResetIdentifier(user.email),
+          token: hashPasswordResetToken(token),
+          expires: new Date(Date.now() + 30 * 60_000),
+        },
+      });
+      return { user, token };
+    }
+
+    it("rejects mismatched confirmation without consuming the token or changing the password", async () => {
+      const { user, token } = await seedToken("mismatch");
+      const before = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      const result = await resetPassword(
+        null,
+        form({
+          email: user.email,
+          token,
+          password: "new-password-one-1",
+          confirmPassword: "new-password-two-2",
+        }),
+      );
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/do not match/i);
+      const after = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      expect(after.passwordHash).toBe(before.passwordHash);
+      expect(
+        await prisma.verificationToken.count({
+          where: { identifier: passwordResetIdentifier(user.email) },
+        }),
+      ).toBe(1);
+    });
+
+    it("rejects a missing confirmation, short password, and missing token", async () => {
+      const { user, token } = await seedToken("shape");
+      const missingConfirm = await resetPassword(
+        null,
+        form({ email: user.email, token, password: "new-password-1" }),
+      );
+      expect(missingConfirm.ok).toBe(false);
+
+      const short = await resetPassword(
+        null,
+        form({
+          email: user.email,
+          token,
+          password: "short",
+          confirmPassword: "short",
+        }),
+      );
+      expect(short.ok).toBe(false);
+      expect(short.message).toMatch(/8 and 72/);
+
+      const noToken = await resetPassword(
+        null,
+        form({
+          email: user.email,
+          token: "",
+          password: "new-password-1",
+          confirmPassword: "new-password-1",
+        }),
+      );
+      expect(noToken.ok).toBe(false);
+      expect(noToken.message).toMatch(/invalid or incomplete/i);
+      expect(
+        await prisma.verificationToken.count({
+          where: { identifier: passwordResetIdentifier(user.email) },
+        }),
+      ).toBe(1);
+    });
   });
 });

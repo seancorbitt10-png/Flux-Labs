@@ -1,20 +1,9 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/auth/config";
+import { isPublicPath } from "@/lib/auth/public-paths";
 import { NextResponse } from "next/server";
 
 const { auth } = NextAuth(authConfig);
-
-function isPublicPath(pathname: string): boolean {
-  return (
-    pathname === "/" ||
-    pathname === "/login" ||
-    pathname === "/register" ||
-    pathname === "/forgot-password" ||
-    pathname === "/reset-password" ||
-    pathname.startsWith("/api/auth") ||
-    pathname === "/api/health"
-  );
-}
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -34,6 +23,8 @@ export default auth((req) => {
 
     const url = req.nextUrl.clone();
     url.pathname = "/login";
+    // Never forward the original query (it can carry one-time tokens).
+    url.search = "";
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
