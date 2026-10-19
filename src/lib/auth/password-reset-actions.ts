@@ -9,6 +9,7 @@ import { getRequestIp } from "@/lib/security/request-ip";
 import {
   PASSWORD_RESET_REQUEST_MESSAGE,
   PASSWORD_RESET_TTL_MS,
+  buildPasswordResetUrl,
   hashPasswordResetToken,
   passwordResetIdentifier,
   resolveResetEmailConfig,
@@ -21,6 +22,7 @@ import {
   type PasswordResetLogEntry,
   type TokenDisposition,
 } from "@/lib/auth/password-reset-diagnostics";
+import { validatePasswordResetSubmission } from "@/lib/auth/password-reset-validation";
 import { sendPasswordResetEmail } from "@/lib/auth/password-reset-email";
 
 export type ResetResult = { ok: boolean; message: string };
@@ -133,7 +135,10 @@ export async function requestPasswordReset(
       });
       return generic;
     }
-    const baseHost = hostOf(config.baseUrl);
+    const baseInfo = {
+      baseHost: hostOf(config.baseUrl),
+      baseUrlSource: config.baseUrlSource,
+    };
 
     let user: { id: string; email: string | null } | null;
     try {
@@ -146,7 +151,7 @@ export async function requestPasswordReset(
         outcome: "lookup_failed",
         token: "not_created",
         certainty: "not_sent",
-        baseHost,
+        ...baseInfo,
         ...describeThrown(error),
       });
       return generic;
@@ -156,7 +161,7 @@ export async function requestPasswordReset(
         outcome: "account_not_found",
         token: "not_created",
         certainty: "not_sent",
-        baseHost,
+        ...baseInfo,
       });
       return generic;
     }
@@ -175,13 +180,13 @@ export async function requestPasswordReset(
         outcome: "token_persist_failed",
         token: "not_created",
         certainty: "not_sent",
-        baseHost,
+        ...baseInfo,
         ...describeThrown(error),
       });
       return generic;
     }
 
-    const resetUrl = `${config.baseUrl}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+    const resetUrl = buildPasswordResetUrl(config.baseUrl, token, email);
     const result = await sendPasswordResetEmail({
       apiKey: config.apiKey,
       from: config.from,
@@ -197,7 +202,7 @@ export async function requestPasswordReset(
           token: "retained",
           httpStatus: result.httpStatus,
           resendMessageId: result.messageId,
-          baseHost,
+          ...baseInfo,
         });
         return generic;
 
@@ -215,7 +220,7 @@ export async function requestPasswordReset(
             outcome: "token_cleanup_failed",
             certainty: "rejected",
             token: disposition,
-            baseHost,
+            ...baseInfo,
             ...describeThrown(error),
           });
         }
@@ -226,7 +231,7 @@ export async function requestPasswordReset(
           httpStatus: result.httpStatus,
           resendErrorName: result.errorName,
           resendErrorMessage: result.errorMessage,
-          baseHost,
+          ...baseInfo,
         });
         return generic;
       }
@@ -242,7 +247,7 @@ export async function requestPasswordReset(
           httpStatus: result.httpStatus,
           resendErrorName: result.errorName,
           resendErrorMessage: result.errorMessage,
-          baseHost,
+          ...baseInfo,
         });
         return generic;
 
@@ -251,7 +256,7 @@ export async function requestPasswordReset(
           outcome: "resend_timeout",
           certainty: "ambiguous",
           token: "retained",
-          baseHost,
+          ...baseInfo,
         });
         return generic;
 
@@ -260,7 +265,7 @@ export async function requestPasswordReset(
           outcome: "resend_network_error",
           certainty: "ambiguous",
           token: "retained",
-          baseHost,
+          ...baseInfo,
           errorName: result.errorName,
           errorCode: result.errorCode,
         });
@@ -281,18 +286,14 @@ export async function resetPassword(
     .toLowerCase();
   const token = String(formData.get("token") ?? "");
   const password = String(formData.get("password") ?? "");
-  if (
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-    !token ||
-    password.length < 8 ||
-    password.length > 72
-  ) {
-    return {
-      ok: false,
-      message:
-        "Enter a valid token and a password between 8 and 72 characters.",
-    };
-  }
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const invalid = validatePasswordResetSubmission({
+    email,
+    token,
+    password,
+    confirmPassword,
+  });
+  if (invalid) return { ok: false, message: invalid };
   try {
     const identifier = passwordResetIdentifier(email);
     const hashedToken = hashPasswordResetToken(token);

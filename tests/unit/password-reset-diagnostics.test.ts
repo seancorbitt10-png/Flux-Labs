@@ -30,6 +30,7 @@ describe("resolveResetEmailConfig", () => {
       apiKey: "re_test_not_a_real_key",
       from: "noreply@fluxlabs.tech",
       baseUrl: "https://fluxlabs.tech",
+      baseUrlSource: "auth_url",
     });
   });
 

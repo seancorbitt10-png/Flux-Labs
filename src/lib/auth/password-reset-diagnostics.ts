@@ -47,6 +47,7 @@ export type PasswordResetLogEntry = {
   rateLimitScope?: "ip" | "email";
   ipKnown?: boolean;
   baseHost?: string;
+  baseUrlSource?: "auth_url" | "nextauth_url" | "vercel_production_url";
   errorName?: string;
   errorCode?: string;
   latencyMs?: number;
@@ -173,6 +174,7 @@ export function logPasswordReset(entry: PasswordResetLogEntry): void {
       rateLimitScope: entry.rateLimitScope,
       ipKnown: entry.ipKnown,
       baseHost: pickBaseHost(entry.baseHost),
+      baseUrlSource: entry.baseUrlSource,
       errorName: entry.errorName,
       errorCode: entry.errorCode,
       latencyMs: entry.latencyMs,
