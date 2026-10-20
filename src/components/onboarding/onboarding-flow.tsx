@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import {
   bootstrapOnboardingAction,
   completeOnboardingAction,
+  saveOnboardingResumeAction,
   submitOnboardingAnswerAction,
 } from "@/lib/onboarding/actions";
+import { SUBJECT_SUGGESTIONS } from "@/lib/onboarding/catalog";
 import {
-  SUBJECT_SUGGESTIONS,
-  type ClientOnboardingQuestion,
-} from "@/lib/onboarding/catalog";
-import {
+  deferResultAllowsNavigation,
+  initialOnboardingViewState,
   isOnboardingDraftReady,
-  persistableDeferDraft,
+  onboardingResumeDraftPayload,
+  viewStateForQuestion,
 } from "@/lib/onboarding/defer-draft";
 import type { OnboardingBootstrap } from "@/lib/onboarding/session";
 
@@ -26,17 +27,16 @@ export function OnboardingFlow({ initial }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [bootstrap, setBootstrap] = useState(initial);
-  const [index, setIndex] = useState(initial.progress.firstUnansweredIndex);
-  const [draft, setDraft] = useState<unknown>(() => {
-    const q = initial.questions[initial.progress.firstUnansweredIndex];
-    const existing = q ? initial.answers[q.questionId] : undefined;
-    if (existing && !existing.skipped) return existing.answer;
-    if (q?.answerType === "string_array") return [];
-    if (q?.answerType === "boolean") return null;
-    return "";
-  });
+  const [index, setIndex] = useState(
+    () => initialOnboardingViewState(initial).index,
+  );
+  const [draft, setDraft] = useState<unknown>(
+    () => initialOnboardingViewState(initial).draft,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState("");
+  const [tagInput, setTagInput] = useState(
+    () => initialOnboardingViewState(initial).tagInput,
+  );
   const [doneView, setDoneView] = useState<"completed" | "dismissed" | null>(
     initial.gate === "completed"
       ? "completed"
@@ -51,29 +51,16 @@ export function OnboardingFlow({ initial }: Props) {
   const stepNumber = Math.min(index + 1, total);
   const progressPct = total === 0 ? 0 : Math.round((stepNumber / total) * 100);
 
-  function loadDraftForIndex(
-    nextIndex: number,
-    answers: OnboardingBootstrap["answers"],
-    qs: ClientOnboardingQuestion[],
-  ) {
-    const q = qs[nextIndex];
-    const existing = q ? answers[q.questionId] : undefined;
-    if (existing && !existing.skipped) {
-      setDraft(existing.answer);
-    } else if (q?.answerType === "string_array") {
-      setDraft([]);
-    } else if (q?.answerType === "boolean") {
-      setDraft(null);
-    } else {
-      setDraft("");
-    }
-    setTagInput("");
-  }
-
   function goTo(nextIndex: number, nextBootstrap = bootstrap) {
-    const clamped = Math.max(0, Math.min(nextIndex, nextBootstrap.questions.length - 1));
-    setIndex(clamped);
-    loadDraftForIndex(clamped, nextBootstrap.answers, nextBootstrap.questions);
+    const view = viewStateForQuestion({
+      index: nextIndex,
+      questions: nextBootstrap.questions,
+      answers: nextBootstrap.answers,
+      resume: nextBootstrap.resume,
+    });
+    setIndex(view.index);
+    setDraft(view.draft);
+    setTagInput(view.tagInput);
     setError(null);
   }
 
@@ -137,26 +124,36 @@ export function OnboardingFlow({ initial }: Props) {
   }
 
   function deferSetup() {
-    // Do not dismiss/complete the session. Persist valid in-progress edits,
-    // then leave so the student can use the app and resume later.
+    // Do not dismiss/complete the session. Persist the exact question cursor
+    // and unfinished draft, then leave so the student can resume later.
     if (!bootstrap.session || !question) {
-      router.push("/home");
+      setError("Setup is still loading. Try again in a moment.");
       return;
     }
     setError(null);
     startTransition(async () => {
-      const toSave = persistableDeferDraft(question, draft, tagInput);
-      if (toSave !== null) {
-        const result = await submitOnboardingAnswerAction({
-          sessionId: bootstrap.session!.id,
-          questionId: question.questionId,
-          skipped: false,
-          answer: toSave,
-        });
-        if (!result.ok) {
-          setError(result.message);
-          return;
-        }
+      let payload: { draft: unknown; tagInput: string };
+      try {
+        payload = onboardingResumeDraftPayload(question, draft, tagInput);
+      } catch {
+        setError("Could not save setup progress. Check this answer and try again.");
+        return;
+      }
+
+      const result = await saveOnboardingResumeAction({
+        sessionId: bootstrap.session!.id,
+        questionId: question.questionId,
+        questionIndex: index,
+        draft: payload.draft,
+        tagInput: payload.tagInput,
+      });
+      if (!deferResultAllowsNavigation(result) || !result.ok) {
+        setError(
+          result.ok
+            ? "Could not save setup progress. Please try again."
+            : result.message,
+        );
+        return;
       }
       router.push("/home");
     });

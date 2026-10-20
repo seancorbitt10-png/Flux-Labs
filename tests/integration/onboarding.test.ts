@@ -13,6 +13,7 @@ import {
   getOnboardingSessionForUser,
   resolveOnboardingGate,
   resolvePostAuthPath,
+  saveOnboardingResumeState,
   startOnboardingSession,
   submitOnboardingAnswer,
 } from "@/lib/onboarding/session";
@@ -495,6 +496,28 @@ describe("Phase 2 Implementation #4 — onboarding + student setup", () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
 
+    await expect(
+      saveOnboardingResumeState({
+        actorUserId: attacker.id,
+        userId: owner.id,
+        sessionId: session.id,
+        questionId: "academic.level",
+        questionIndex: 0,
+        draft: "hs",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    await expect(
+      saveOnboardingResumeState({
+        actorUserId: attacker.id,
+        userId: attacker.id,
+        sessionId: session.id,
+        questionId: "academic.level",
+        questionIndex: 0,
+        draft: "hs",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
     // Cross-session IDOR: attacker cannot use owner's sessionId under own userId
     await expect(
       submitOnboardingAnswer({
@@ -804,5 +827,237 @@ describe("Phase 2 Implementation #4 — onboarding + student setup", () => {
         userId: user.id,
       }),
     ).toBe("/onboarding");
+  });
+
+  it("persists exact resume position and unfinished draft without submitting answers", async () => {
+    const user = await createUser(`resume-draft-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    const catalog = getOnboardingCatalog(ONBOARDING_VERSION);
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.level",
+      answer: "undergrad",
+    });
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.setting",
+      skipped: true,
+    });
+
+    const subjectsIndex = catalog.questions.findIndex(
+      (q) => q.questionId === "academic.subjects",
+    );
+    expect(subjectsIndex).toBeGreaterThan(1);
+
+    const beforeAnswers = await prisma.onboardingAnswer.findMany({
+      where: { sessionId: session.id },
+      orderBy: { questionId: "asc" },
+    });
+
+    const saved = await saveOnboardingResumeState({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.subjects",
+      questionIndex: subjectsIndex,
+      draft: ["Math"],
+      tagInput: "Chemistry",
+    });
+    expect(saved.questionIndex).toBe(subjectsIndex);
+    expect(saved.tagInput).toBe("Chemistry");
+
+    const afterAnswers = await prisma.onboardingAnswer.findMany({
+      where: { sessionId: session.id },
+      orderBy: { questionId: "asc" },
+    });
+    expect(afterAnswers).toHaveLength(beforeAnswers.length);
+    expect(afterAnswers.map((a) => a.questionId).sort()).toEqual(
+      beforeAnswers.map((a) => a.questionId).sort(),
+    );
+    expect(
+      afterAnswers.find((a) => a.questionId === "academic.subjects"),
+    ).toBeUndefined();
+
+    const persisted = await prisma.onboardingSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    expect(persisted.status).toBe("IN_PROGRESS");
+    expect(persisted.completedAt).toBeNull();
+
+    const profile = await prisma.studentProfile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(profile.onboardingCompletedAt).toBeNull();
+    expect(profile.onboardingSkippedAt).toBeNull();
+
+    const bootstrap = await getOnboardingBootstrap({
+      actorUserId: user.id,
+      userId: user.id,
+      ensureSession: true,
+    });
+    expect(bootstrap.resume).toEqual({
+      questionIndex: subjectsIndex,
+      questionId: "academic.subjects",
+      draft: ["Math"],
+      tagInput: "Chemistry",
+    });
+    expect(bootstrap.progress.firstUnansweredIndex).not.toBe(subjectsIndex);
+    expect(bootstrap.answers["academic.level"]?.answer).toBe("undergrad");
+  });
+
+  it("resumes a backward cursor even when later questions are already answered", async () => {
+    const user = await createUser(`back-cursor-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.level",
+      answer: "hs",
+    });
+    await submitOnboardingAnswer({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.setting",
+      answer: "high_school",
+    });
+
+    await saveOnboardingResumeState({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.level",
+      questionIndex: 0,
+      draft: "undergrad",
+    });
+
+    const bootstrap = await getOnboardingBootstrap({
+      actorUserId: user.id,
+      userId: user.id,
+      ensureSession: true,
+    });
+    expect(bootstrap.resume?.questionIndex).toBe(0);
+    expect(bootstrap.resume?.draft).toBe("undergrad");
+    expect(bootstrap.progress.firstUnansweredIndex).toBeGreaterThan(0);
+    expect(bootstrap.answers["academic.level"]?.answer).toBe("hs");
+    expect(bootstrap.answers["academic.setting"]?.answer).toBe("high_school");
+  });
+
+  it("rejects invalid, stale, and completed sessions for resume saves", async () => {
+    const user = await createUser(`stale-resume-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+
+    await expect(
+      saveOnboardingResumeState({
+        actorUserId: user.id,
+        userId: user.id,
+        sessionId: session.id,
+        questionId: "academic.level",
+        questionIndex: 3,
+        draft: "hs",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    await expect(
+      saveOnboardingResumeState({
+        actorUserId: user.id,
+        userId: user.id,
+        sessionId: session.id,
+        questionId: "unknown.question",
+        questionIndex: 0,
+        draft: "hs",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    await completeOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    await expect(
+      saveOnboardingResumeState({
+        actorUserId: user.id,
+        userId: user.id,
+        sessionId: session.id,
+        questionId: "academic.level",
+        questionIndex: 0,
+        draft: "hs",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const completed = await prisma.onboardingSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    expect(completed.resumeQuestionIndex).toBeNull();
+    expect(completed.resumeQuestionId).toBeNull();
+    expect(completed.resumeDraftJson).toBeNull();
+  });
+
+  it("completes setup only through Finish setup, not defer", async () => {
+    const user = await createUser(`finish-only-${Date.now()}`);
+    const session = await startOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+    });
+    await saveOnboardingResumeState({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+      questionId: "academic.level",
+      questionIndex: 0,
+      draft: "hs",
+    });
+
+    const deferred = await prisma.onboardingSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    expect(deferred.status).toBe("IN_PROGRESS");
+
+    const profileAfterDefer = await prisma.studentProfile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(profileAfterDefer.onboardingCompletedAt).toBeNull();
+    expect(profileAfterDefer.onboardingSkippedAt).toBeNull();
+
+    await completeOnboardingSession({
+      actorUserId: user.id,
+      userId: user.id,
+      sessionId: session.id,
+    });
+    const completed = await prisma.onboardingSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    expect(completed.status).toBe("COMPLETED");
+    const profile = await prisma.studentProfile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(profile.onboardingCompletedAt).not.toBeNull();
+  });
+
+  it("leaves never-started setup without a resume cursor", async () => {
+    const user = await createUser(`fresh-${Date.now()}`);
+    const bootstrap = await getOnboardingBootstrap({
+      actorUserId: user.id,
+      userId: user.id,
+      ensureSession: true,
+    });
+    expect(bootstrap.resume).toBeNull();
+    expect(bootstrap.progress.firstUnansweredIndex).toBe(0);
+    expect(bootstrap.gate).toBe("in_progress");
   });
 });

@@ -8,9 +8,11 @@ import {
   completeOnboardingSession,
   dismissOnboardingSession,
   getOnboardingBootstrap,
+  saveOnboardingResumeState,
   submitOnboardingAnswer,
   type OnboardingBootstrap,
 } from "./session";
+import type { OnboardingResumeState } from "./defer-draft";
 import { assertNoClientOnboardingAuthority } from "./client-guards";
 
 export type OnboardingActionResult<T = unknown> =
@@ -96,6 +98,50 @@ export async function submitOnboardingAnswerAction(
         answer: saved.skipped ? null : (saved.answerJson ?? null),
       },
     };
+  } catch (error) {
+    const client = toClientError(error);
+    return { ok: false, message: client.message };
+  }
+}
+
+const resumeSchema = z
+  .object({
+    sessionId: z.string().trim().min(1).max(64),
+    questionId: z.string().trim().min(1).max(120),
+    questionIndex: z.number().int().min(0).max(200),
+    draft: z.unknown(),
+    tagInput: z.string().max(80).optional(),
+  })
+  .strict();
+
+export async function saveOnboardingResumeAction(
+  raw: Record<string, unknown>,
+): Promise<OnboardingActionResult<OnboardingResumeState>> {
+  try {
+    const userId = await requireUserId();
+    assertRateLimit(`onboarding:defer:${userId}`, {
+      limit: 60,
+      windowMs: 60_000,
+    });
+
+    assertNoClientOnboardingAuthority(raw);
+
+    const parsed = resumeSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { ok: false, message: "Could not save setup progress." };
+    }
+
+    const data = await saveOnboardingResumeState({
+      actorUserId: userId,
+      userId,
+      sessionId: parsed.data.sessionId,
+      questionId: parsed.data.questionId,
+      questionIndex: parsed.data.questionIndex,
+      draft: parsed.data.draft,
+      tagInput: parsed.data.tagInput,
+    });
+
+    return { ok: true, data };
   } catch (error) {
     const client = toClientError(error);
     return { ok: false, message: client.message };

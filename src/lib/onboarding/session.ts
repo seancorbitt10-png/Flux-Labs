@@ -14,6 +14,10 @@ import {
   updateStudentProfile,
 } from "@/lib/student/profile";
 import {
+  validateOnboardingResumeDraft,
+  type OnboardingResumeState,
+} from "./defer-draft";
+import {
   getClientOnboardingCatalog,
   getOnboardingCatalog,
   getOnboardingQuestion,
@@ -54,6 +58,8 @@ export type OnboardingBootstrap = {
     remaining: number;
     firstUnansweredIndex: number;
   };
+  /** Durable defer cursor + unfinished draft. Null for never-deferred sessions. */
+  resume: OnboardingResumeState | null;
 };
 
 export async function startOnboardingSession(args: {
@@ -153,6 +159,48 @@ function buildAnswerMap(
   return map;
 }
 
+function parseStoredResume(
+  session: OnboardingSession | null | undefined,
+  questions: readonly ClientOnboardingQuestion[],
+): OnboardingResumeState | null {
+  if (!session) return null;
+  if (session.version !== ONBOARDING_VERSION) return null;
+  if (
+    session.resumeQuestionIndex == null ||
+    session.resumeQuestionId == null ||
+    session.resumeDraftJson == null
+  ) {
+    return null;
+  }
+
+  const index = session.resumeQuestionIndex;
+  const question = questions[index];
+  if (!question || question.questionId !== session.resumeQuestionId) {
+    return null;
+  }
+
+  const raw = session.resumeDraftJson;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const bag = raw as Record<string, unknown>;
+  try {
+    const validated = validateOnboardingResumeDraft(
+      question,
+      bag.draft,
+      bag.tagInput ?? "",
+    );
+    return {
+      questionIndex: index,
+      questionId: question.questionId,
+      draft: validated.draft,
+      tagInput: validated.tagInput,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function buildProgress(
   questions: readonly { questionId: string }[],
   answerMap: OnboardingBootstrap["answers"],
@@ -199,6 +247,7 @@ export async function getOnboardingBootstrap(args: {
 
   const answerMap = buildAnswerMap(session?.answers ?? []);
   const progress = buildProgress(catalog.questions, answerMap);
+  const resume = parseStoredResume(session, catalog.questions);
 
   return {
     gate: effectiveGate,
@@ -215,6 +264,110 @@ export async function getOnboardingBootstrap(args: {
     questions: catalog.questions,
     answers: answerMap,
     progress,
+    resume,
+  };
+}
+
+const RESUME_CLEAR = {
+  resumeQuestionIndex: null,
+  resumeQuestionId: null,
+  resumeDraftJson: Prisma.DbNull,
+} as const;
+
+async function clearResumeIfQuestionMatches(
+  db: Prisma.TransactionClient | typeof prisma,
+  session: OnboardingSession,
+  questionId: string,
+): Promise<void> {
+  if (session.resumeQuestionId !== questionId) return;
+  await db.onboardingSession.updateMany({
+    where: {
+      id: session.id,
+      userId: session.userId,
+      status: "IN_PROGRESS",
+    },
+    data: { ...RESUME_CLEAR },
+  });
+}
+
+export async function saveOnboardingResumeState(args: {
+  actorUserId: string;
+  userId: string;
+  sessionId: string;
+  questionId: string;
+  questionIndex: number;
+  draft: unknown;
+  tagInput?: string;
+}): Promise<OnboardingResumeState> {
+  assertResourceOwner(args.userId, args.actorUserId);
+
+  const session = await getOnboardingSessionForUser({
+    actorUserId: args.actorUserId,
+    userId: args.userId,
+    sessionId: args.sessionId,
+  });
+
+  if (session.status !== "IN_PROGRESS") {
+    throw new ValidationError("Onboarding session is not in progress.");
+  }
+
+  if (session.version !== ONBOARDING_VERSION) {
+    throw new ValidationError(
+      "This onboarding session uses an unsupported catalog version.",
+    );
+  }
+
+  const catalog = getClientOnboardingCatalog(session.version);
+  if (
+    !Number.isInteger(args.questionIndex) ||
+    args.questionIndex < 0 ||
+    args.questionIndex >= catalog.questions.length
+  ) {
+    throw new ValidationError("Invalid setup question position.");
+  }
+
+  const question = catalog.questions[args.questionIndex];
+  if (!question || question.questionId !== args.questionId) {
+    throw new ValidationError("Setup question does not match the catalog.");
+  }
+
+  // Confirm the ID is in the authoritative catalog (rejects unknown IDs).
+  getOnboardingQuestion(args.questionId, session.version);
+
+  const validated = validateOnboardingResumeDraft(
+    question,
+    args.draft,
+    args.tagInput ?? "",
+  );
+
+  const updated = await prisma.onboardingSession.updateMany({
+    where: {
+      id: session.id,
+      userId: args.userId,
+      status: "IN_PROGRESS",
+      version: ONBOARDING_VERSION,
+    },
+    data: {
+      resumeQuestionIndex: args.questionIndex,
+      resumeQuestionId: question.questionId,
+      resumeDraftJson: {
+        draft: validated.draft as Prisma.InputJsonValue,
+        tagInput: validated.tagInput,
+      },
+    },
+  });
+
+  if (updated.count !== 1) {
+    throw new ValidationError(
+      "Could not save setup progress. The session is no longer active.",
+    );
+  }
+
+  return {
+    questionIndex: args.questionIndex,
+    questionId: question.questionId,
+    draft: validated.draft,
+    tagInput: validated.tagInput,
   };
 }
 
@@ -363,7 +516,7 @@ export async function submitOnboardingAnswer(args: {
 
   // Answer-only / skipped: OnboardingAnswer only — no Student Model mutation.
   if (!requiresStudentModelMapping) {
-    return prisma.onboardingAnswer.upsert({
+    const answer = await prisma.onboardingAnswer.upsert({
       where: {
         sessionId_questionId: {
           sessionId: session.id,
@@ -383,6 +536,8 @@ export async function submitOnboardingAnswer(args: {
             : (validated as Prisma.InputJsonValue),
       },
     });
+    await clearResumeIfQuestionMatches(prisma, session, question.questionId);
+    return answer;
   }
 
   // Mapped answers: OnboardingAnswer + authorized Student Model write are atomic.
@@ -415,6 +570,8 @@ export async function submitOnboardingAnswer(args: {
       db: tx,
     });
 
+    await clearResumeIfQuestionMatches(tx, session, question.questionId);
+
     return answer;
   });
 }
@@ -436,6 +593,7 @@ export async function completeOnboardingSession(args: {
     data: {
       status: "COMPLETED",
       completedAt: new Date(),
+      ...RESUME_CLEAR,
     },
     include: { answers: true },
   });
@@ -480,6 +638,7 @@ export async function dismissOnboardingSession(args: {
     data: {
       status: "DISMISSED",
       completedAt: new Date(),
+      ...RESUME_CLEAR,
     },
     include: { answers: true },
   });
