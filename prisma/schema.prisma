@@ -243,6 +243,14 @@ model OnboardingSession {
   startedAt   DateTime @default(now())
   completedAt DateTime?
 
+  /// Exact catalog index last deferred ("Set up later"). Null until first defer.
+  resumeQuestionIndex Int?
+  /// Catalog questionId at that index; must match versioned catalog on save/load.
+  resumeQuestionId    String?
+  /// Unfinished UI draft only — never an OnboardingAnswer / Student Model write.
+  /// Shape: { draft: unknown, tagInput: string }
+  resumeDraftJson     Json?
+
   answers OnboardingAnswer[]
 
   createdAt DateTime @default(now())

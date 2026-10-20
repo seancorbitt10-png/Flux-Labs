@@ -19,6 +19,7 @@ export {
   startOnboardingSession,
   getOnboardingSessionForUser,
   submitOnboardingAnswer,
+  saveOnboardingResumeState,
   completeOnboardingSession,
   dismissOnboardingSession,
   getOnboardingBootstrap,
