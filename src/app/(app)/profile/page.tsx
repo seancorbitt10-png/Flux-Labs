@@ -9,7 +9,7 @@ export default async function ProfilePage() {
   const [user, profile] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, createdAt: true },
+      select: { name: true, email: true },
     }),
     prisma.studentProfile.findUnique({ where: { userId } }),
   ]);
